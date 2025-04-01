@@ -69,7 +69,21 @@ export async function POST(request: Request) {
     let prusaLinkPyResult = null;
     
     try {
-      prusaLinkPyResult = await prusaLinkBridge.testConnection(printerIp, printer.apiKey);
+      // Add explicit timeout for PrusaLinkPy requests
+      const prusaLinkPyPromise = prusaLinkBridge.testConnection(printerIp, printer.apiKey);
+      
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('PrusaLinkPy request timed out')), 8000);
+      });
+      
+      // Race the actual request against the timeout
+      prusaLinkPyResult = await Promise.race([prusaLinkPyPromise, timeoutPromise])
+        .catch(error => {
+          console.error(`PrusaLinkPy request timed out for ${printerIp}`);
+          return { success: false, message: 'Request timed out', error: 'Timeout' };
+        });
+        
       console.log("[DEBUG] PrusaLinkPy test result:", prusaLinkPyResult);
     } catch (error) {
       console.error("[DEBUG] PrusaLinkPy test error:", error);

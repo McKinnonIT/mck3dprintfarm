@@ -142,16 +142,29 @@ export async function POST(request: Request) {
           throw new Error("API key is required for PrusaLink printers");
         }
         
-        // Use prusaLinkBridge.uploadAndPrint which handles both upload and print
-        console.log(`[DEBUG] Uploading file to PrusaLink at ${printerIp}`);
+        // Add explicit timeout for PrusaLinkPy requests
+        const prusaLinkPyPromise = prusaLinkBridge.uploadAndPrint(
+          printerIp,
+          printer.apiKey,
+          filePath,
+          file.name,
+          printNow // Use the printNow parameter
+        );
+        
+        // Create a timeout promise
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('PrusaLinkPy request timed out')), 30000); // Longer timeout for file uploads
+        });
+        
+        // Race the actual request against the timeout
+        const uploadResultPromise = Promise.race([prusaLinkPyPromise, timeoutPromise])
+          .catch(error => {
+            console.error(`PrusaLinkPy upload request timed out for ${printer.name}`);
+            return { success: false, message: 'Upload request timed out', error: 'Timeout' };
+          });
+        
         try {
-          uploadResult = await prusaLinkBridge.uploadAndPrint(
-            printerIp,
-            printer.apiKey,
-            filePath,
-            file.name,
-            printNow
-          );
+          uploadResult = await uploadResultPromise;
           
           console.log(`[DEBUG] PrusaLinkPy bridge result:`, uploadResult);
           

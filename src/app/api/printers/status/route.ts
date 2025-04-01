@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 const prusaLinkBridge = require("@/lib/prusalink-bridge");
 
+// Keep track of offline PrusaLink printers with a backoff mechanism
+const offlinePrusaLinkPrinters = new Map<string, { until: Date }>();
+const OFFLINE_BACKOFF_TIME_MS = 2 * 60 * 1000; // 2 minutes backoff
+
 // Add state mapping for Moonraker
 const mapMoonrakerState = (state: string): string => {
   switch (state.toLowerCase()) {
@@ -44,12 +48,24 @@ const mapPrusaLinkState = (state: string): string => {
   }
 };
 
+// Add utility function at the top of the file
+function isTimeoutError(error: any): boolean {
+  return error && (
+    error.name === 'AbortError' || 
+    error.message?.includes('timeout') || 
+    error.message?.includes('aborted') ||
+    error instanceof DOMException && error.name === 'AbortError' ||
+    error.code === 'ETIMEDOUT'
+  );
+}
+
 export async function GET() {
   try {
     const printers = await prisma.printer.findMany();
+    const currentTime = new Date();
     
-    // Update status for each printer
-    for (const printer of printers) {
+    // Update status for each printer in parallel
+    const printerUpdatePromises = printers.map(async (printer) => {
       try {
         let operationalStatus = "offline";
         let printStartTime: Date | undefined = undefined;
@@ -133,6 +149,12 @@ export async function GET() {
               }
             } catch (error) {
               console.log(`Failed to get printer objects for ${printer.name}: ${error.message}`);
+              
+              // Log explicitly if this was a timeout error  
+              if (isTimeoutError(error)) {
+                console.error(`TIMEOUT detected when connecting to Moonraker printer ${printer.name}. This could be caused by other slow requests.`);
+              }
+              
               operationalStatus = "offline";
               clearTimeout(timeoutId);
             }
@@ -148,13 +170,49 @@ export async function GET() {
             const printerIp = printer.apiUrl.replace(/^https?:\/\//, '').split(':')[0];
             console.log(`Extracted IP address for PrusaLink printer ${printer.name}: ${printerIp}`);
             
+            // Check if this printer is in our offline backoff list
+            const backoffInfo = offlinePrusaLinkPrinters.get(printer.id);
+            if (backoffInfo && backoffInfo.until > currentTime) {
+              console.log(`Skipping PrusaLink printer ${printer.name} - in backoff period until ${backoffInfo.until.toISOString()}`);
+              operationalStatus = "offline";
+              // Continue with the next printer
+              return {
+                id: printer.id,
+                updateData: {
+                  operationalStatus: "offline",
+                  lastSeen: new Date(),
+                  bedTemp: null,
+                  toolTemp: null,
+                }
+              };
+            } else if (backoffInfo) {
+              // Backoff period expired, remove from backoff list
+              console.log(`Backoff period expired for ${printer.name}, attempting to connect again`);
+              offlinePrusaLinkPrinters.delete(printer.id);
+            }
+            
             // Declare useFallbackHttp variable
             let useFallbackHttp = false;
             
             // Use prusaLinkPy bridge for more reliable status info
             try {
               console.log(`Using PrusaLinkPy bridge to get status for ${printer.name}`);
-              const jobStatusResult = await prusaLinkBridge.getJobStatus(printerIp, printer.apiKey);
+              
+              // Add explicit timeout for PrusaLinkPy requests
+              const prusaLinkPyPromise = prusaLinkBridge.getJobStatus(printerIp, printer.apiKey);
+              
+              // Create a timeout promise
+              const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('PrusaLinkPy request timed out')), 8000);
+              });
+              
+              // Race the actual request against the timeout
+              const jobStatusResult = await Promise.race([prusaLinkPyPromise, timeoutPromise])
+                .catch(error => {
+                  console.error(`PrusaLinkPy request timed out for ${printer.name}`);
+                  return { success: false, message: 'Request timed out', error: 'Timeout' };
+                });
+                
               console.log(`PrusaLinkPy job status result for ${printer.name}:`, JSON.stringify(jobStatusResult));
               
               if (jobStatusResult.success) {
@@ -338,10 +396,16 @@ export async function GET() {
           } catch (error) {
             console.error(`Cannot connect to PrusaLink printer ${printer.name}:`, error);
             operationalStatus = "offline";
+            
+            // Add to backoff list
+            offlinePrusaLinkPrinters.set(printer.id, {
+              until: new Date(currentTime.getTime() + OFFLINE_BACKOFF_TIME_MS)
+            });
+            console.log(`Added ${printer.name} to PrusaLink backoff list until ${new Date(currentTime.getTime() + OFFLINE_BACKOFF_TIME_MS).toISOString()}`);
           }
         }
 
-        // Update printer in database
+        // Create a printer update object
         const updateData: any = {
           operationalStatus,
           lastSeen: new Date(),
@@ -364,27 +428,39 @@ export async function GET() {
           toolTemp
         }));
 
-        await prisma.printer.update({
-          where: { id: printer.id },
-          data: updateData,
-        });
-        
-        console.log(`Updated status for ${printer.name}: ${operationalStatus} (Bed: ${bedTemp}°C, Tool: ${toolTemp}°C)`);
+        // Return the update information
+        return { 
+          id: printer.id,
+          updateData
+        };
       } catch (error) {
         console.error(`Failed to update status for ${printer.name}:`, error);
-        // Update printer as offline in database
-        await prisma.printer.update({
-          where: { id: printer.id },
-          data: {
+        // Return offline status update
+        return {
+          id: printer.id,
+          updateData: {
             operationalStatus: "offline",
             lastSeen: new Date(),
             bedTemp: null,
             toolTemp: null,
-          },
-        });
+          }
+        };
       }
+    });
+    
+    // Wait for all printer updates to complete
+    const printerUpdates = await Promise.all(printerUpdatePromises);
+    
+    // Apply updates to database - we do this sequentially to avoid database connection issues
+    for (const update of printerUpdates) {
+      await prisma.printer.update({
+        where: { id: update.id },
+        data: update.updateData,
+      });
+      
+      console.log(`Updated status for printer ID ${update.id}: ${update.updateData.operationalStatus}`);
     }
-
+    
     // Fetch updated printers
     const updatedPrinters = await prisma.printer.findMany();
     

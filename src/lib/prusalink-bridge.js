@@ -93,7 +93,16 @@ async function uploadAndPrint(printerIp, apiKey, filePath, remoteName = '', prin
     const pythonScript = `
 import sys
 import traceback
+import socket
+import json
 try:
+    # Set a shorter socket timeout to handle offline printers quickly
+    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+    
+    # Also import urllib3 and set a shorter timeout there too
+    import urllib3
+    urllib3.Timeout.DEFAULT_TIMEOUT = 3
+    
     import PrusaLinkPy
 except ImportError:
     print(json.dumps({
@@ -111,8 +120,8 @@ try:
     print(f"DEBUG: File path: {repr('${filePath.replace(/\\/g, '\\\\')}')}", file=sys.stderr)
     print(f"DEBUG: Remote path: {repr('${remoteName}')}", file=sys.stderr)
     
-    # Connect to printer
-    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}")
+    # Connect to printer with shorter timeout
+    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}", timeout=3)
     
     # Check if connection works
     print(f"DEBUG: Testing connection with get_version()", file=sys.stderr)
@@ -297,7 +306,16 @@ async function testConnection(printerIp, apiKey) {
     const pythonScript = `
 import sys
 import traceback
+import socket
+import json
 try:
+    # Set a shorter socket timeout to handle offline printers quickly
+    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+    
+    # Also import urllib3 and set a shorter timeout there too
+    import urllib3
+    urllib3.Timeout.DEFAULT_TIMEOUT = 3
+    
     import PrusaLinkPy
 except ImportError:
     print(json.dumps({
@@ -308,12 +326,13 @@ except ImportError:
     sys.exit(1)
 
 import json
+import os
 
 try:
     print(f"DEBUG: Starting connection test to printer at {repr('${printerIp}')} with API key {repr('${apiKey}'[:4] + '****')}", file=sys.stderr)
     
-    # Connect to printer
-    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}")
+    # Connect to printer with shorter timeout
+    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}", timeout=3)
     
     # Test printer connection
     print(f"DEBUG: Testing connection with get_version()", file=sys.stderr)
@@ -453,10 +472,17 @@ async function getJobStatus(printerIp, apiKey) {
     const pythonScript = `
 import sys
 import traceback
+import socket
 import json
 from datetime import datetime
-
 try:
+    # Set a shorter socket timeout to handle offline printers quickly
+    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+    
+    # Also import urllib3 and set a shorter timeout there too
+    import urllib3
+    urllib3.Timeout.DEFAULT_TIMEOUT = 3
+    
     import PrusaLinkPy
 except ImportError:
     print(json.dumps({
@@ -466,11 +492,14 @@ except ImportError:
     }))
     sys.exit(1)
 
+import json
+import os
+
 try:
     print(f"DEBUG: Starting connection to printer at {repr('${printerIp}')} with API key {repr('${apiKey}'[:4] + '****')}", file=sys.stderr)
     
-    # Connect to printer
-    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}")
+    # Connect to printer with shorter timeout
+    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}", timeout=3)
     
     # Get printer info
     printer_info = printer.get_printer()

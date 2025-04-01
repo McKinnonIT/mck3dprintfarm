@@ -48,7 +48,7 @@ export default function HomePage() {
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [refreshInterval, setRefreshInterval] = useState<number>(60000); // Default to 1m
+  const [refreshInterval, setRefreshInterval] = useState<number>(120000); // Default to 2m
   const [timestamp, setTimestamp] = useState<number>(Date.now());
   const [activeWebcam, setActiveWebcam] = useState<{printerId: string, printerName: string, webcamUrl: string} | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);

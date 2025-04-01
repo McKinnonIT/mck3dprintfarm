@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  kiri-moto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - KIRI_SIMPLE_UI=true
+      - KIRI_NO_ANALYTICS=true
+      - KIRI_ALLOW_ORIGIN=http://localhost:3000
+      - KIRI_CLI=true
+      - KIRI_DEBUG=true
+      - KIRI_LOG_LEVEL=debug
+      - NODE_ENV=production
+      - KIRI_API=true
+      - KIRI_ALLOW_UPLOAD=true
+      - KIRI_UPLOAD_DIR=/app/uploads
+      - KIRI_WS=true
+      - KIRI_WS_ORIGIN=http://localhost:3000
+      - KIRI_CORS=true
+      - KIRI_ALLOW_EMBED=true
+      - KIRI_FRAME_ANCESTORS=http://localhost:3000
+      - KIRI_CLI_API=true
+      - KIRI_CLI_ENABLED=true
+      - KIRI_HEADERS={"Access-Control-Allow-Origin":"http://localhost:3000","Access-Control-Allow-Methods":"GET,POST,OPTIONS","Access-Control-Allow-Headers":"Content-Type,Authorization","Content-Security-Policy":"frame-ancestors 'self' http://localhost:3000","X-Frame-Options":"ALLOW-FROM http://localhost:3000"}
+    volumes:
+      - ../../uploads:/app/uploads
+    restart: unless-stopped 

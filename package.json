@@ -1,0 +1,42 @@
+{
+  "name": "stl-preview-slice",
+  "version": "1.0.0",
+  "description": "STL preview and slice test application",
+  "main": "server.js",
+  "scripts": {
+    "dev": "NODE_TLS_REJECT_UNAUTHORIZED=0 next dev --experimental-https --experimental-https-key ./certificates/localhost-key.pem --experimental-https-cert ./certificates/localhost.pem",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.1.1",
+    "@prisma/client": "^6.5.0",
+    "@types/bcryptjs": "^2.4.6",
+    "autoprefixer": "^10.4.17",
+    "axios": "^1.8.4",
+    "bcryptjs": "^3.0.2",
+    "clsx": "^2.1.1",
+    "cors": "^2.8.5",
+    "cross-fetch": "^4.1.0",
+    "express": "^4.17.1",
+    "form-data": "^4.0.2",
+    "multer": "^1.4.2",
+    "next": "^14.1.0",
+    "next-auth": "^4.24.5",
+    "node-fetch": "^2.7.0",
+    "postcss": "^8.4.35",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwind-merge": "^3.0.2",
+    "tailwindcss": "^3.4.1"
+  },
+  "devDependencies": {
+    "@types/form-data": "^2.2.1",
+    "@types/node": "^20.11.16",
+    "@types/node-fetch": "^2.6.12",
+    "@types/react": "^18.2.55",
+    "prisma": "^6.5.0",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Print Farm - GCODE Viewer</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        #container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        #viewer {
+            flex-grow: 1;
+            border: none;
+            width: 100%;
+            height: calc(100% - 40px);
+        }
+        #toolbar {
+            height: 40px;
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+        }
+        #toolbar button {
+            margin-right: 10px;
+            padding: 5px 10px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #toolbar button:hover {
+            background: #0055aa;
+        }
+        #toolbar span {
+            margin-left: auto;
+            font-size: 14px;
+            color: #666;
+        }
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="toolbar">
+            <button id="resetView">Reset View</button>
+            <button id="toggleGrid">Toggle Grid</button>
+            <button id="switchViewer" style="display: none;">Switch Viewer</button>
+            <span id="fileName">No file loaded</span>
+        </div>
+        <iframe id="viewer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"></iframe>
+    </div>
+    <div id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <script>
+        // Configuration
+        const LOCAL_KIRI_URL = 'http://localhost:8080/kiri';
+        const REMOTE_KIRI_URL = 'https://grid.space/kiri';
+        // Default to remote initially but check local availability
+        let KIRI_BASE_URL = REMOTE_KIRI_URL;
+        
+        // Log initial config
+        console.log('Kiri:Moto Viewer starting...');
+        console.log('Local URL:', LOCAL_KIRI_URL);
+        console.log('Remote URL:', REMOTE_KIRI_URL);
+        
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const fileUrl = urlParams.get('url');
+        const fileName = urlParams.get('name') || 'File';
+        const fileId = urlParams.get('id') || '';
+        const fileType = urlParams.get('type') || '';
+        const directLoadUrl = urlParams.get('load'); // Direct load URL parameter
+        const viewFileParam = urlParams.get('view-file');
+        
+        // More verbose logging of all parameters
+        console.log('URL Parameters:', {
+            fileUrl,
+            fileName,
+            fileId,
+            fileType,
+            directLoadUrl,
+            viewFileParam,
+            window_location: window.location.href,
+            window_origin: window.location.origin
+        });
+        
+        // Check if kiri_base parameter is provided
+        const kiriBaseParam = urlParams.get('kiri_base');
+        if (kiriBaseParam) {
+            console.log('Using provided Kiri:Moto base URL:', kiriBaseParam);
+            KIRI_BASE_URL = kiriBaseParam;
+        } else {
+            // Only perform the check if kiri_base wasn't explicitly provided
+            console.log('No kiri_base parameter provided, checking local availability...');
+            checkLocalKiriMoto();
+        }
+        
+        // Function to check if local Kiri:Moto is available
+        async function checkLocalKiriMoto() {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1000);
+                
+                console.log('Attempting to fetch local Kiri:Moto at:', LOCAL_KIRI_URL);
+                const response = await fetch(LOCAL_KIRI_URL, { 
+                    method: 'HEAD',
+                    signal: controller.signal,
+                    // Skip cache to ensure fresh result
+                    cache: 'no-cache'
+                });
+                
+                clearTimeout(timeoutId);
+                
+                console.log('Local Kiri:Moto response:', response.status, response.statusText);
+                
+                if (response.ok) {
+                    console.log('Local Kiri:Moto is available at:', LOCAL_KIRI_URL);
+                    KIRI_BASE_URL = LOCAL_KIRI_URL;
+                    return true;
+                }
+            } catch (error) {
+                console.warn('Local Kiri:Moto is not available:', error.message);
+            }
+            console.log('Falling back to remote Kiri:Moto at:', REMOTE_KIRI_URL);
+            KIRI_BASE_URL = REMOTE_KIRI_URL;
+            return false;
+        }
+        
+        // Helper to get the correct Kiri:Moto URL
+        function getKiriUrl(urlParams) {
+            const url = `${KIRI_BASE_URL}/${urlParams}`;
+            console.log('Generated Kiri:Moto URL:', url);
+            return url;
+        }
+        
+        // Set up the viewer
+        const viewer = document.getElementById('viewer');
+        const loading = document.getElementById('loading');
+        const fileNameDisplay = document.getElementById('fileName');
+        
+        // Update filename in toolbar
+        fileNameDisplay.textContent = fileName;
+
+        // Add debug info
+        console.log('Viewer parameters:', {
+            fileUrl,
+            fileName,
+            fileId,
+            fileType,
+            directLoadUrl,
+            kiriBaseParam
+        });
+
+        // If we have a direct load URL, use it immediately
+        if (directLoadUrl) {
+            console.log('Using direct load URL:', directLoadUrl);
+            
+            // Detect file type from URL or explicit type
+            const isGcode = directLoadUrl.toLowerCase().endsWith('.gcode') || 
+                           fileName.toLowerCase().endsWith('.gcode') || 
+                           fileType === 'gcode';
+            const isStl = directLoadUrl.toLowerCase().endsWith('.stl') || 
+                         fileName.toLowerCase().endsWith('.stl') || 
+                         fileType === 'stl';
+            
+            // Show loading message
+            loading.innerHTML = '<div class="spinner"></div><div style="margin-top: 10px;">Loading 3D viewer...</div>';
+            
+            // First check if local Kiri:Moto is available
+            checkLocalKiriMoto().then(() => {
+                // Load Kiri:Moto with the direct load parameter
+                viewer.src = getKiriUrl(`?load=${encodeURIComponent(directLoadUrl)}&mode=FDM&view=arrange&platform=bed`);
+                
+                // Set a timeout to fall back to alternative viewer if loading fails
+                setTimeout(() => {
+                    if (!window.loadedSuccessfully) {
+                        console.warn('Kiri:Moto loading timeout, using alternative viewer');
+                        
+                        // Choose appropriate alternative viewer based on file type
+                        if (isStl) {
+                            loadAlternativeStlViewer(directLoadUrl);
+                        } else if (isGcode) {
+                            const fallbackUrl = `https://ncviewer.com/?url=${encodeURIComponent(directLoadUrl)}`;
+                            viewer.src = fallbackUrl;
+                        } else {
+                            loading.innerHTML = '<div>Unsupported file format or loading failed</div>';
+                        }
+                    }
+                }, 10000);
+            });
+            
+            return; // Skip the rest of the initialization
+        }
+
+        if (fileUrl) {
+            // Determine if it's a GCODE or STL file - check URL, filename and explicit type
+            const isGcode = fileUrl.toLowerCase().endsWith('.gcode') || 
+                           fileName.toLowerCase().endsWith('.gcode') || 
+                           fileType === 'gcode';
+            const isStl = fileUrl.toLowerCase().endsWith('.stl') || 
+                         fileName.toLowerCase().endsWith('.stl') || 
+                         fileType === 'stl';
+            
+            // First check if local Kiri:Moto is available
+            checkLocalKiriMoto().then(() => {
+                if (isGcode) {
+                    // If we have a file ID, use our API endpoint
+                    let srcUrl;
+                    if (fileId) {
+                        // Don't use getApiGcodeUrl function, build URL directly here
+                        const baseUrl = `${window.location.protocol}//${window.location.host}`;
+                        srcUrl = `${baseUrl}/api/files/gcode/${encodeURIComponent(fileId)}`;
+                        console.log('Using API URL with file ID:', srcUrl);
+                    } else {
+                        // Otherwise use the provided URL
+                        srcUrl = getAbsoluteUrl(fileUrl);
+                        console.log('Using direct file URL:', srcUrl);
+                    }
+                    
+                    // Store GCODE info in window for access by message handlers
+                    window.gcodeUrl = srcUrl;
+                    window.fileName = fileName;
+                    
+                    // Show loading while we're fetching the file
+                    loading.innerHTML = '<div class="spinner"></div><div style="margin-top: 10px;">Fetching GCODE...</div>';
+                    
+                    // First fetch the GCODE file directly
+                    fetchGcodeFile(srcUrl)
+                        .then(gcodeContent => {
+                            // Store the GCODE content for later use with the iframe API
+                            window.gcodeContent = gcodeContent;
+                            
+                            // Load Kiri:Moto with minimal parameters
+                            console.log('Loading Kiri:Moto without GCODE content');
+                            viewer.src = getKiriUrl('?mode=FDM&view=arrange&platform=bed');
+                            
+                            // Hide loading message after iframe loads
+                            loading.style.display = 'none';
+                            
+                            // Setup download link for full file
+                            const downloadLink = document.createElement('a');
+                            downloadLink.href = srcUrl;
+                            downloadLink.textContent = 'Download Full GCODE File';
+                            downloadLink.target = '_blank';
+                            downloadLink.style.display = 'block';
+                            downloadLink.style.position = 'absolute';
+                            downloadLink.style.bottom = '10px';
+                            downloadLink.style.right = '10px';
+                            downloadLink.style.color = '#0066cc';
+                            downloadLink.style.textDecoration = 'underline';
+                            downloadLink.style.backgroundColor = 'rgba(255,255,255,0.7)';
+                            downloadLink.style.padding = '5px';
+                            downloadLink.style.borderRadius = '3px';
+                            downloadLink.style.fontSize = '12px';
+                            
+                            // Add the download link to the container
+                            setTimeout(() => {
+                                document.getElementById('container').appendChild(downloadLink);
+                            }, 1000);
+                            
+                            // Setup alternative viewer
+                            const fallbackViewerUrl = `https://ncviewer.com/?url=${encodeURIComponent(srcUrl)}`;
+                            setupSwitchViewer('gcode', getKiriUrl('?mode=FDM&view=arrange'), fallbackViewerUrl);
+                        })
+                        .catch(error => {
+                            console.error('Error fetching GCODE file:', error);
+                            loading.innerHTML = `
+                                <div style="text-align: center; padding: 20px; max-width: 600px;">
+                                    <h3 style="color: #e74c3c; margin-bottom: 15px;">Unable to load GCODE preview</h3>
+                                    <p style="margin-bottom: 15px;">We couldn't load the GCODE file: ${error.message}</p>
+                                    <p style="margin-bottom: 20px;">The file might be too large or inaccessible.</p>
+                                    <div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
+                                        <a href="${srcUrl}" style="padding: 8px 16px; background: #0066cc; color: white; text-decoration: none; border-radius: 4px;" target="_blank">Download GCODE File</a>
+                                        <button id="tryDirectKiri" style="padding: 8px 16px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer;">Try Direct Kiri:Moto</button>
+                                        <button id="tryFallback" style="padding: 8px 16px; background: #9b59b6; color: white; border: none; border-radius: 4px; cursor: pointer;">Try Simple Viewer</button>
+                                        <button id="openKiriManual" style="padding: 8px 16px; background: #e67e22; color: white; border: none; border-radius: 4px; cursor: pointer;">Open Manual Kiri:Moto</button>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            // Manual Kiri:Moto option
+                            document.getElementById('openKiriManual').addEventListener('click', () => {
+                                // Open Kiri:Moto in a new tab
+                                window.open(getKiriUrl('?o=h'), '_blank');
+                                // Show instructions
+                                loading.innerHTML = `
+                                    <div style="text-align: center; padding: 20px; max-width: 600px;">
+                                        <h3 style="color: #e67e22; margin-bottom: 15px;">Manual Upload Instructions</h3>
+                                        <ol style="text-align: left; margin-bottom: 20px; padding-left: 20px;">
+                                            <li style="margin-bottom: 8px;">Download the GCODE file using the button above</li>
+                                            <li style="margin-bottom: 8px;">In the new Kiri:Moto tab, click "Load"</li>
+                                            <li style="margin-bottom: 8px;">Select "GCODE" as the file type</li>
+                                            <li style="margin-bottom: 8px;">Upload the downloaded GCODE file</li>
+                                        </ol>
+                                        <button id="closeInstructions" style="padding: 8px 16px; background: #7f8c8d; color: white; border: none; border-radius: 4px; cursor: pointer;">Close Instructions</button>
+                                    </div>
+                                `;
+                                // Add event listener to close button
+                                document.getElementById('closeInstructions').addEventListener('click', () => {
+                                    loading.style.display = 'none';
+                                });
+                            });
+                            
+                            // Add event listener to the direct Kiri button
+                            document.getElementById('tryDirectKiri').addEventListener('click', () => {
+                                // Use Kiri:Moto's view-url parameter as a fallback
+                                const encodedUrl = encodeURIComponent(srcUrl);
+                                const directKiriUrl = getKiriUrl(`?view-url=${encodedUrl}&o=h&name=${encodeURIComponent(fileName)}`);
+                                console.log('Trying direct Kiri:Moto URL approach:', directKiriUrl);
+                                viewer.src = directKiriUrl;
+                                loading.style.display = 'none';
+                            });
+                            
+                            // Add event listener to the fallback button
+                            document.getElementById('tryFallback').addEventListener('click', () => {
+                                // Use ncviewer as a fallback
+                                const fallbackUrl = `https://ncviewer.com/?url=${encodeURIComponent(srcUrl)}`;
+                                console.log('Trying fallback viewer:', fallbackUrl);
+                                viewer.src = fallbackUrl;
+                                loading.style.display = 'none';
+                            });
+                        });
+                } else if (isStl) {
+                    // For STL files, use Kiri:Moto's direct URL loading approach
+                    window.stlUrl = getAbsoluteUrl(fileUrl);
+                    window.fileName = fileName;
+                    window.stlLoadedSuccessfully = false;
+                    
+                    // Encode the STL URL for the query parameter
+                    const encodedStlUrl = encodeURIComponent(window.stlUrl);
+                    console.log('Loading STL file directly with parameter:', encodedStlUrl);
+                    
+                    // Show loading message
+                    loading.innerHTML = '<div class="spinner"></div><div style="margin-top: 10px;">Loading STL viewer...</div>';
+                    
+                    // Load Kiri:Moto with the load parameter to directly load the STL file
+                    // This uses the official API approach documented by Kiri:Moto
+                    viewer.src = getKiriUrl(`?load=${encodedStlUrl}&mode=FDM&view=arrange&platform=bed`);
+                    
+                    // Set a timeout to check if loading was successful
+                    setTimeout(() => {
+                        if (!window.stlLoadedSuccessfully) {
+                            console.warn('Kiri:Moto loading timeout for STL, using alternative viewer');
+                            loadAlternativeStlViewer();
+                        }
+                    }, 10000); // 10 second timeout
+                    
+                    // Setup alternative viewer options
+                    setupSwitchViewer('stl', getKiriUrl(`?load=${encodedStlUrl}&mode=FDM&view=arrange`), 
+                                     `https://viewstl.com/?url=${encodedStlUrl}&bgcolor=white`);
+                } else {
+                    loading.innerHTML = '<div>Unsupported file format. Only STL and GCODE files are supported.</div>';
+                }
+            });
+        } else {
+            loading.innerHTML = '<div>No file URL provided</div>';
+        }
+
+        // Function to fetch GCODE file content
+        async function fetchGcodeFile(url) {
+            console.log('Fetching GCODE from URL:', url);
+            
+            // Ensure URL is not double-encoded
+            try {
+                const decodedUrl = decodeURIComponent(url);
+                const cleanUrl = decodedUrl !== url ? decodedUrl : url;
+                console.log('Using URL for fetch:', cleanUrl);
+                
+                // Add a timestamp to prevent caching
+                const fetchUrl = cleanUrl.includes('?') 
+                    ? `${cleanUrl}&t=${Date.now()}` 
+                    : `${cleanUrl}?t=${Date.now()}`;
+                
+                const response = await fetch(fetchUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'text/plain, application/octet-stream',
+                        'Cache-Control': 'no-cache'
+                    },
+                    credentials: 'include'
+                });
+                
+                console.log('Fetch response status:', response.status, response.statusText);
+                console.log('Response headers:', [...response.headers.entries()].map(([k, v]) => `${k}: ${v}`).join(', '));
+                
+                if (!response.ok) {
+                    // More detailed error message
+                    const errorText = await response.text().catch(e => 'Could not read error response');
+                    console.error('Response error details:', errorText);
+                    throw new Error(`Failed to fetch GCODE (${response.status} ${response.statusText})`);
+                }
+                
+                const text = await response.text();
+                console.log(`GCODE content fetched successfully (${text.length} bytes)`);
+                if (text.length > 0) {
+                    console.log('First 100 chars:', text.substring(0, 100));
+                } else {
+                    console.warn('Warning: Empty GCODE content received');
+                }
+                
+                return text;
+            } catch (error) {
+                console.error('Error in fetchGcodeFile:', error);
+                
+                // Try fallback with direct URL if it's a CORS issue
+                if (error.message.includes('CORS') || error.name === 'TypeError') {
+                    console.log('CORS error detected, adding debug info...');
+                    loading.innerHTML += '<div>CORS error detected. Trying alternate approach...</div>';
+                }
+                
+                throw error;
+            }
+        }
+
+        // Function to fetch STL file content as binary data
+        async function fetchStlFile(url) {
+            console.log('Fetching STL from URL:', url);
+            
+            try {
+                const decodedUrl = decodeURIComponent(url);
+                const cleanUrl = decodedUrl !== url ? decodedUrl : url;
+                console.log('Using URL for fetch:', cleanUrl);
+                
+                // Add a timestamp to prevent caching
+                const fetchUrl = cleanUrl.includes('?') 
+                    ? `${cleanUrl}&t=${Date.now()}` 
+                    : `${cleanUrl}?t=${Date.now()}`;
+                
+                const response = await fetch(fetchUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/octet-stream, model/stl, */*',
+                        'Cache-Control': 'no-cache'
+                    },
+                    credentials: 'include'
+                });
+                
+                console.log('STL fetch response status:', response.status, response.statusText);
+                console.log('Response headers:', [...response.headers.entries()].map(([k, v]) => `${k}: ${v}`).join(', '));
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch STL (${response.status} ${response.statusText})`);
+                }
+                
+                // Read as ArrayBuffer
+                const buffer = await response.arrayBuffer();
+                console.log(`STL binary data fetched successfully (${buffer.byteLength} bytes)`);
+                
+                return buffer;
+            } catch (error) {
+                console.error('Error in fetchStlFile:', error);
+                throw error;
+            }
+        }
+
+        // Hide loading indicator when iframe loads
+        viewer.addEventListener('load', () => {
+            loading.style.display = 'none';
+            
+            // Set up messaging with the iframe
+            setupIframeMessaging();
+        });
+
+        // Unified message handling from Kiri:Moto
+        function handleKiriMessage(event) {
+            // Make sure message is from a trusted source
+            const allowedOrigins = [LOCAL_KIRI_URL, REMOTE_KIRI_URL, window.location.origin];
+            if (!allowedOrigins.some(origin => event.origin.startsWith(origin))) {
+                console.warn('Message received from untrusted origin:', event.origin);
+                return;
+            }
+            
+            console.log('Received message from Kiri:Moto:', event.data);
+            
+            // Handle message events per Kiri:Moto API docs
+            if (event.data && event.data.kiri) {
+                // Handle initialization done event
+                if (event.data.event === 'init-done' || event.data.init) {
+                    console.log('Kiri:Moto initialized');
+                    window.kiriInitReceived = true;
+                    
+                    // Handle STL loading if we're waiting for it
+                    if (window.waitingForKiriInit && window.stlUrl) {
+                        // Allow a short delay for Kiri:Moto to fully initialize
+                        setTimeout(() => {
+                            if (window.waitingForKiriInit && window.stlUrl) {
+                                loadStlIntoKiri(window.stlUrl, window.fileName);
+                            }
+                        }, 500);
+                    }
+                    
+                    // Handle GCODE loading if we have content
+                    if (window.gcodeContent) {
+                        console.log('Sending GCODE to Kiri:Moto via postMessage API');
+                        sendGCodeToKiri(window.gcodeContent, window.fileName);
+                    }
+                }
+                
+                // Handle all kiri events more generally by mapping to specific events
+                if (event.data.event) {
+                    const eventName = event.data.event;
+                    console.log(`Kiri:Moto event: ${eventName}`);
+                    
+                    // Different event handling based on event type
+                    switch (eventName) {
+                        case 'platform.loaded':
+                            console.log('Platform loaded and ready');
+                            break;
+                        
+                        case 'widget.add':
+                            console.log('Object added to workspace');
+                            // Mark STL as successfully loaded
+                            if (window.waitingForKiriInit) {
+                                window.waitingForKiriInit = false;
+                                window.stlLoadedSuccessfully = true;
+                                console.log('STL file successfully loaded in Kiri:Moto');
+                                
+                                // Clear any loading timeout
+                                if (window.stlLoadingTimeout) {
+                                    clearTimeout(window.stlLoadingTimeout);
+                                    window.stlLoadingTimeout = null;
+                                }
+                                
+                                // Hide loading indicator
+                                loading.style.display = 'none';
+                            } else if (fileType === 'stl' || fileName.toLowerCase().endsWith('.stl') || directLoadUrl) {
+                                // For direct URL loading of STL files or any direct load
+                                window.stlLoadedSuccessfully = true;
+                                window.loadedSuccessfully = true; // General flag for any file type
+                                console.log('File successfully loaded in Kiri:Moto via direct URL');
+                                
+                                // Hide loading indicator
+                                loading.style.display = 'none';
+                            }
+                            break;
+                            
+                        case 'slice.end':
+                            console.log('Slice processing completed');
+                            // Hide loading indicator if still visible
+                            loading.style.display = 'none';
+                            break;
+                    }
+                }
+                
+                // Handle progress updates
+                if (event.data.progress !== undefined) {
+                    console.log(`Loading progress: ${event.data.progress}%`);
+                    // Show progress and update loading indicator
+                    loading.style.display = 'flex';
+                    
+                    // Create a progress display with cancel button
+                    loading.innerHTML = `
+                        <div style="text-align: center; padding: 20px; max-width: 600px; display: flex; flex-direction: column; align-items: center;">
+                            <div class="spinner"></div>
+                            <div style="margin-top: 10px; margin-bottom: 15px;">Loading: ${Math.round(event.data.progress)}%</div>
+                            <button id="cancelKiriLoad" style="padding: 5px 10px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                Use Alternative Viewer
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add event listener to cancel button
+                    document.getElementById('cancelKiriLoad').addEventListener('click', () => {
+                        console.log('User cancelled Kiri:Moto loading');
+                        loadAlternativeStlViewer();
+                    });
+                    
+                    // If progress is 100%, hide the loading indicator after a brief delay
+                    if (event.data.progress >= 100) {
+                        setTimeout(() => {
+                            loading.style.display = 'none';
+                        }, 1000);
+                    }
+                }
+                
+                // Handle errors
+                if (event.data.error) {
+                    console.error('Error from Kiri:Moto:', event.data.error);
+                    loading.innerHTML = `<div>Error from viewer: ${event.data.error}</div>`;
+                    
+                    // Try alternative viewer if in STL mode
+                    if (window.waitingForKiriInit) {
+                        loadAlternativeStlViewer();
+                    }
+                }
+            }
+        }
+
+        // Function to communicate with Kiri:Moto iframe
+        function setupIframeMessaging() {
+            // Set up buttons
+            document.getElementById('resetView').addEventListener('click', () => {
+                sendMessageToViewer('resetView');
+            });
+            
+            document.getElementById('toggleGrid').addEventListener('click', () => {
+                sendMessageToViewer('toggleGrid');
+            });
+            
+            // Register global message handler
+            window.addEventListener('message', handleKiriMessage);
+            
+            // Set up a safety timer to check if we need to manually initialize for GCODE
+            if (window.gcodeContent) {
+                setTimeout(() => {
+                    if (!window.kiriInitReceived) {
+                        console.log('No initialization event received, attempting to send GCODE anyway');
+                        sendGCodeToKiri(window.gcodeContent, window.fileName);
+                    }
+                }, 3000); // Wait 3 seconds before trying to send without init event
+            }
+        }
+
+        // Function to load STL into Kiri:Moto
+        function loadStlIntoKiri(stlUrl, fileName) {
+            try {
+                console.log('Loading STL into Kiri:Moto...');
+                // Update the loading indicator
+                if (loading.style.display === 'none') {
+                    loading.style.display = 'flex';
+                    loading.innerHTML = `
+                        <div style="text-align: center; padding: 20px; max-width: 600px; display: flex; flex-direction: column; align-items: center;">
+                            <div class="spinner"></div>
+                            <div style="margin-top: 10px; margin-bottom: 15px;">Loading STL into Kiri:Moto...</div>
+                            <button id="cancelKiriLoad" style="padding: 5px 10px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                Use Alternative Viewer
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add event listener to cancel button
+                    document.getElementById('cancelKiriLoad').addEventListener('click', () => {
+                        console.log('User cancelled Kiri:Moto loading');
+                        loadAlternativeStlViewer();
+                    });
+                }
+                
+                let message;
+                
+                // Check if we have binary STL data
+                if (window.stlContent && window.stlLoadMethod === 'binary') {
+                    console.log('Loading STL from binary data, size:', window.stlContent.byteLength);
+                    // Convert ArrayBuffer to Base64 for transmission
+                    const base64Content = arrayBufferToBase64(window.stlContent);
+                    
+                    message = {
+                        kiri: true,
+                        load: {
+                            name: fileName,
+                            data: base64Content,
+                            type: 'stl',
+                            mode: 'FDM'
+                        }
+                    };
+                } else {
+                    // Fall back to URL method
+                    console.log('Loading STL from URL:', stlUrl);
+                    message = {
+                        kiri: true,
+                        load: stlUrl,
+                        name: fileName
+                    };
+                }
+                
+                // Send the message to Kiri:Moto
+                console.log('Sending message to Kiri:Moto:', message.kiri, message.load ? typeof message.load : '');
+                viewer.contentWindow.postMessage(message, new URL(KIRI_BASE_URL).origin);
+                
+                // Add a progress timeout that hides the loading indicator if we don't get progress events
+                window.stlLoadingTimeout = setTimeout(() => {
+                    if (!window.stlLoadedSuccessfully) {
+                        loading.style.display = 'none';
+                    }
+                }, 8000);
+            } catch (e) {
+                console.error('Error sending STL to Kiri:Moto:', e);
+                // If loading fails, try alternative viewer
+                loadAlternativeStlViewer();
+            }
+        }
+        
+        // Helper function to convert ArrayBuffer to Base64
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+
+        // Function to load an alternative STL viewer if Kiri:Moto fails
+        async function loadAlternativeStlViewer(directUrl) {
+            try {
+                // URL to use for the alternative viewer
+                const stlUrl = directUrl || window.stlUrl;
+                if (!stlUrl) {
+                    loading.innerHTML = '<div>No STL URL provided for alternative viewer</div>';
+                    return;
+                }
+                
+                console.log('Loading alternative STL viewer with URL:', stlUrl);
+                
+                // Update loading UI
+                loading.innerHTML = `
+                    <div style="text-align: center; padding: 20px; max-width: 600px;">
+                        <h3 style="margin-bottom: 15px;">Loading alternative STL viewer</h3>
+                        <div class="spinner" style="margin: 0 auto 15px;"></div>
+                    </div>
+                `;
+                
+                // Try to fetch the STL first to verify access
+                try {
+                    // First try to fetch the raw STL file to see if it's accessible
+                    const stlContent = await fetchStlFile(stlUrl);
+                    
+                    // Store the STL content for possible use with Kiri:Moto later
+                    window.stlContent = stlContent;
+                    window.stlLoadMethod = 'binary';
+                    
+                    console.log('Successfully fetched STL file directly, size:', stlContent.byteLength);
+                    
+                    // If we have access to the STL file directly, check if Kiri:Moto is initialized
+                    if (window.kiriInitReceived) {
+                        // Try to load the STL into Kiri:Moto via postMessage API
+                        console.log('Attempting to load STL into Kiri:Moto via postMessage API');
+                        loadStlIntoKiri(stlUrl, window.fileName);
+                        return;
+                    } else {
+                        // Wait for Kiri:Moto to initialize
+                        console.log('Waiting for Kiri:Moto to initialize before loading STL');
+                        window.waitingForKiriInit = true;
+                        return;
+                    }
+                } catch (error) {
+                    console.warn('Error fetching STL directly:', error);
+                    // Fall back to ViewSTL if we couldn't fetch the file
+                }
+                
+                // Fallback to ViewSTL
+                const encodedUrl = encodeURIComponent(stlUrl);
+                const viewStlUrl = `https://viewstl.com/?url=${encodedUrl}&bgcolor=white`;
+                console.log('Loading ViewSTL with URL:', viewStlUrl);
+                
+                // Hide loading spinner once the iframe loads
+                viewer.onload = () => {
+                    loading.style.display = 'none';
+                };
+                
+                // Load external viewer
+                viewer.src = viewStlUrl;
+            } catch (error) {
+                console.error('Error in loadAlternativeStlViewer:', error);
+                loading.innerHTML = `<div>Error loading alternative viewer: ${error.message}</div>`;
+            }
+        }
+
+        // Send a message to the iframe
+        function sendMessageToViewer(action, data = {}) {
+            try {
+                // Use the official Kiri:Moto API format
+                viewer.contentWindow.postMessage({
+                    kiri: true,
+                    command: action,
+                    data: data
+                }, new URL(KIRI_BASE_URL).origin);
+                
+                console.log(`Sent command to Kiri:Moto: ${action}`);
+            } catch (e) {
+                console.error('Error sending message to viewer:', e);
+            }
+        }
+        
+        // Function to send GCODE to Kiri:Moto via the official API
+        function sendGCodeToKiri(gcodeContent, filename) {
+            try {
+                // According to Kiri:Moto docs, we should use the 'load' API with text content
+                viewer.contentWindow.postMessage({
+                    kiri: true,
+                    load: {
+                        name: filename,
+                        data: gcodeContent,
+                        mode: 'FDM' // Set to FDM mode for GCODE
+                    }
+                }, new URL(KIRI_BASE_URL).origin);
+                
+                console.log('Sent GCODE to Kiri:Moto via postMessage API');
+                
+                // Also add a message in case the user doesn't see anything
+                setTimeout(() => {
+                    const loadingInfo = document.createElement('div');
+                    loadingInfo.style.position = 'absolute';
+                    loadingInfo.style.bottom = '50px';
+                    loadingInfo.style.left = '50%';
+                    loadingInfo.style.transform = 'translateX(-50%)';
+                    loadingInfo.style.backgroundColor = 'rgba(255,255,255,0.8)';
+                    loadingInfo.style.padding = '10px';
+                    loadingInfo.style.borderRadius = '5px';
+                    loadingInfo.style.fontSize = '14px';
+                    loadingInfo.style.zIndex = '10';
+                    loadingInfo.innerHTML = 'If the model is not visible, try using the tabs at the top of Kiri:Moto.';
+                    document.getElementById('container').appendChild(loadingInfo);
+                    
+                    // Remove the message after 6 seconds
+                    setTimeout(() => {
+                        loadingInfo.style.opacity = '0';
+                        loadingInfo.style.transition = 'opacity 1s';
+                        setTimeout(() => {
+                            loadingInfo.remove();
+                        }, 1000);
+                    }, 6000);
+                }, 3000);
+            } catch (e) {
+                console.error('Error sending GCODE to Kiri:Moto:', e);
+                loading.innerHTML = `<div>Error sending GCODE to viewer: ${e.message}</div>`;
+            }
+        }
+
+        // Function to switch between alternative viewers
+        function setupSwitchViewer(fileType, originalUrl, fallbackUrl) {
+            const switchButton = document.getElementById('switchViewer');
+            let usingFallback = false;
+            
+            // Show the switch button
+            switchButton.style.display = 'inline-block';
+            
+            switchButton.addEventListener('click', () => {
+                loading.style.display = 'flex';
+                if (usingFallback) {
+                    viewer.src = originalUrl;
+                    switchButton.textContent = 'Try Alternative Viewer';
+                } else {
+                    viewer.src = fallbackUrl;
+                    switchButton.textContent = 'Use Default Viewer';
+                }
+                usingFallback = !usingFallback;
+            });
+        }
+
+        // Convert relative URL to absolute
+        function getAbsoluteUrl(url) {
+            // If it's already an absolute URL, return it as is
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                return url;
+            }
+            
+            // Otherwise, construct absolute URL using window.location
+            const baseUrl = `${window.location.protocol}//${window.location.host}`;
+            
+            // Ensure url starts with a slash
+            const normalizedUrl = url.startsWith('/') ? url : `/${url}`;
+            
+            return `${baseUrl}${normalizedUrl}`;
+        }
+
+        // Function to simplify GCODE for preview (reducing size)
+        function simplifyGcodeForPreview(gcodeText) {
+            // Split the GCODE into lines
+            const lines = gcodeText.split('\n');
+            
+            // Start with standard GCODE header and setup commands
+            let result = [
+                "; Simplified GCODE preview",
+                "M82 ; absolute extrusion mode",
+                "G21 ; set units to millimeters",
+                "G90 ; use absolute coordinates"
+            ];
+            
+            // Process the file to extract essential commands
+            let headerSection = true;
+            let currentZ = -1;
+            let layerStartIndices = [];
+            
+            // First pass: identify layer boundaries
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                // Capture key header commands for printer setup
+                if (headerSection && (line.includes('G28') || line.includes('M109') || line.includes('M190'))) {
+                    result.push(line);
+                }
+                
+                // Look for layer changes (Z height changes)
+                if (line.match(/G[01]\s+.*Z[0-9.]+/i) || line.match(/^G[01]\s+Z[0-9.]+/i)) {
+                    headerSection = false;
+                    layerStartIndices.push(i);
+                }
+            }
+            
+            // Select a subset of layers for the preview
+            const totalLayers = layerStartIndices.length;
+            
+            // Always include these important layers:
+            const layersToInclude = new Set([
+                0,                          // First layer
+                Math.floor(totalLayers/3),  // One-third up
+                Math.floor(totalLayers*2/3),// Two-thirds up 
+                totalLayers - 1             // Top layer
+            ]);
+            
+            // Add key layer indices
+            let selectedLayers = Array.from(layersToInclude)
+                .filter(idx => idx >= 0 && idx < totalLayers)
+                .sort((a, b) => a - b);
+            
+            // Second pass: extract movement commands from selected layers
+            for (let layerIdx of selectedLayers) {
+                const startLine = layerStartIndices[layerIdx];
+                const endLine = (layerIdx < totalLayers - 1) ? 
+                    layerStartIndices[layerIdx + 1] : 
+                    lines.length;
+                
+                // Add layer comment
+                result.push(`\n; Layer ${layerIdx + 1} of ${totalLayers}`);
+                
+                // Include the layer height change command
+                result.push(lines[startLine]);
+                
+                // Sample movement commands from this layer
+                const layerLines = lines.slice(startLine, endLine);
+                const movementCommands = layerLines.filter(line => 
+                    line.match(/^G[01]\s+.*X[0-9.]+.*Y[0-9.]+/i) && !line.includes('Z')
+                );
+                
+                // Sample movements (take every Nth command to reduce size)
+                const samplingRate = Math.max(1, Math.floor(movementCommands.length / 100));
+                for (let i = 0; i < movementCommands.length; i += samplingRate) {
+                    result.push(movementCommands[i]);
+                }
+            }
+            
+            // Add end commands
+            result.push("\n; End of preview");
+            result.push("G1 E-2 F3000 ; retract filament");
+            result.push("G28 X0 Y0 ; home X and Y axes");
+            
+            return result.join('\n');
+        }
+    </script>
+</body>
+</html> 

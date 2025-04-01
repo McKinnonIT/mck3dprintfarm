@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STL Uploader for Kiri:Moto</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .upload-area {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .file-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+        .file-input:hover {
+            border-color: #999;
+        }
+        .file-list {
+            margin-top: 20px;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.remove {
+            background-color: #f44336;
+        }
+        button.remove:hover {
+            background-color: #d32f2f;
+        }
+        .kiri-container {
+            width: 100%;
+            height: 600px;
+            border: none;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .instructions {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px 15px;
+            margin-bottom: 20px;
+        }
+        .info {
+            background-color: #e7f3fe;
+            border-left: 4px solid #2196F3;
+            padding: 10px 15px;
+            margin-top: 20px;
+        }
+        .step {
+            margin-bottom: 5px;
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+            font-size: 18px;
+            display: none;
+        }
+        .overlay.active {
+            display: flex;
+        }
+        .overlay-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 80%;
+            text-align: center;
+            color: #333;
+        }
+        .overlay-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>STL Uploader for Kiri:Moto</h1>
+    
+    <div class="container">
+        <div class="upload-area">
+            <div class="instructions">
+                <h3>How to use:</h3>
+                <div class="step">1. Upload your STL files using the file input below.</div>
+                <div class="step">2. Click "Open in Kiri:Moto" for the file you want to view.</div>
+                <div class="step">3. A new tab will open with Kiri:Moto and your file will be loaded.</div>
+            </div>
+            
+            <h2>Upload STL Files</h2>
+            <input type="file" id="stlFile" accept=".stl" multiple class="file-input">
+            <div class="file-list" id="fileList"></div>
+            
+            <div class="info">
+                <strong>Note:</strong> Due to browser security restrictions, files are opened in a new Kiri:Moto tab. 
+                After clicking "Open in Kiri:Moto", you may need to manually upload the file into Kiri:Moto.
+            </div>
+        </div>
+        
+        <div class="kiri-container" id="kiriContainer">
+            <iframe id="kiriFrame" src="https://grid.space/kiri/" allowfullscreen></iframe>
+            <div class="overlay" id="kiriOverlay">
+                <div class="overlay-content">
+                    <h3 id="overlayTitle">Open File in Kiri:Moto</h3>
+                    <p id="overlayMessage">Click the button below to open this file in Kiri:Moto in a new tab.</p>
+                    <div class="overlay-buttons">
+                        <button id="openInNewTab">Open in New Tab</button>
+                        <button id="closeOverlay" class="remove">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('stlFile');
+            const fileList = document.getElementById('fileList');
+            const kiriOverlay = document.getElementById('kiriOverlay');
+            const overlayTitle = document.getElementById('overlayTitle');
+            const overlayMessage = document.getElementById('overlayMessage');
+            const openInNewTabButton = document.getElementById('openInNewTab');
+            const closeOverlayButton = document.getElementById('closeOverlay');
+            const uploadedFiles = {};
+            
+            fileInput.addEventListener('change', function(event) {
+                const files = event.target.files;
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file.name.toLowerCase().endsWith('.stl')) {
+                        const fileId = 'file_' + Date.now() + '_' + i;
+                        uploadedFiles[fileId] = file;
+                        addFileToList(file, fileId);
+                    }
+                }
+            });
+            
+            function addFileToList(file, fileId) {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                
+                const fileName = document.createElement('span');
+                fileName.textContent = file.name;
+                
+                const fileActions = document.createElement('div');
+                fileActions.className = 'file-actions';
+                
+                const openButton = document.createElement('button');
+                openButton.textContent = 'Open in Kiri:Moto';
+                openButton.addEventListener('click', function() {
+                    showOverlay(fileId);
+                });
+                
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Remove';
+                removeButton.className = 'remove';
+                removeButton.addEventListener('click', function() {
+                    delete uploadedFiles[fileId];
+                    fileList.removeChild(fileItem);
+                });
+                
+                fileActions.appendChild(openButton);
+                fileActions.appendChild(removeButton);
+                
+                fileItem.appendChild(fileName);
+                fileItem.appendChild(fileActions);
+                
+                fileList.appendChild(fileItem);
+            }
+            
+            function showOverlay(fileId) {
+                const file = uploadedFiles[fileId];
+                if (!file) return;
+                
+                overlayTitle.textContent = `Open ${file.name} in Kiri:Moto`;
+                overlayMessage.textContent = 'Click the button below to open this file in Kiri:Moto in a new tab.';
+                
+                // Set up the open in new tab button
+                openInNewTabButton.onclick = function() {
+                    // Create a temporary URL for the file
+                    const objectUrl = URL.createObjectURL(file);
+                    
+                    // Try to open Kiri:Moto with the file
+                    window.open('https://grid.space/kiri/', '_blank');
+                    
+                    // Update the overlay to show instructions
+                    overlayTitle.textContent = 'Manual Upload Required';
+                    overlayMessage.innerHTML = `
+                        <p>Due to browser security restrictions, you need to:</p>
+                        <ol style="text-align: left;">
+                            <li>Go to the newly opened Kiri:Moto tab</li>
+                            <li>Click the "Import" button (in the top menu)</li>
+                            <li>Select your file "${file.name}" from your computer</li>
+                        </ol>
+                    `;
+                    openInNewTabButton.textContent = 'Got it';
+                    openInNewTabButton.onclick = function() {
+                        kiriOverlay.classList.remove('active');
+                    };
+                };
+                
+                // Show the overlay
+                kiriOverlay.classList.add('active');
+            }
+            
+            // Close overlay when cancel button is clicked
+            closeOverlayButton.addEventListener('click', function() {
+                kiriOverlay.classList.remove('active');
+            });
+        });
+    </script>
+</body>
+</html>

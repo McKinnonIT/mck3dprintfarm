@@ -1,0 +1,1 @@
+// Add detailed logging of auth headers and response 

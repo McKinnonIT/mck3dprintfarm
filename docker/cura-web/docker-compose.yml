@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  cura:
+    image: ultimaker/cura:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - CURA_ENABLE_LOGGING=true
+      - CURA_ENABLE_DEBUG=true
+    volumes:
+      - ./uploads:/data/uploads
+    networks:
+      - cura-network
+
+networks:
+  cura-network:
+    driver: bridge 

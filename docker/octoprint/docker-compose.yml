@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  octoprint:
+    image: octoprint/octoprint:latest
+    ports:
+      - "8081:5000"
+    environment:
+      - ENABLE_MJPG_STREAMER=false
+      - OCTOPRINT_HOST=0.0.0.0
+      - OCTOPRINT_PORT=5000
+      - OCTOPRINT_HEADERS_X_FRAME_OPTIONS=ALLOWALL
+    volumes:
+      - octoprint-data:/octoprint
+    restart: unless-stopped
+
+volumes:
+  octoprint-data:
+
+networks:
+  octoprint-network:
+    driver: bridge 

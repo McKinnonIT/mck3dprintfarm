@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kiri:Moto STL Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        iframe {
+            width: 100%;
+            height: 800px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #status {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+        .controls {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            margin-right: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #log {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Kiri:Moto STL Test</h1>
+        <div id="status">Loading Kiri:Moto...</div>
+        <div id="log"></div>
+        <div class="controls">
+            <button onclick="loadStl()">Load STL</button>
+            <button onclick="loadTestStl()">Load Test STL</button>
+            <button onclick="clearWorkspace()">Clear Workspace</button>
+            <button onclick="setMode('FDM')">Set FDM Mode</button>
+            <button onclick="sliceModel()">Slice Model</button>
+            <button onclick="prepareModel()">Prepare Model</button>
+            <button onclick="exportModel()">Export Model</button>
+        </div>
+        <iframe id="kiri-frame" src="http://localhost:8080/kiri/?mode=FDM&view=arrange&dev=true"></iframe>
+    </div>
+    <script>
+        const frame = document.getElementById('kiri-frame');
+        const status = document.getElementById('status');
+        const log = document.getElementById('log');
+        let kiriApi = null;
+
+        function logMessage(message) {
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `[${time}] ${message}<br>`;
+            log.scrollTop = log.scrollHeight;
+            console.log(message);
+        }
+
+        function initializeKiri() {
+            if (!kiriApi) {
+                try {
+                    // Send init command to Kiri:Moto
+                    frame.contentWindow.postMessage({
+                        kiri: true,
+                        command: 'init'
+                    }, 'http://localhost:8080');
+                    
+                    logMessage('Kiri:Moto init command sent');
+                    status.textContent = 'Initializing Kiri:Moto...';
+                } catch (error) {
+                    logMessage(`Error initializing Kiri:Moto API: ${error}`);
+                    status.textContent = 'Error initializing Kiri:Moto';
+                }
+            }
+        }
+
+        // Listen for messages from Kiri:Moto
+        window.addEventListener('message', (event) => {
+            logMessage(`Received message from: ${event.origin}`);
+            logMessage(`Message data: ${JSON.stringify(event.data)}`);
+            
+            if (event.origin !== 'http://localhost:8080') {
+                logMessage(`Ignored message from wrong origin: ${event.origin}`);
+                return;
+            }
+            
+            // Check for calculateSubFramePositioning command
+            if (event.data && event.data.command === 'calculateSubFramePositioning') {
+                logMessage('Kiri:Moto initialized via calculateSubFramePositioning');
+                // Send ready message back to Kiri:Moto
+                frame.contentWindow.postMessage({
+                    kiri: true,
+                    command: 'ready'
+                }, 'http://localhost:8080');
+                logMessage('Sent ready message to Kiri:Moto');
+            }
+            
+            // Check for Kiri:Moto messages
+            if (event.data && event.data.kiri) {
+                logMessage(`Received Kiri:Moto message: ${JSON.stringify(event.data)}`);
+                
+                if (event.data.event === 'init-done' || event.data.init) {
+                    logMessage('Kiri:Moto initialized via init event');
+                    // Instead of trying to use the API object from the message,
+                    // we'll use the frame's window object to access the API
+                    try {
+                        kiriApi = frame.contentWindow.kiri.frame;
+                        status.textContent = 'Kiri:Moto is ready';
+                        logMessage('Kiri:Moto API object received');
+                        
+                        // Set up event listeners
+                        kiriApi.on('loaded', () => {
+                            logMessage('Model loaded successfully');
+                            status.textContent = 'Model loaded';
+                        });
+                        
+                        kiriApi.on('slice.done', () => {
+                            logMessage('Slicing completed');
+                            status.textContent = 'Slicing completed';
+                        });
+                        
+                        kiriApi.on('prepare.done', () => {
+                            logMessage('Preparation completed');
+                            status.textContent = 'Preparation completed';
+                        });
+                    } catch (error) {
+                        logMessage(`Error accessing Kiri:Moto API: ${error}`);
+                        status.textContent = 'Error accessing API';
+                    }
+                }
+            }
+        });
+
+        // Check iframe load
+        frame.onload = () => {
+            logMessage('Iframe loaded');
+            status.textContent = 'Kiri:Moto iframe loaded';
+            // Initialize Kiri:Moto when iframe loads
+            initializeKiri();
+        };
+
+        // Initialize Kiri:Moto after a short delay
+        setTimeout(initializeKiri, 1000);
+
+        // Kiri:Moto API Functions
+        function loadStl() {
+            if (!kiriApi) {
+                status.textContent = 'Please wait for Kiri:Moto to initialize...';
+                logMessage('Cannot load STL - Kiri:Moto not ready');
+                return;
+            }
+
+            logMessage('Opening file picker for STL...');
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.stl';
+            
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) {
+                    logMessage('No file selected');
+                    return;
+                }
+
+                logMessage(`Selected file: ${file.name}`);
+                
+                try {
+                    // Load the STL file using the API
+                    kiriApi.load(file);
+                    status.textContent = `Loading STL: ${file.name}`;
+                } catch (error) {
+                    logMessage(`Error loading STL: ${error}`);
+                    status.textContent = 'Error loading file';
+                }
+            };
+            
+            input.click();
+        }
+
+        function loadTestStl() {
+            if (!kiriApi) {
+                status.textContent = 'Please wait for Kiri:Moto to initialize...';
+                logMessage('Cannot load STL - Kiri:Moto not ready');
+                return;
+            }
+
+            logMessage('Loading test STL file...');
+            try {
+                kiriApi.load('/app/uploads/test-cube.stl');
+                status.textContent = 'Loading test STL file...';
+            } catch (error) {
+                logMessage(`Error loading test STL: ${error}`);
+                status.textContent = 'Error loading test file';
+            }
+        }
+
+        function clearWorkspace() {
+            if (!kiriApi) {
+                status.textContent = 'Please wait for Kiri:Moto to initialize...';
+                logMessage('Cannot clear workspace - Kiri:Moto not ready');
+                return;
+            }
+
+            logMessage('Clearing workspace...');
+            try {
+                kiriApi.clear();
+                status.textContent = 'Clearing workspace...';
+            } catch (error) {
+                logMessage(`Error clearing workspace: ${error}`);
+                status.textContent = 'Error clearing workspace';
+            }
+        }
+
+        function setMode(mode) {
+            if (!kiriApi) {
+                status.textContent = 'Please wait for Kiri:Moto to initialize...';
+                logMessage(`Cannot set mode - Kiri:Moto not ready`);
+                return;
+            }
+
+            logMessage(`Setting mode to ${mode}...`);
+            try {
+                kiriApi.setMode(mode);
+                status.textContent = `Setting mode to ${mode}...`;
+            } catch (error) {
+                logMessage(`Error setting mode: ${error}`);
+                status.textContent = 'Error setting mode';
+            }
+        }
+
+        function sliceModel() {
+            if (!kiriApi) {
+                status.textContent = 'Please wait for Kiri:Moto to initialize...';
+                logMessage('Cannot slice - Kiri:Moto not ready');
+                return;
+            }
+
+            logMessage('Starting slice...');
+            try {
+                kiriApi.slice();
+                status.textContent = 'Slicing model...';
+            } catch (error) {
+                logMessage(`Error slicing model: ${error}`);
+                status.textContent = 'Error slicing model';
+            }
+        }
+
+        function prepareModel() {
+            if (!kiriApi) {
+                status.textContent = 'Please wait for Kiri:Moto to initialize...';
+                logMessage('Cannot prepare - Kiri:Moto not ready');
+                return;
+            }
+
+            logMessage('Starting preparation...');
+            try {
+                kiriApi.prepare();
+                status.textContent = 'Preparing model...';
+            } catch (error) {
+                logMessage(`Error preparing model: ${error}`);
+                status.textContent = 'Error preparing model';
+            }
+        }
+
+        function exportModel() {
+            if (!kiriApi) {
+                status.textContent = 'Please wait for Kiri:Moto to initialize...';
+                logMessage('Cannot export - Kiri:Moto not ready');
+                return;
+            }
+
+            logMessage('Starting export...');
+            try {
+                kiriApi.export();
+                status.textContent = 'Exporting model...';
+            } catch (error) {
+                logMessage(`Error exporting model: ${error}`);
+                status.textContent = 'Error exporting model';
+            }
+        }
+    </script>
+</body>
+</html> 

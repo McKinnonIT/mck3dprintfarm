@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>STL Preview and Slice Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        #preview-container {
+            width: 100%;
+            height: 600px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 8px 16px;
+            margin-right: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #log {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .modal-content {
+            position: relative;
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            width: 80%;
+            height: 80%;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .close-button {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 24px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>STL Preview and Slice Test</h1>
+        <div id="preview-container"></div>
+        <div class="controls">
+            <button onclick="loadStl()">Load STL</button>
+            <button onclick="loadGcode()">Load G-code</button>
+            <button onclick="sliceModel()">Slice Model</button>
+            <button onclick="reloadModel()">Reload Model</button>
+        </div>
+        <div id="log"></div>
+    </div>
+
+    <div id="preview-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal()">&times;</span>
+            <div id="modal-preview-container" style="width: 100%; height: 100%;"></div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+        import { GCodeLoader } from 'three/addons/loaders/GCodeLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Debug logging for Three.js and STLLoader
+        console.log('Three.js version:', THREE.REVISION);
+        
+        let scene, camera, renderer, controls, currentModel;
+        let modalScene, modalCamera, modalRenderer, modalControls;
+        const log = document.getElementById('log');
+        const previewContainer = document.getElementById('preview-container');
+        const modalPreviewContainer = document.getElementById('modal-preview-container');
+        const modal = document.getElementById('preview-modal');
+        let currentStlFile = null;
+        let currentGcodeFile = null;
+
+        function logMessage(message) {
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `[${time}] ${message}<br>`;
+            log.scrollTop = log.scrollHeight;
+            console.log(message);
+        }
+
+        function initScene(container) {
+            // Create scene
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0);
+
+            // Create camera
+            const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(5, 5, 5);
+            camera.lookAt(0, 0, 0);
+
+            // Create renderer
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 2, 3);
+            scene.add(directionalLight);
+
+            // Add controls
+            const controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = true;
+            controls.minDistance = 1;
+            controls.maxDistance = 100;
+
+            // Add a grid helper
+            const gridHelper = new THREE.GridHelper(250, 25); // 250mm size with 25 divisions (10mm per division)
+            scene.add(gridHelper);
+
+            // Add build volume visualization
+            const buildVolume = new THREE.Group();
+            
+            // Create edges for the build volume
+            const buildVolumeGeometry = new THREE.BoxGeometry(250, 250, 250);
+            const edges = new THREE.EdgesGeometry(buildVolumeGeometry);
+            const buildVolumeEdges = new THREE.LineSegments(
+                edges,
+                new THREE.LineBasicMaterial({ color: 0x666666 })
+            );
+            buildVolume.add(buildVolumeEdges);
+
+            // Add axes labels and measurements
+            const axesHelper = new THREE.AxesHelper(125); // Half the build volume size
+            buildVolume.add(axesHelper);
+
+            // Center the build volume
+            buildVolume.position.set(0, 125, 0); // Move up by half height to sit on grid
+            scene.add(buildVolume);
+
+            // Adjust camera and controls for larger build volume
+            camera.position.set(300, 300, 300);
+            controls.minDistance = 100;
+            controls.maxDistance = 1000;
+
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+            });
+
+            return { scene, camera, renderer, controls };
+        }
+
+        // Initialize scenes
+        const mainPreview = initScene(previewContainer);
+        scene = mainPreview.scene;
+        camera = mainPreview.camera;
+        renderer = mainPreview.renderer;
+        controls = mainPreview.controls;
+
+        const modalPreview = initScene(modalPreviewContainer);
+        modalScene = modalPreview.scene;
+        modalCamera = modalPreview.camera;
+        modalRenderer = modalPreview.renderer;
+        modalControls = modalPreview.controls;
+
+        // Make functions available globally
+        window.loadStl = function() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.stl';
+            
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) {
+                    logMessage('No file selected');
+                    return;
+                }
+
+                currentStlFile = file;
+                logMessage(`Loading STL: ${file.name}`);
+                
+                const reader = new FileReader();
+                reader.addEventListener('load', function(event) {
+                    const contents = event.target.result;
+
+                    try {
+                        const loader = new STLLoader();
+                        const geometry = loader.parse(contents);
+
+                        // Remove existing model if any
+                        if (currentModel) {
+                            scene.remove(currentModel);
+                            modalScene.remove(currentModel);
+                        }
+
+                        // Create material
+                        const material = new THREE.MeshPhongMaterial({
+                            color: 0xff5533,
+                            specular: 0x111111,
+                            shininess: 200
+                        });
+
+                        // Create mesh
+                        currentModel = new THREE.Mesh(geometry, material);
+                        currentModel.castShadow = true;
+                        currentModel.receiveShadow = true;
+
+                        // Center geometry
+                        geometry.computeBoundingBox();
+                        const box = geometry.boundingBox;
+                        const center = box.getCenter(new THREE.Vector3());
+                        currentModel.position.copy(center.negate());
+
+                        // Add to scene
+                        scene.add(currentModel);
+
+                        // Update camera
+                        const size = box.getSize(new THREE.Vector3());
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        const fov = camera.fov * (Math.PI / 180);
+                        let cameraZ = Math.abs(maxDim / Math.tan(fov * 2));
+                        cameraZ *= 1.5; // Zoom out a bit
+                        
+                        camera.position.set(cameraZ, cameraZ / 2, cameraZ);
+                        camera.lookAt(scene.position);
+                        controls.target.set(0, 0, 0);
+                        controls.update();
+
+                        logMessage('STL loaded successfully');
+                        logMessage(`Vertices: ${geometry.attributes.position.count}`);
+                        logMessage(`Size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+                    } catch (error) {
+                        logMessage(`Error loading STL: ${error}`);
+                    }
+                });
+
+                reader.readAsArrayBuffer(file);
+            };
+            
+            input.click();
+        };
+
+        window.loadGcode = function() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.gcode';
+            
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) {
+                    logMessage('No file selected');
+                    return;
+                }
+
+                logMessage(`Loading G-code: ${file.name}`);
+                
+                const reader = new FileReader();
+                reader.addEventListener('load', function(event) {
+                    const contents = event.target.result;
+                    
+                    try {
+                        // Remove existing model if any
+                        if (currentModel) {
+                            scene.remove(currentModel);
+                        }
+
+                        // Create a blob URL from the file contents
+                        const blob = new Blob([contents], { type: 'text/plain' });
+                        const blobUrl = URL.createObjectURL(blob);
+
+                        // Use the GCodeLoader
+                        const loader = new GCodeLoader();
+                        loader.load(blobUrl, function(object) {
+                            currentModel = object;
+                            
+                            // Center the model on XZ plane and place on build plate
+                            const box = new THREE.Box3().setFromObject(currentModel);
+                            const center = box.getCenter(new THREE.Vector3());
+                            const size = box.getSize(new THREE.Vector3());
+                            
+                            // Only offset X and Z to keep Y at build plate level
+                            currentModel.position.x = -center.x;
+                            currentModel.position.z = -center.z;
+                            
+                            // Place the model on the build plate (grid)
+                            const bottomY = box.min.y;
+                            currentModel.position.y = -bottomY;
+                            
+                            // Add to scene
+                            scene.add(currentModel);
+                            
+                            // Update camera to look slightly down at the model
+                            const maxDim = Math.max(size.x, size.y, size.z);
+                            const fov = camera.fov * (Math.PI / 180);
+                            let cameraZ = Math.abs(maxDim / Math.tan(fov * 2));
+                            cameraZ *= 1.5; // Zoom out a bit
+                            
+                            camera.position.set(cameraZ, cameraZ * 0.75, cameraZ);
+                            camera.lookAt(new THREE.Vector3(0, size.y / 2, 0));
+                            controls.target.set(0, size.y / 2, 0);
+                            controls.update();
+
+                            // Clean up the blob URL
+                            URL.revokeObjectURL(blobUrl);
+
+                            logMessage('G-code loaded successfully');
+                            logMessage(`Model size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+                            logMessage('Model centered on build plate');
+                        }, 
+                        // Progress callback
+                        function(xhr) {
+                            logMessage(`Loading progress: ${(xhr.loaded / xhr.total * 100).toFixed(0)}%`);
+                        },
+                        // Error callback
+                        function(error) {
+                            logMessage(`Error loading G-code: ${error}`);
+                            URL.revokeObjectURL(blobUrl);
+                        });
+
+                    } catch (error) {
+                        logMessage(`Error processing G-code: ${error}`);
+                    }
+                });
+
+                reader.readAsText(file);
+            };
+            
+            input.click();
+        };
+
+        window.sliceModel = sliceModel;
+        window.reloadModel = reloadModel;
+        window.showModal = showModal;
+        window.closeModal = closeModal;
+
+        function fitCameraToObject(camera, object, offset = 1.25) {
+            const boundingBox = new THREE.Box3();
+            boundingBox.setFromObject(object);
+            
+            const center = boundingBox.getCenter(new THREE.Vector3());
+            const size = boundingBox.getSize(new THREE.Vector3());
+            
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / 2 * Math.tan(fov * 2)) * offset;
+            
+            camera.position.set(center.x + cameraZ, center.y + cameraZ, center.z + cameraZ);
+            camera.lookAt(center);
+            camera.updateProjectionMatrix();
+            
+            // Update controls target
+            controls.target.copy(center);
+            controls.update();
+        }
+
+        async function sliceModel() {
+            if (!currentModel || !currentStlFile) {
+                logMessage('No model loaded to slice');
+                return;
+            }
+
+            logMessage('Starting slice process...');
+            
+            try {
+                // Create a temporary directory for processing
+                const tempDir = await createTempDirectory();
+                const inputPath = `${tempDir}/${currentStlFile.name}`;
+                const outputPath = `${tempDir}/${currentStlFile.name.replace('.stl', '.gcode')}`;
+                
+                // Copy STL file to temp directory
+                await copyFileToTemp(currentStlFile, inputPath);
+                
+                // Run PrusaSlicer-console
+                const command = `prusa-slicer-console --load "${inputPath}" --output "${outputPath}" --export-gcode`;
+                logMessage(`Running command: ${command}`);
+                
+                const result = await runCommand(command);
+                logMessage(`Slice result: ${result}`);
+                
+                // Store the G-code file path
+                currentGcodeFile = outputPath;
+                
+                // Show the sliced model in modal
+                showModal();
+                
+                logMessage('Slice completed successfully');
+            } catch (error) {
+                logMessage(`Error during slicing: ${error}`);
+            }
+        }
+
+        async function reloadModel() {
+            if (!currentGcodeFile) {
+                logMessage('No sliced model to reload');
+                return;
+            }
+
+            logMessage('Reloading sliced model...');
+            
+            try {
+                const filename = path.basename(currentGcodeFile);
+                const response = await fetch(`http://localhost:3000/api/gcode/${filename}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load G-code: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                const gcode = result.content;
+                
+                // Parse G-code and create visualization
+                const lines = gcode.split('\n');
+                const points = [];
+                let currentX = 0, currentY = 0, currentZ = 0;
+                
+                for (const line of lines) {
+                    if (line.startsWith('G1')) {
+                        const x = line.match(/X([-\d.]+)/)?.[1];
+                        const y = line.match(/Y([-\d.]+)/)?.[1];
+                        const z = line.match(/Z([-\d.]+)/)?.[1];
+                        
+                        if (x) currentX = parseFloat(x);
+                        if (y) currentY = parseFloat(y);
+                        if (z) currentZ = parseFloat(z);
+                        
+                        points.push(new THREE.Vector3(currentX, currentY, currentZ));
+                    }
+                }
+                
+                // Create visualization
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({ color: 0x0000ff });
+                const line = new THREE.Line(geometry, material);
+                
+                // Add to modal scene
+                modalScene.add(line);
+                
+                // Center and scale the visualization
+                geometry.computeBoundingBox();
+                const box = geometry.boundingBox;
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const scale = 2 / maxDim;
+                line.scale.set(scale, scale, scale);
+                line.position.sub(center.multiplyScalar(scale));
+                
+                logMessage('G-code visualization loaded');
+            } catch (error) {
+                logMessage(`Error reloading model: ${error}`);
+            }
+        }
+
+        function showModal() {
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = (event) => {
+            if (event.target === modal) {
+                closeModal();
+            }
+        };
+
+        // Helper functions for file operations
+        async function createTempDirectory() {
+            const tempDir = await runCommand('mktemp -d');
+            logMessage(`Created temp directory: ${tempDir}`);
+            return tempDir.trim();
+        }
+
+        async function copyFileToTemp(file, destPath) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('originalname', path.basename(destPath));
+
+            try {
+                const response = await fetch('http://localhost:3000/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                logMessage(`File uploaded to: ${result.path}`);
+                return result.path;
+            } catch (error) {
+                logMessage(`Error uploading file: ${error}`);
+                throw error;
+            }
+        }
+
+        async function runCommand(command) {
+            try {
+                const response = await fetch('http://localhost:3000/api/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ command })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Command execution failed: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                if (result.error) {
+                    logMessage(`Command stderr: ${result.error}`);
+                }
+                return result.output;
+            } catch (error) {
+                logMessage(`Error executing command: ${error}`);
+                throw error;
+            }
+        }
+
+        // Helper function to get filename from path
+        function path() {
+            return {
+                basename: (path) => path.split('/').pop()
+            };
+        }
+    </script>
+</body>
+</html> 

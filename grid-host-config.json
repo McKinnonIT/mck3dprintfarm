@@ -1,0 +1,23 @@
+{
+  "port": 8081,
+  "targets": {
+    "files": {
+      "type": "post",
+      "url": "http://localhost:3000/api/files/save-gcode",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "transform": {
+        "type": "json",
+        "template": {
+          "gcode": "${content}",
+          "filename": "${name}",
+          "metadata": {
+            "timestamp": "${date}",
+            "slicedBy": "kiri-moto"
+          }
+        }
+      }
+    }
+  }
+} 

@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  mck3dprintfarm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./prisma/dev.db:/app/prisma/dev.db
+      # Avoid mounting certificates since we're skipping HTTPS in dev mode in Docker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      # Skip HTTPS for Docker deployment
+      - NEXTAUTH_URL=http://localhost:3000
+      # Default admin user credentials
+      - DEFAULT_ADMIN_EMAIL=admin@example.com
+      - DEFAULT_ADMIN_PASSWORD=Admin123!
+      - DEFAULT_ADMIN_NAME=Administrator
+      # Add other environment variables as needed 

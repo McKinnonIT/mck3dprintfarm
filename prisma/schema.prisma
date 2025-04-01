@@ -1,0 +1,93 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  password  String?
+  role      String     @default("user")
+  files     File[]
+  printJobs PrintJob[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Printer {
+  id                String   @id @default(cuid())
+  name              String
+  type              String
+  apiUrl            String
+  apiKey            String?
+  status            String   @default("active")
+  operationalStatus String   @default("idle")
+  lastSeen          DateTime @default(now())
+  printStartTime    DateTime?
+  printTimeElapsed  Float?
+  printTimeRemaining Float?
+  webcamUrl         String?
+  printImageUrl     String?
+  bedTemp           Float?
+  toolTemp          Float?
+  printJobs         PrintJob[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  groupId           String?
+  group             Group?   @relation(fields: [groupId], references: [id])
+}
+
+model PrintJob {
+  id          String   @id @default(cuid())
+  name        String
+  status      String   // pending, printing, completed, failed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  fileId      String
+  file        File     @relation(fields: [fileId], references: [id])
+  printerId   String
+  printer     Printer  @relation(fields: [printerId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  startedAt   DateTime?
+  completedAt DateTime?
+  error       String?
+}
+
+model File {
+  id          String   @id @default(cuid())
+  name        String
+  path        String
+  size        Int
+  type        String
+  previewUrl  String?
+  uploadedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  uploadedBy  String
+  user        User     @relation(fields: [uploadedBy], references: [id])
+  groupId     String?
+  group       Group?   @relation(fields: [groupId], references: [id])
+  printJobs   PrintJob[]
+}
+
+model Group {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  printers    Printer[]
+  files       File[]
+}

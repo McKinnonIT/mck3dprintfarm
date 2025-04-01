@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiri:Moto Viewer Test</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        #container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        #viewer {
+            flex-grow: 1;
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+        .controls {
+            padding: 1rem;
+            background: #f0f0f0;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        #results {
+            padding: 1rem;
+            background: #f8f9fa;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow: auto;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h2>Kiri:Moto Viewer Test</h2>
+        <div style="margin-bottom: 1rem;">
+            <button id="testLocalBtn">Test Local Kiri:Moto</button>
+            <button id="testRemoteBtn">Test Remote Kiri:Moto</button>
+            <button id="loadBasicSTL">Load Basic STL</button>
+        </div>
+        <div id="results">Results will appear here...</div>
+    </div>
+    <div id="container">
+        <iframe id="viewer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"></iframe>
+    </div>
+
+    <script>
+        // Configuration
+        const LOCAL_KIRI_URL = 'http://localhost:8080/kiri';
+        const REMOTE_KIRI_URL = 'https://grid.space/kiri';
+        let currentLocation = '';
+        
+        const iframe = document.getElementById('viewer');
+        const results = document.getElementById('results');
+        
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const fileUrl = urlParams.get('url');
+        const fileName = urlParams.get('name') || 'File';
+        const fileType = urlParams.get('type') || '';
+        
+        function log(message) {
+            console.log(message);
+            results.textContent += message + '\n';
+            results.scrollTop = results.scrollHeight;
+        }
+        
+        // Test functions
+        async function testLocalKiri() {
+            log('Testing local Kiri:Moto...');
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
+                
+                const response = await fetch(LOCAL_KIRI_URL, { 
+                    method: 'HEAD', 
+                    signal: controller.signal 
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    log(`Local Kiri:Moto available (${response.status})`);
+                    loadKiri(LOCAL_KIRI_URL);
+                    return true;
+                } else {
+                    log(`Local Kiri:Moto returned ${response.status}`);
+                    return false;
+                }
+            } catch (e) {
+                log(`Local Kiri:Moto error: ${e.message}`);
+                return false;
+            }
+        }
+        
+        async function testRemoteKiri() {
+            log('Testing remote Kiri:Moto...');
+            try {
+                const response = await fetch(REMOTE_KIRI_URL, { method: 'HEAD' });
+                
+                if (response.ok) {
+                    log(`Remote Kiri:Moto available (${response.status})`);
+                    loadKiri(REMOTE_KIRI_URL);
+                    return true;
+                } else {
+                    log(`Remote Kiri:Moto returned ${response.status}`);
+                    return false;
+                }
+            } catch (e) {
+                log(`Remote Kiri:Moto error: ${e.message}`);
+                return false;
+            }
+        }
+        
+        function loadKiri(baseUrl) {
+            currentLocation = baseUrl;
+            log(`Loading Kiri:Moto from ${baseUrl}`);
+            
+            // If we have a file to load, construct the correct URL
+            if (fileUrl) {
+                const isStl = fileName.toLowerCase().endsWith('.stl') || 
+                             fileUrl.toLowerCase().endsWith('.stl') || 
+                             fileType === 'stl';
+                
+                const encodedFileUrl = encodeURIComponent(fileUrl);
+                const encodedFileName = encodeURIComponent(fileName);
+                
+                if (isStl) {
+                    log(`Loading STL file: ${fileName}`);
+                    iframe.src = `${baseUrl}/?load=${encodedFileUrl}&name=${encodedFileName}&mode=FDM&view=arrange`;
+                } else {
+                    log(`Loading GCODE file: ${fileName}`);
+                    iframe.src = `${baseUrl}/?mode=FDM&view=arrange&platform=bed`;
+                    
+                    // Set up event listener for when Kiri:Moto is ready
+                    window.addEventListener('message', handleKiriMessage);
+                }
+            } else {
+                iframe.src = `${baseUrl}/?mode=FDM&view=arrange&platform=bed`;
+            }
+        }
+        
+        function handleKiriMessage(event) {
+            if (event.origin.includes('grid.space') || event.origin.includes('localhost')) {
+                log(`Message from Kiri:Moto: ${JSON.stringify(event.data)}`);
+                
+                // If we get init event and have GCODE to load
+                if (event.data && event.data.kiri && 
+                   (event.data.event === 'init-done' || event.data.init) && 
+                   fileUrl && !fileName.toLowerCase().endsWith('.stl')) {
+                    
+                    log('Kiri:Moto initialized, loading GCODE via postMessage');
+                    
+                    // First fetch the GCODE file
+                    fetchGcodeFile(fileUrl)
+                        .then(gcodeContent => {
+                            if (gcodeContent) {
+                                sendGCodeToKiri(gcodeContent, fileName);
+                            }
+                        })
+                        .catch(error => {
+                            log(`Error fetching GCODE: ${error.message}`);
+                        });
+                }
+            }
+        }
+        
+        async function fetchGcodeFile(url) {
+            log(`Fetching GCODE from: ${url}`);
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'text/plain, application/octet-stream',
+                        'Cache-Control': 'no-cache'
+                    },
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch GCODE (${response.status})`);
+                }
+                
+                const text = await response.text();
+                log(`GCODE content fetched (${text.length} bytes)`);
+                return text;
+            } catch (error) {
+                log(`Error in fetchGcodeFile: ${error.message}`);
+                throw error;
+            }
+        }
+        
+        function sendGCodeToKiri(gcodeContent, filename) {
+            try {
+                iframe.contentWindow.postMessage({
+                    kiri: true,
+                    load: {
+                        name: filename,
+                        data: gcodeContent,
+                        mode: 'FDM'
+                    }
+                }, new URL(currentLocation).origin);
+                
+                log('Sent GCODE to Kiri:Moto via postMessage API');
+            } catch (e) {
+                log(`Error sending GCODE to Kiri:Moto: ${e.message}`);
+            }
+        }
+        
+        function loadBasicSTL() {
+            if (!currentLocation) {
+                log('Please test local or remote Kiri:Moto first');
+                return;
+            }
+            
+            log('Loading a basic cube STL...');
+            const basicCubeUrl = 'https://storage.googleapis.com/ucloud-v3/ccab50f18fb54486bc0c7a33e05cb5c2/cube.stl';
+            
+            try {
+                iframe.contentWindow.postMessage({
+                    kiri: true,
+                    load: basicCubeUrl,
+                    name: 'cube.stl'
+                }, new URL(currentLocation).origin);
+                
+                log('Sent load command to Kiri:Moto');
+            } catch (e) {
+                log(`Error loading STL: ${e.message}`);
+            }
+        }
+        
+        // Set up button event listeners
+        document.getElementById('testLocalBtn').addEventListener('click', testLocalKiri);
+        document.getElementById('testRemoteBtn').addEventListener('click', testRemoteKiri);
+        document.getElementById('loadBasicSTL').addEventListener('click', loadBasicSTL);
+        
+        // Initial log
+        log('Test page loaded. Click a button to begin testing.');
+        log(`Local URL: ${LOCAL_KIRI_URL}`);
+        log(`Remote URL: ${REMOTE_KIRI_URL}`);
+        
+        // If URL parameters are provided, automatically try to load
+        if (fileUrl) {
+            log(`File URL provided: ${fileUrl}`);
+            log(`File name: ${fileName}`);
+            log(`File type: ${fileType || 'not specified'}`);
+            
+            // Try local first, then remote
+            testLocalKiri().then(success => {
+                if (!success) {
+                    log('Local failed, trying remote...');
+                    testRemoteKiri();
+                }
+            });
+        }
+    </script>
+</body>
+</html> 

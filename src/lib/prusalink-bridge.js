@@ -59,6 +59,40 @@ async function findPythonExecutable() {
 // Cache the Python executable
 let pythonExecutable = null;
 
+// Keep track of active Python processes
+const activePythonProcesses = new Set();
+
+// Clean up process on exit (prevents zombie processes)
+function registerPythonProcess(process) {
+  activePythonProcesses.add(process);
+  
+  // Auto-cleanup after process ends
+  process.on('close', () => {
+    activePythonProcesses.delete(process);
+  });
+  
+  return process;
+}
+
+// Add a periodic cleaner
+setInterval(() => {
+  console.log(`[prusalink-bridge] Active Python processes: ${activePythonProcesses.size}`);
+  
+  // Kill any processes that have been running for more than 30 seconds
+  const now = Date.now();
+  for (const process of activePythonProcesses) {
+    if (process.startTime && (now - process.startTime) > 30000) {
+      console.log(`[prusalink-bridge] Killing long-running Python process (${Math.round((now - process.startTime)/1000)}s)`);
+      try {
+        process.kill();
+        activePythonProcesses.delete(process);
+      } catch (err) {
+        console.error('Error killing process:', err);
+      }
+    }
+  }
+}, 10000); // Check every 10 seconds
+
 /**
  * Uploads a file to a PrusaLink printer and optionally starts printing
  * @param {string} printerIp - IP address of the printer
@@ -206,11 +240,23 @@ except Exception as e:
     // Write the script to a file
     fs.writeFileSync(scriptPath, pythonScript);
     
-    // Execute the Python script
-    const pythonProcess = spawn(pythonExecutable, [scriptPath]);
+    // Execute the Python script and register for cleanup
+    const pythonProcess = registerPythonProcess(spawn(pythonExecutable, [scriptPath]));
+    pythonProcess.startTime = Date.now(); // Track process start time
     
     let output = '';
     let errorOutput = '';
+    
+    // Set a hard timeout to kill the process if it runs too long
+    const processTimeoutId = setTimeout(() => {
+      console.log(`[prusalink-bridge] Force killing Python process after timeout`);
+      try {
+        pythonProcess.kill();
+        activePythonProcesses.delete(pythonProcess);
+      } catch (err) {
+        console.error('Error killing process:', err);
+      }
+    }, 20000); // 20 second hard limit
     
     // Collect stdout data
     pythonProcess.stdout.on('data', (data) => {
@@ -233,6 +279,9 @@ except Exception as e:
     
     // Handle process completion
     pythonProcess.on('close', (code) => {
+      // Clear the hard timeout
+      clearTimeout(processTimeoutId);
+      
       // Clean up the temporary script
       try {
         fs.unlinkSync(scriptPath);
@@ -372,11 +421,23 @@ except Exception as e:
     // Write the script to a file
     fs.writeFileSync(scriptPath, pythonScript);
     
-    // Execute the Python script
-    const pythonProcess = spawn(pythonExecutable, [scriptPath]);
+    // Execute the Python script and register for cleanup
+    const pythonProcess = registerPythonProcess(spawn(pythonExecutable, [scriptPath]));
+    pythonProcess.startTime = Date.now(); // Track process start time
     
     let output = '';
     let errorOutput = '';
+    
+    // Set a hard timeout to kill the process if it runs too long
+    const processTimeoutId = setTimeout(() => {
+      console.log(`[prusalink-bridge] Force killing Python process after timeout`);
+      try {
+        pythonProcess.kill();
+        activePythonProcesses.delete(pythonProcess);
+      } catch (err) {
+        console.error('Error killing process:', err);
+      }
+    }, 20000); // 20 second hard limit
     
     // Collect stdout data
     pythonProcess.stdout.on('data', (data) => {
@@ -399,6 +460,9 @@ except Exception as e:
     
     // Handle process completion
     pythonProcess.on('close', (code) => {
+      // Clear the hard timeout
+      clearTimeout(processTimeoutId);
+      
       // Clean up the temporary script
       try {
         fs.unlinkSync(scriptPath);
@@ -774,11 +838,23 @@ except Exception as e:
     // Write the script to a file
     fs.writeFileSync(scriptPath, pythonScript);
     
-    // Execute the Python script
-    const pythonProcess = spawn(pythonExecutable, [scriptPath]);
+    // Execute the Python script and register for cleanup
+    const pythonProcess = registerPythonProcess(spawn(pythonExecutable, [scriptPath]));
+    pythonProcess.startTime = Date.now(); // Track process start time
     
     let output = '';
     let errorOutput = '';
+    
+    // Set a hard timeout to kill the process if it runs too long
+    const processTimeoutId = setTimeout(() => {
+      console.log(`[prusalink-bridge] Force killing Python process after timeout`);
+      try {
+        pythonProcess.kill();
+        activePythonProcesses.delete(pythonProcess);
+      } catch (err) {
+        console.error('Error killing process:', err);
+      }
+    }, 20000); // 20 second hard limit
     
     // Collect stdout data
     pythonProcess.stdout.on('data', (data) => {
@@ -801,6 +877,9 @@ except Exception as e:
     
     // Handle process completion
     pythonProcess.on('close', (code) => {
+      // Clear the hard timeout
+      clearTimeout(processTimeoutId);
+      
       // Clean up the temporary script
       try {
         fs.unlinkSync(scriptPath);

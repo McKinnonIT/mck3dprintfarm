@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 
 // App version - update this when making significant changes
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '0.0.1a';
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -12,7 +12,7 @@ export function Footer() {
       <div className="container mx-auto px-4">
         <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-600">
           <div>
-            &copy; {currentYear} 3D Print Farm Manager. All rights reserved.
+            &copy; {currentYear} McKinnon Secondary College. All rights reserved.
           </div>
           <div className="mt-2 md:mt-0 flex space-x-4">
             <span>Version {APP_VERSION}</span>

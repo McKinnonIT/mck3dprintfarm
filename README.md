@@ -1,190 +1,124 @@
-# MCK 3D Print Farm
+# MCK 3D Print Farm Manager
 
-A web application for managing a farm of 3D printers.
+A web-based application for managing 3D printers at McKinnon Secondary College. This application provides a dashboard for monitoring and controlling both PrusaLink and Moonraker-based 3D printers.
 
 ## Features
 
-- User authentication
-- Printer management
-- File upload and management
+- Real-time monitoring of 3D printer status
+- Support for both PrusaLink and Moonraker (Klipper) printers
+- File uploading and management
 - Print job tracking
-- Print history and analytics
+- Printer grouping for organizational management
+- User authentication and role-based access control
+- Webcam integration for remote monitoring
 
-## Printer Support
+## Technology Stack
 
-### Prusa Link Printers
+- **Frontend**: Next.js, React, TailwindCSS
+- **Backend**: Next.js API routes, Prisma ORM
+- **Database**: SQLite (default), compatible with PostgreSQL
+- **Authentication**: NextAuth.js
+- **3D Printer Integration**: PrusaLinkPy, Moonraker API
 
-For Prusa printers using PrusaLink, the application uses the PrusaLinkPy Python library to provide a reliable and stable connection. This approach simplifies file uploads and print job management.
-
-#### Requirements for PrusaLink Integration
-
-1. Python 3.6 or newer must be installed on your system
-2. The PrusaLinkPy library must be installed:
-   ```
-   pip install prusaLinkPy
-   ```
-
-The application is designed to work with various Python setups:
-
-- Automatically detects Python executables (`python3`, `python`, or `py`)
-- Supports both direct `pip` and `python -m pip` installation methods
-- Provides a user-friendly setup interface at `/dashboard/prusalink-setup`
-
-#### Diagnostic Tools
-
-The application includes several tools to help diagnose issues with PrusaLink printers:
-
-- **Dependency Check**: Verify Python and PrusaLinkPy are installed at `/dashboard/prusalink-setup`
-- **API Diagnostic**: Test direct communication with your printer at `/dashboard/printers/[id]/prusalink-diagnostic`
-- **Command-line Test Script**: Use the included test script for troubleshooting uploads
-
-To use the command-line test script:
-
-```bash
-node scripts/test-prusalink-upload.js <printer-ip> <api-key> <file-path> [print]
-
-# Examples:
-node scripts/test-prusalink-upload.js 192.168.1.123 abcd1234 path/to/file.bgcode
-node scripts/test-prusalink-upload.js 192.168.1.123 abcd1234 path/to/file.bgcode print
-```
-
-#### Automatic Dependency Check
-
-The application includes endpoints to check and install required dependencies:
-
-- `/api/printers/check-dependencies` - Checks if Python and PrusaLinkPy are installed
-- `/api/printers/install-dependencies` - Attempts to install or update the PrusaLinkPy library
-
-If you have PrusaLink printers, you'll see a notification in the printers dashboard that guides you to the setup page.
-
-## Development
-
-### Setup
-
-1. Clone the repository
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Set up environment variables (see `.env.example`)
-4. Run the development server:
-   ```
-   npm run dev
-   ```
-
-### Database
-
-This project uses Prisma ORM with a SQLite database for development. To set up the database:
-
-```
-npx prisma generate
-npx prisma migrate dev
-```
-
-## Deployment
-
-### Standard Deployment
-
-1. Build the application:
-   ```
-   npm run build
-   ```
-2. Start the server:
-   ```
-   npm start
-   ```
+## Deployment Options
 
 ### Docker Deployment
 
-This application can be run using Docker, which simplifies deployment and ensures consistent environments.
+The application is available as a Docker image that can be pulled from Docker Hub:
 
-#### Prerequisites
+```bash
+docker pull yourusername/mck3dprintfarm:latest
+```
 
-- Docker and Docker Compose installed on your system
-- Docker Hub account (for pushing to Docker Hub)
+Or use a specific version:
 
-#### Using Docker Compose (Recommended)
+```bash
+docker pull yourusername/mck3dprintfarm:1.0.0
+```
+
+#### Docker Run
+
+```bash
+docker run -p 3000:3000 -v ./data:/app/data yourusername/mck3dprintfarm:latest
+```
+
+#### Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3'
+services:
+  mck3dprintfarm:
+    image: yourusername/mck3dprintfarm:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+```
+
+Then run:
+
+```bash
+docker-compose up -d
+```
+
+### Manual Deployment
 
 1. Clone the repository
-2. Configure your environment variables in a `.env` file
-3. Build and start the application:
+2. Install dependencies:
+   ```bash
+   npm install
    ```
-   docker-compose up -d
+3. Install PrusaLinkPy:
+   ```bash
+   pip install prusaLinkPy
+   ```
+4. Generate Prisma client:
+   ```bash
+   npx prisma generate
+   ```
+5. Build the application:
+   ```bash
+   npm run build
+   ```
+6. Start the server:
+   ```bash
+   npm run start
    ```
 
-This will:
-- Build the Docker image
-- Start the container
-- Map port 3000 to your host
-- Mount the uploads directory and database file for persistence
-- Create a default admin user (if one doesn't exist)
+## Configuration
 
-#### Default Admin User
+### Environment Variables
 
-By default, the Docker container will create an admin user on first startup if one doesn't exist:
-
-- Email: admin@example.com
-- Password: Admin123!
-- Name: Administrator
-
-You can customize these values by setting the following environment variables in your `.env` file or in the `docker-compose.yml`:
+Create a `.env` file with the following variables:
 
 ```
-DEFAULT_ADMIN_EMAIL=your_email@example.com
-DEFAULT_ADMIN_PASSWORD=your_secure_password
-DEFAULT_ADMIN_NAME=Your Name
+# Database URL
+DATABASE_URL="file:./data/dev.db"
+
+# NextAuth.js
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_secret_key
 ```
 
-#### Manual Docker Build and Run
+## GitHub Actions
 
-1. Build the Docker image:
-   ```
-   docker build -t mck3dprintfarm .
-   ```
+The repository is configured with GitHub Actions to automatically build and push the Docker image to Docker Hub when changes are pushed to the main branch.
 
-2. Run the container:
-   ```
-   docker run -p 3000:3000 -v ./uploads:/app/uploads -v ./prisma/dev.db:/app/prisma/dev.db -d mck3dprintfarm
-   ```
+### Required Secrets
 
-#### Pushing to Docker Hub
+To use the GitHub Actions workflow, you need to add the following secrets to your GitHub repository:
 
-If you want to push your image to Docker Hub:
-
-1. Tag your image:
-   ```
-   docker tag mck3dprintfarm yourusername/mck3dprintfarm:latest
-   ```
-
-2. Push to Docker Hub:
-   ```
-   docker push yourusername/mck3dprintfarm:latest
-   ```
-
-3. Pull on another machine:
-   ```
-   docker pull yourusername/mck3dprintfarm:latest
-   docker run -p 3000:3000 -v ./uploads:/app/uploads -v ./prisma/dev.db:/app/prisma/dev.db -d yourusername/mck3dprintfarm:latest
-   ```
-
-## Troubleshooting
-
-### Common Issues with PrusaLink Printers
-
-1. **Cannot find Python**: Ensure Python is installed and in your system PATH
-2. **Missing PrusaLinkPy**: Install it using `pip install prusaLinkPy`
-3. **Authentication failures**: Check that your API key is correct and the printer is accessible
-4. **Upload failures**: Make sure you're uploading a `.bgcode` file, which is supported by PrusaLink printers
-
-Use the diagnostic tools to determine the specific issue. The diagnostic page will show you detailed information about the API communication.
-
-### Docker Issues
-
-1. **Container exits immediately**: Check the container logs with `docker logs <container_id>`
-2. **Can't access application**: Ensure port 3000 is exposed and mapped correctly
-3. **Data persistence issues**: Verify volume mounts are configured properly
-4. **Environment variables**: Make sure all required variables are set in your Docker Compose file or container environment
+- `DOCKERHUB_USERNAME`: Your Docker Hub username
+- `DOCKERHUB_TOKEN`: Your Docker Hub token (create one in Docker Hub account settings)
 
 ## License
 
+This software was developed for McKinnon Secondary College and is provided as-is.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. 
 MIT 

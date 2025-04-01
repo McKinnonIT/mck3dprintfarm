@@ -98,9 +98,11 @@ export default function HomePage() {
         )
       );
       
-      // Filter out ungrouped printers
+      // Filter out ungrouped printers (excluding disabled and maintenance)
       const ungrouped = printersData.filter(
-        (printer: Printer) => !groupedPrinterIds.has(printer.id)
+        (printer: Printer) => !groupedPrinterIds.has(printer.id) && 
+                             printer.status !== "disabled" && 
+                             printer.status !== "maintenance"
       );
       
       // Update printers with current status
@@ -112,9 +114,11 @@ export default function HomePage() {
       // Update groups with printer status
       const updatedGroups = groupsData.map((group: Group) => ({
         ...group,
-        printers: group.printers.map((printer: Printer) => 
-          printersById[printer.id] || printer
-        )
+        printers: group.printers
+          .map((printer: Printer) => printersById[printer.id] || printer)
+          .filter((printer: Printer) => 
+            printer.status !== "disabled" && printer.status !== "maintenance"
+          )
       }));
       
       setGroups(updatedGroups.sort((a: Group, b: Group) => a.order - b.order));

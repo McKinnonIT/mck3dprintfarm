@@ -22,7 +22,10 @@ RUN npm install --save lucide-react \
     tailwindcss-animate \
     clsx \
     tailwind-merge \
-    @azure/storage-blob
+    @azure/storage-blob \
+    @heroicons/react/24/outline \
+    bcryptjs \
+    next-auth
 
 # Create the UI components directory structure
 RUN mkdir -p src/components/ui

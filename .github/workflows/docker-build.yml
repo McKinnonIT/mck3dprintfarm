@@ -26,21 +26,16 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Version extracted: $VERSION"
           
-      - name: Set Docker Hub username
+      - name: Set up Docker Hub information
         run: |
-          echo "DOCKER_HUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" >> $GITHUB_ENV
-          echo "Using Docker Hub username: ${{ secrets.DOCKERHUB_USERNAME }}"
-          
-          # Fallback to a default value if the secret isn't set properly
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
-            echo "DOCKER_HUB_USERNAME=mckinnonit" >> $GITHUB_ENV
-            echo "Using fallback Docker Hub username: mckinnonit"
-          fi
+          # Direct hardcoding for reliability
+          echo "DOCKER_HUB_USERNAME=mckinnonit" >> $GITHUB_ENV
+          echo "Using Docker Hub username: mckinnonit"
 
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
-          username: ${{ env.DOCKER_HUB_USERNAME }}
+          username: mckinnonit
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
@@ -49,15 +44,15 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.DOCKER_HUB_USERNAME }}/mck3dprintfarm:latest
-            ${{ env.DOCKER_HUB_USERNAME }}/mck3dprintfarm:${{ env.VERSION }}
-          cache-from: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/mck3dprintfarm:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/mck3dprintfarm:buildcache,mode=max
+            mckinnonit/mck3dprintfarm:latest
+            mckinnonit/mck3dprintfarm:${{ env.VERSION }}
+          cache-from: type=registry,ref=mckinnonit/mck3dprintfarm:buildcache
+          cache-to: type=registry,ref=mckinnonit/mck3dprintfarm:buildcache,mode=max
 
       - name: Update Docker Hub Description
         uses: peter-evans/dockerhub-description@v3
         with:
-          username: ${{ env.DOCKER_HUB_USERNAME }}
+          username: mckinnonit
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ env.DOCKER_HUB_USERNAME }}/mck3dprintfarm
+          repository: mckinnonit/mck3dprintfarm
           short-description: "McKinnon Secondary College 3D Print Farm management application" 

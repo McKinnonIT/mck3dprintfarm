@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 const prusaLinkBridge = require("@/lib/prusalink-bridge");
 
+// Mark this route as dynamic to prevent static generation errors
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     // Get query parameters from URL

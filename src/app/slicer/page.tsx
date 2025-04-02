@@ -2,23 +2,15 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 
-export default function SlicerPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+// Component that uses useSearchParams (must be wrapped in Suspense)
+function FileParamsLoader({ setFileInfo, setError }: { 
+  setFileInfo: (info: {fileName: string, fileUrl: string} | null) => void,
+  setError: (error: string | null) => void
+}) {
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
-  const [overlayVisible, setOverlayVisible] = useState(true);
-  const [fileInfo, setFileInfo] = useState<{fileName: string, fileUrl: string} | null>(null);
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin");
-    }
-  }, [status, router]);
-
-  // Get file information from URL parameters
+  
   useEffect(() => {
     const fileUrl = searchParams.get('file');
     const fileName = searchParams.get('name');
@@ -31,7 +23,25 @@ export default function SlicerPage() {
     } else {
       setError("No file parameters provided");
     }
-  }, [searchParams]);
+  }, [searchParams, setFileInfo, setError]);
+  
+  return null;
+}
+
+export default function SlicerPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [overlayVisible, setOverlayVisible] = useState(true);
+  const [fileInfo, setFileInfo] = useState<{fileName: string, fileUrl: string} | null>(null);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin");
+    }
+  }, [status, router]);
+
+  // Get file information from URL parameters is now handled by FileParamsLoader
 
   // Function to open Kiri:Moto in a new tab
   const openInKiriMoto = () => {
@@ -88,6 +98,11 @@ export default function SlicerPage() {
 
   return (
     <div className="container mx-auto py-8 px-4">
+      {/* Wrap search params usage in Suspense boundary */}
+      <Suspense fallback={<div>Loading file information...</div>}>
+        <FileParamsLoader setFileInfo={setFileInfo} setError={setError} />
+      </Suspense>
+      
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold mb-6 text-center">View/Edit STL in Kiri:Moto</h1>
         

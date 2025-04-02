@@ -9,22 +9,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Install UI dependencies explicitly
-RUN npm install --no-fund --no-audit --loglevel verbose --save lucide-react \
-    @radix-ui/react-icons \
-    @radix-ui/react-slot \
-    @radix-ui/react-dropdown-menu \
-    @radix-ui/react-dialog \
-    @radix-ui/react-label \
-    @radix-ui/react-toast \
-    class-variance-authority \
-    tailwindcss-animate \
-    clsx \
-    tailwind-merge \
-    @azure/storage-blob \
-    @heroicons/react/24/outline \
-    bcryptjs \
-    next-auth
+# Install UI dependencies explicitly in smaller batches
+RUN npm install --no-fund --no-audit --save lucide-react @radix-ui/react-icons @radix-ui/react-slot
+RUN npm install --no-fund --no-audit --save @radix-ui/react-dropdown-menu @radix-ui/react-dialog @radix-ui/react-label @radix-ui/react-toast
+RUN npm install --no-fund --no-audit --save class-variance-authority tailwindcss-animate clsx tailwind-merge
+RUN npm install --no-fund --no-audit --save @azure/storage-blob
+RUN npm install --no-fund --no-audit --save @heroicons/react/24/outline bcryptjs next-auth
 
 # Create the UI components directory structure
 RUN mkdir -p src/components/ui

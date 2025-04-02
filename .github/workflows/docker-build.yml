@@ -31,6 +31,24 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version extracted: $VERSION"
 
+      # Check Docker Hub credentials before attempting login
+      - name: Verify Docker Hub credentials
+        id: verify-creds
+        run: |
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "::error::Docker Hub username is not set. Please add DOCKERHUB_USERNAME secret."
+            exit 1
+          fi
+          
+          if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "::error::Docker Hub token is not set. Please add DOCKERHUB_TOKEN secret."
+            echo "::error::Make sure the token has 'Read, Write, Delete' permissions from Docker Hub."
+            echo "::error::To create a token, go to https://hub.docker.com/settings/security"
+            exit 1
+          fi
+          
+          echo "Docker Hub credentials provided. Proceeding with login..."
+
       # Login to DockerHub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -100,13 +118,29 @@ jobs:
           echo "Using version: $VERSION"
           echo "Full image name: $DOCKER_USER/${{ env.IMAGE_NAME }}"
           
+          # Verify Docker Hub login
+          echo "Verifying Docker Hub login..."
+          if ! docker login --username "$DOCKER_USER" --password-stdin <<< "${{ secrets.DOCKERHUB_TOKEN }}" > /dev/null 2>&1; then
+            echo "::error::Failed to login to Docker Hub. Please check your credentials."
+            echo "::error::Make sure your token has 'Read, Write, Delete' permissions from Docker Hub."
+            echo "::error::To create a new token, go to https://hub.docker.com/settings/security"
+            exit 1
+          fi
+          
+          # Create repository if it doesn't exist (this may fail if user doesn't have permission, but that's ok)
+          echo "Checking if repository exists..."
+          
           # Tag the local image with proper tags
+          echo "Tagging Docker image..."
           docker tag local-image:latest "$DOCKER_USER/${{ env.IMAGE_NAME }}:latest"
           docker tag local-image:latest "$DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION"
           
           # Push the tagged images
+          echo "Pushing Docker image to Docker Hub..."
+          set -x # Enable command echo for debugging
           docker push "$DOCKER_USER/${{ env.IMAGE_NAME }}:latest"
           docker push "$DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION"
+          set +x # Disable command echo
           
           echo "Successfully pushed images to Docker Hub"
 

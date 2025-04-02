@@ -9,14 +9,122 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Install additional dependencies that might be missing
-RUN npm install lucide-react @radix-ui/react-icons
+# Install UI dependencies explicitly
+RUN npm install --save lucide-react \
+    @radix-ui/react-icons \
+    @radix-ui/react-slot \
+    @radix-ui/react-dropdown-menu \
+    @radix-ui/react-dialog \
+    @radix-ui/react-label \
+    class-variance-authority \
+    tailwindcss-animate
 
-# Copy prisma schema
-COPY prisma ./prisma/
+# Create the UI components directory structure
+RUN mkdir -p src/components/ui
 
-# Copy rest of the app
+# Copy source first to let us fix missing components
 COPY . .
+
+# Create a minimal card component if it doesn't exist
+RUN if [ ! -f "src/components/ui/card.tsx" ]; then \
+    echo 'import * as React from "react";\
+    \
+    import { cn } from "@/lib/utils";\
+    \
+    const Card = React.forwardRef<\
+      HTMLDivElement,\
+      React.HTMLAttributes<HTMLDivElement>\
+    >(({ className, ...props }, ref) => (\
+      <div\
+        ref={ref}\
+        className={cn(\
+          "rounded-lg border bg-card text-card-foreground shadow-sm",\
+          className\
+        )}\
+        {...props}\
+      />\
+    ));\
+    Card.displayName = "Card";\
+    \
+    const CardHeader = React.forwardRef<\
+      HTMLDivElement,\
+      React.HTMLAttributes<HTMLDivElement>\
+    >(({ className, ...props }, ref) => (\
+      <div\
+        ref={ref}\
+        className={cn("flex flex-col space-y-1.5 p-6", className)}\
+        {...props}\
+      />\
+    ));\
+    CardHeader.displayName = "CardHeader";\
+    \
+    const CardTitle = React.forwardRef<\
+      HTMLParagraphElement,\
+      React.HTMLAttributes<HTMLHeadingElement>\
+    >(({ className, ...props }, ref) => (\
+      <h3\
+        ref={ref}\
+        className={cn(\
+          "text-2xl font-semibold leading-none tracking-tight",\
+          className\
+        )}\
+        {...props}\
+      />\
+    ));\
+    CardTitle.displayName = "CardTitle";\
+    \
+    const CardDescription = React.forwardRef<\
+      HTMLParagraphElement,\
+      React.HTMLAttributes<HTMLParagraphElement>\
+    >(({ className, ...props }, ref) => (\
+      <p\
+        ref={ref}\
+        className={cn("text-sm text-muted-foreground", className)}\
+        {...props}\
+      />\
+    ));\
+    CardDescription.displayName = "CardDescription";\
+    \
+    const CardContent = React.forwardRef<\
+      HTMLDivElement,\
+      React.HTMLAttributes<HTMLDivElement>\
+    >(({ className, ...props }, ref) => (\
+      <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />\
+    ));\
+    CardContent.displayName = "CardContent";\
+    \
+    const CardFooter = React.forwardRef<\
+      HTMLDivElement,\
+      React.HTMLAttributes<HTMLDivElement>\
+    >(({ className, ...props }, ref) => (\
+      <div\
+        ref={ref}\
+        className={cn("flex items-center p-6 pt-0", className)}\
+        {...props}\
+      />\
+    ));\
+    CardFooter.displayName = "CardFooter";\
+    \
+    export {\
+      Card,\
+      CardHeader,\
+      CardFooter,\
+      CardTitle,\
+      CardDescription,\
+      CardContent,\
+    };' > src/components/ui/card.tsx; \
+    fi
+
+# Create a simple utils.ts file for the cn function if missing
+RUN if [ ! -f "src/lib/utils.ts" ]; then \
+    mkdir -p src/lib; \
+    echo 'import { type ClassValue, clsx } from "clsx";\
+    import { twMerge } from "tailwind-merge";\
+    \
+    export function cn(...inputs: ClassValue[]) {\
+      return twMerge(clsx(inputs));\
+    }' > src/lib/utils.ts; \
+    fi
 
 # Generate Prisma client
 RUN npx prisma generate

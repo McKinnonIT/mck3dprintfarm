@@ -14,7 +14,9 @@ RUN npm install --no-fund --no-audit --save lucide-react @radix-ui/react-icons @
 RUN npm install --no-fund --no-audit --save @radix-ui/react-dropdown-menu @radix-ui/react-dialog @radix-ui/react-label @radix-ui/react-toast
 RUN npm install --no-fund --no-audit --save class-variance-authority tailwindcss-animate clsx tailwind-merge
 RUN npm install --no-fund --no-audit --save @azure/storage-blob
-RUN npm install --no-fund --no-audit --save @heroicons/react/24/outline bcryptjs next-auth
+RUN npm install --no-fund --no-audit --save bcryptjs
+RUN npm install --no-fund --no-audit --save next-auth
+RUN npm install --no-fund --no-audit --save @heroicons/react
 
 # Create the UI components directory structure
 RUN mkdir -p src/components/ui

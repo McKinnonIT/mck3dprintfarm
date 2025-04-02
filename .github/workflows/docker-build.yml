@@ -26,16 +26,31 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Version extracted: $VERSION"
           
-      - name: Set up Docker Hub information
+      - name: Set Docker Hub username
+        id: docker_username
         run: |
-          # Direct hardcoding for reliability
-          echo "DOCKER_HUB_USERNAME=mckinnonit" >> $GITHUB_ENV
-          echo "Using Docker Hub username: mckinnonit"
+          # Print available environment variables (without values)
+          echo "Environment variables available:"
+          env | grep -v -i key | grep -v -i token | grep -v -i password | cut -d= -f1
+          
+          # Set default username if needed
+          USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+          if [ -z "$USERNAME" ] || [ "$USERNAME" = "***" ]; then
+            echo "::warning::DOCKERHUB_USERNAME is not set or is being masked"
+            USERNAME="mckinnonit"
+          fi
+          
+          # Use explicit output rather than environment file
+          echo "username=$USERNAME" >> $GITHUB_OUTPUT
+          echo "Docker Hub username has been set to: $USERNAME"
+          
+          # Also set as environment variable for backward compatibility
+          echo "DOCKER_HUB_USERNAME=$USERNAME" >> $GITHUB_ENV
 
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
-          username: mckinnonit
+          username: ${{ steps.docker_username.outputs.username }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
@@ -44,15 +59,15 @@ jobs:
           context: .
           push: true
           tags: |
-            mckinnonit/mck3dprintfarm:latest
-            mckinnonit/mck3dprintfarm:${{ env.VERSION }}
-          cache-from: type=registry,ref=mckinnonit/mck3dprintfarm:buildcache
-          cache-to: type=registry,ref=mckinnonit/mck3dprintfarm:buildcache,mode=max
+            ${{ steps.docker_username.outputs.username }}/mck3dprintfarm:latest
+            ${{ steps.docker_username.outputs.username }}/mck3dprintfarm:${{ env.VERSION }}
+          cache-from: type=registry,ref=${{ steps.docker_username.outputs.username }}/mck3dprintfarm:buildcache
+          cache-to: type=registry,ref=${{ steps.docker_username.outputs.username }}/mck3dprintfarm:buildcache,mode=max
 
       - name: Update Docker Hub Description
         uses: peter-evans/dockerhub-description@v3
         with:
-          username: mckinnonit
+          username: ${{ steps.docker_username.outputs.username }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: mckinnonit/mck3dprintfarm
+          repository: ${{ steps.docker_username.outputs.username }}/mck3dprintfarm
           short-description: "McKinnon Secondary College 3D Print Farm management application" 

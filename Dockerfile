@@ -17,7 +17,6 @@ RUN npm install --save lucide-react \
     @radix-ui/react-dialog \
     @radix-ui/react-label \
     @radix-ui/react-toast \
-    @radix-ui/react-slot \
     class-variance-authority \
     tailwindcss-animate \
     clsx \

@@ -84,7 +84,16 @@ export default async function PrintersPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {printers.map((printer) => (
-            <PrinterCard key={printer.id} printer={printer} />
+            <PrinterCard 
+              key={printer.id}
+              id={printer.id}
+              name={printer.name}
+              type={printer.type}
+              status={printer.status}
+              operationalStatus={printer.operationalStatus}
+              lastSeen={printer.lastSeen}
+              webcamUrl={printer.webcamUrl}
+            />
           ))}
         </div>
       )}

@@ -266,7 +266,9 @@ elif [ ! -f "src/components/printers/PrusaLinkDiagnostic.tsx" ]; then \
     }' > src/components/printers/PrusaLinkDiagnostic.tsx; \
     fi
 
-# Create PrinterCard component
+# Create PrinterCard component if it doesn't exist
+# NOTE: We expect this file to be created in the repo, but provide a fallback
+RUN touch src/components/printers/PrinterCard.tsx.orig
 RUN if [ ! -f "src/components/printers/PrinterCard.tsx" ]; then \
     echo '"use client";\
     \

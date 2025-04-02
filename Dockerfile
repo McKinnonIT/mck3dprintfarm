@@ -17,6 +17,7 @@ RUN npm install --save lucide-react \
     @radix-ui/react-dialog \
     @radix-ui/react-label \
     @radix-ui/react-toast \
+    @radix-ui/react-slot \
     class-variance-authority \
     tailwindcss-animate \
     clsx \
@@ -206,7 +207,7 @@ elif [ ! -f "src/components/printers/PrusaLinkSetup.tsx" ]; then \
     import { useState } from "react";\
     import { Button } from "@/components/ui/button";\
     import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";\
-    import { CheckCircle, XCircle, AlertCircle, ArrowRight } from "lucide-react";\
+    import { CheckCircle, XCircle, ArrowRight } from "lucide-react";\
     \
     export function PrusaLinkSetup() {\
       const [status, setStatus] = useState("idle");\

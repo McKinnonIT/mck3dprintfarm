@@ -8,6 +8,10 @@ on:
   # Allow manual triggering
   workflow_dispatch:
 
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: mck3dprintfarm
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,51 +27,61 @@ jobs:
         id: package-version
         run: |
           VERSION=$(grep '"version"' package.json | cut -d '"' -f 4)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version extracted: $VERSION"
-          
-      - name: Set Docker Hub username
-        id: docker_username
-        run: |
-          # Print available environment variables (without values)
-          echo "Environment variables available:"
-          env | grep -v -i key | grep -v -i token | grep -v -i password | cut -d= -f1
-          
-          # Set default username if needed
-          USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
-          if [ -z "$USERNAME" ] || [ "$USERNAME" = "***" ]; then
-            echo "::warning::DOCKERHUB_USERNAME is not set or is being masked"
-            USERNAME="mckinnonit"
-          fi
-          
-          # Use explicit output rather than environment file
-          echo "username=$USERNAME" >> $GITHUB_OUTPUT
-          echo "Docker Hub username has been set to: $USERNAME"
-          
-          # Also set as environment variable for backward compatibility
-          echo "DOCKER_HUB_USERNAME=$USERNAME" >> $GITHUB_ENV
 
-      - name: Login to Docker Hub
+      # Login to DockerHub
+      - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
-          username: ${{ steps.docker_username.outputs.username }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      # Build the Docker image without tags first
+      - name: Build Docker image (without push)
+        id: build
         uses: docker/build-push-action@v4
         with:
           context: .
-          push: true
-          tags: |
-            ${{ steps.docker_username.outputs.username }}/mck3dprintfarm:latest
-            ${{ steps.docker_username.outputs.username }}/mck3dprintfarm:${{ env.VERSION }}
-          cache-from: type=registry,ref=${{ steps.docker_username.outputs.username }}/mck3dprintfarm:buildcache
-          cache-to: type=registry,ref=${{ steps.docker_username.outputs.username }}/mck3dprintfarm:buildcache,mode=max
+          load: true
+          push: false
+          tags: local-image:latest
 
+      # Tag and push the image manually to avoid masking issues
+      - name: Tag and push images
+        run: |
+          # Check login status
+          docker info
+          
+          # Use the locally built image and tag it
+          DOCKER_USER="${{ secrets.DOCKERHUB_USERNAME }}"
+          VERSION="${{ steps.package-version.outputs.version }}"
+          
+          # Check username
+          if [ -z "$DOCKER_USER" ]; then
+            echo "::error::Docker Hub username is not set. Please add DOCKERHUB_USERNAME secret."
+            exit 1
+          fi
+          
+          echo "Using Docker Hub username: $DOCKER_USER"
+          echo "Using version: $VERSION"
+          
+          # Tag the local image with proper tags
+          docker tag local-image:latest $DOCKER_USER/${{ env.IMAGE_NAME }}:latest
+          docker tag local-image:latest $DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION
+          
+          # Push the tagged images
+          docker push $DOCKER_USER/${{ env.IMAGE_NAME }}:latest
+          docker push $DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION
+          
+          echo "Successfully pushed images to Docker Hub"
+
+      # Update Docker Hub Description
       - name: Update Docker Hub Description
         uses: peter-evans/dockerhub-description@v3
         with:
-          username: ${{ steps.docker_username.outputs.username }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ steps.docker_username.outputs.username }}/mck3dprintfarm
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
           short-description: "McKinnon Secondary College 3D Print Farm management application" 

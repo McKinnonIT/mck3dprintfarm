@@ -115,6 +115,65 @@ RUN if [ ! -f "src/components/ui/card.tsx" ]; then \
     };' > src/components/ui/card.tsx; \
     fi
 
+# Create a button component if it doesn't exist
+RUN if [ ! -f "src/components/ui/button.tsx" ]; then \
+    echo '"use client";\
+    \
+    import * as React from "react";\
+    import { Slot } from "@radix-ui/react-slot";\
+    import { cva, type VariantProps } from "class-variance-authority";\
+    \
+    import { cn } from "@/lib/utils";\
+    \
+    const buttonVariants = cva(\
+      "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",\
+      {\
+        variants: {\
+          variant: {\
+            default: "bg-primary text-primary-foreground hover:bg-primary/90",\
+            destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",\
+            outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",\
+            secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",\
+            ghost: "hover:bg-accent hover:text-accent-foreground",\
+            link: "text-primary underline-offset-4 hover:underline",\
+          },\
+          size: {\
+            default: "h-10 px-4 py-2",\
+            sm: "h-9 rounded-md px-3",\
+            lg: "h-11 rounded-md px-8",\
+            icon: "h-10 w-10",\
+          },\
+        },\
+        defaultVariants: {\
+          variant: "default",\
+          size: "default",\
+        },\
+      }\
+    );\
+    \
+    export interface ButtonProps\
+      extends React.ButtonHTMLAttributes<HTMLButtonElement>,\
+        VariantProps<typeof buttonVariants> {\
+      asChild?: boolean;\
+    }\
+    \
+    const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(\
+      ({ className, variant, size, asChild = false, ...props }, ref) => {\
+        const Comp = asChild ? Slot : "button";\
+        return (\
+          <Comp\
+            className={cn(buttonVariants({ variant, size, className }))}\
+            ref={ref}\
+            {...props}\
+          />\
+        );\
+      }\
+    );\
+    Button.displayName = "Button";\
+    \
+    export { Button, buttonVariants };' > src/components/ui/button.tsx; \
+    fi
+
 # Create a simple utils.ts file for the cn function if missing
 RUN if [ ! -f "src/lib/utils.ts" ]; then \
     mkdir -p src/lib; \
@@ -124,6 +183,83 @@ RUN if [ ! -f "src/lib/utils.ts" ]; then \
     export function cn(...inputs: ClassValue[]) {\
       return twMerge(clsx(inputs));\
     }' > src/lib/utils.ts; \
+    fi
+
+# Create fixed versions of components with "use client" directive
+RUN mkdir -p src/components/printers
+
+# Fix PrusaLinkSetup.tsx to add "use client" directive
+RUN if [ -f "src/components/printers/PrusaLinkSetup.tsx" ]; then \
+    # Get original content
+    CONTENT=$(cat src/components/printers/PrusaLinkSetup.tsx); \
+    # Add "use client" directive at the beginning
+    echo '"use client";' > src/components/printers/PrusaLinkSetup.tsx; \
+    # Add original content
+    echo "$CONTENT" >> src/components/printers/PrusaLinkSetup.tsx; \
+elif [ ! -f "src/components/printers/PrusaLinkSetup.tsx" ]; then \
+    # Create a minimal client component to avoid build errors
+    echo '"use client";\
+    \
+    import { useState } from "react";\
+    import { Button } from "@/components/ui/button";\
+    import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";\
+    import { CheckCircle, XCircle, AlertCircle, ArrowRight } from "lucide-react";\
+    \
+    export function PrusaLinkSetup() {\
+      const [status, setStatus] = useState("idle");\
+      \
+      return (\
+        <Card>\
+          <CardHeader>\
+            <CardTitle>PrusaLink Setup</CardTitle>\
+            <CardDescription>Configure your PrusaLink connection</CardDescription>\
+          </CardHeader>\
+          <CardContent>\
+            <p>This is a placeholder PrusaLink setup component</p>\
+          </CardContent>\
+          <CardFooter>\
+            <Button>Setup</Button>\
+          </CardFooter>\
+        </Card>\
+      );\
+    }' > src/components/printers/PrusaLinkSetup.tsx; \
+    fi
+
+# Fix PrusaLinkDiagnostic.tsx to add "use client" directive
+RUN if [ -f "src/components/printers/PrusaLinkDiagnostic.tsx" ]; then \
+    # Get original content
+    CONTENT=$(cat src/components/printers/PrusaLinkDiagnostic.tsx); \
+    # Add "use client" directive at the beginning
+    echo '"use client";' > src/components/printers/PrusaLinkDiagnostic.tsx; \
+    # Add original content
+    echo "$CONTENT" >> src/components/printers/PrusaLinkDiagnostic.tsx; \
+elif [ ! -f "src/components/printers/PrusaLinkDiagnostic.tsx" ]; then \
+    # Create a minimal client component to avoid build errors
+    echo '"use client";\
+    \
+    import { useState } from "react";\
+    import { Button } from "@/components/ui/button";\
+    import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";\
+    import { CheckCircle, XCircle, RefreshCw } from "lucide-react";\
+    \
+    export function PrusaLinkDiagnostic() {\
+      const [status, setStatus] = useState("idle");\
+      \
+      return (\
+        <Card>\
+          <CardHeader>\
+            <CardTitle>PrusaLink Diagnostic</CardTitle>\
+            <CardDescription>Test your PrusaLink connection</CardDescription>\
+          </CardHeader>\
+          <CardContent>\
+            <p>This is a placeholder PrusaLink diagnostic component</p>\
+          </CardContent>\
+          <CardFooter>\
+            <Button>Test Connection</Button>\
+          </CardFooter>\
+        </Card>\
+      );\
+    }' > src/components/printers/PrusaLinkDiagnostic.tsx; \
     fi
 
 # Generate Prisma client

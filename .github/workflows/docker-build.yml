@@ -23,6 +23,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      # Extract version from package.json
       - name: Extract version from package.json
         id: package-version
         run: |
@@ -49,6 +50,36 @@ jobs:
           tags: local-image:latest
 
       # Tag and push the image manually to avoid masking issues
+
+      # Replace with:
+      - name: Build Docker image
+        id: docker_build
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: local-image:testing
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Enable detailed build output for debugging
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+          # Add more detailed output to debug build issues
+          outputs: type=docker,dest=/tmp/docker-image.tar
+
+      # Check if build succeeded
+      - name: Check image
+        run: |
+          docker image ls
+          if ! docker image inspect local-image:testing > /dev/null 2>&1; then
+            echo "Docker image build failed!"
+            exit 1
+          fi
+          echo "Docker image built successfully"
+
+      # Tag and push the image
       - name: Tag and push images
         run: |
           # Check login status
@@ -68,8 +99,8 @@ jobs:
           echo "Using version: $VERSION"
           
           # Tag the local image with proper tags
-          docker tag local-image:latest $DOCKER_USER/${{ env.IMAGE_NAME }}:latest
-          docker tag local-image:latest $DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION
+          docker tag local-image:testing $DOCKER_USER/${{ env.IMAGE_NAME }}:latest
+          docker tag local-image:testing $DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION
           
           # Push the tagged images
           docker push $DOCKER_USER/${{ env.IMAGE_NAME }}:latest

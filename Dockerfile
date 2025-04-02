@@ -16,8 +16,11 @@ RUN npm install --save lucide-react \
     @radix-ui/react-dropdown-menu \
     @radix-ui/react-dialog \
     @radix-ui/react-label \
+    @radix-ui/react-toast \
     class-variance-authority \
-    tailwindcss-animate
+    tailwindcss-animate \
+    clsx \
+    tailwind-merge
 
 # Create the UI components directory structure
 RUN mkdir -p src/components/ui

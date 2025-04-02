@@ -10,6 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.27.0",
     "@heroicons/react": "^2.1.1",
     "@prisma/client": "^6.5.0",
     "@radix-ui/react-slot": "^1.1.2",

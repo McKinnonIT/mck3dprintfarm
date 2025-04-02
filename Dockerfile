@@ -21,7 +21,8 @@ RUN npm install --save lucide-react \
     class-variance-authority \
     tailwindcss-animate \
     clsx \
-    tailwind-merge
+    tailwind-merge \
+    @azure/storage-blob
 
 # Create the UI components directory structure
 RUN mkdir -p src/components/ui

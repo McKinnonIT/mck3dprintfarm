@@ -13,11 +13,10 @@ export default async function PrusaLinkSetupPage() {
   if (userId) {
     const printers = await prisma.printer.findMany({
       where: {
-        userId,
-        type: {
-          contains: 'prusa',
-          mode: 'insensitive'
-        }
+        OR: [
+          { type: { contains: 'prusa' } },
+          { type: { contains: 'PRUSA' } }
+        ]
       },
       select: {
         id: true,

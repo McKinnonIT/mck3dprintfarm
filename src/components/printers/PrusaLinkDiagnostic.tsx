@@ -35,7 +35,7 @@ export function PrusaLinkDiagnostic({ printerId, printerName }: PrusaLinkDiagnos
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : String(error),
-        variant: "destructive",
+        className: "bg-destructive text-destructive-foreground border-destructive",
       });
     } finally {
       setIsLoading(false);

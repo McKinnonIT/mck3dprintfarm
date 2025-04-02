@@ -19,9 +19,6 @@ export default async function PrintersPage() {
   }
 
   const printers = await prisma.printer.findMany({
-    where: {
-      userId,
-    },
     orderBy: {
       createdAt: "desc",
     },

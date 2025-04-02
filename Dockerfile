@@ -10,7 +10,7 @@ COPY package*.json ./
 RUN npm ci
 
 # Install UI dependencies explicitly
-RUN npm install --save lucide-react \
+RUN npm install --no-fund --no-audit --loglevel verbose --save lucide-react \
     @radix-ui/react-icons \
     @radix-ui/react-slot \
     @radix-ui/react-dropdown-menu \

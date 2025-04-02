@@ -20,23 +20,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Validate secrets
-      - name: Validate secrets
-        run: |
-          # Check if the Docker Hub username is set
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
-            echo "::error::DOCKERHUB_USERNAME secret is not set. Please add it in GitHub repository settings."
-            exit 1
-          fi
-          
-          # Check if the Docker Hub token is set
-          if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "::error::DOCKERHUB_TOKEN secret is not set. Please add it in GitHub repository settings."
-            exit 1
-          fi
-          
-          echo "Required secrets are configured"
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
@@ -104,35 +87,26 @@ jobs:
           DOCKER_USER="${{ secrets.DOCKERHUB_USERNAME }}"
           VERSION="${{ steps.package-version.outputs.version }}"
           
-          # Debug output for troubleshooting (secrets will be masked)
-          echo "Docker Hub username secret exists: ${{ secrets.DOCKERHUB_USERNAME != '' }}"
-          
           # Check username
           if [ -z "$DOCKER_USER" ]; then
-            echo "::error::Docker Hub username is not set or empty. Please add DOCKERHUB_USERNAME secret."
+            echo "::error::Docker Hub username is not set. Please add DOCKERHUB_USERNAME secret."
             exit 1
           fi
           
-          # Additional check to ensure the username is not a placeholder
-          if [[ "$DOCKER_USER" == "***" || "$DOCKER_USER" == "**" ]]; then
-            echo "::error::Docker Hub username appears to be masked or invalid. Please check your DOCKERHUB_USERNAME secret."
-            exit 1
-          fi
+          # Ensure Docker username is valid (lowercase, no special chars)
+          DOCKER_USER=$(echo "$DOCKER_USER" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]_-')
           
           echo "Using Docker Hub username: $DOCKER_USER"
           echo "Using version: $VERSION"
-          
-          # Create full image name with namespace
-          FULL_IMAGE_NAME="$DOCKER_USER/${{ env.IMAGE_NAME }}"
-          echo "Full image name: $FULL_IMAGE_NAME"
+          echo "Full image name: $DOCKER_USER/${{ env.IMAGE_NAME }}"
           
           # Tag the local image with proper tags
-          docker tag local-image:latest "$FULL_IMAGE_NAME:latest"
-          docker tag local-image:latest "$FULL_IMAGE_NAME:$VERSION"
+          docker tag local-image:latest "$DOCKER_USER/${{ env.IMAGE_NAME }}:latest"
+          docker tag local-image:latest "$DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION"
           
           # Push the tagged images
-          docker push "$FULL_IMAGE_NAME:latest"
-          docker push "$FULL_IMAGE_NAME:$VERSION"
+          docker push "$DOCKER_USER/${{ env.IMAGE_NAME }}:latest"
+          docker push "$DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION"
           
           echo "Successfully pushed images to Docker Hub"
 

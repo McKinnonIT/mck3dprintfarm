@@ -49,9 +49,7 @@ jobs:
           push: false
           tags: local-image:latest
 
-      # Tag and push the image manually to avoid masking issues
-
-      # Replace with:
+      # Build Docker image
       - name: Build Docker image
         id: docker_build
         uses: docker/build-push-action@v4
@@ -60,7 +58,7 @@ jobs:
           platforms: linux/amd64
           push: false
           load: true
-          tags: local-image:testing
+          tags: local-image:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # Enable detailed build output for debugging
@@ -73,7 +71,7 @@ jobs:
       - name: Check image
         run: |
           docker image ls
-          if ! docker image inspect local-image:testing > /dev/null 2>&1; then
+          if ! docker image inspect local-image:latest > /dev/null 2>&1; then
             echo "Docker image build failed!"
             exit 1
           fi
@@ -99,8 +97,8 @@ jobs:
           echo "Using version: $VERSION"
           
           # Tag the local image with proper tags
-          docker tag local-image:testing $DOCKER_USER/${{ env.IMAGE_NAME }}:latest
-          docker tag local-image:testing $DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION
+          docker tag local-image:latest $DOCKER_USER/${{ env.IMAGE_NAME }}:latest
+          docker tag local-image:latest $DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION
           
           # Push the tagged images
           docker push $DOCKER_USER/${{ env.IMAGE_NAME }}:latest

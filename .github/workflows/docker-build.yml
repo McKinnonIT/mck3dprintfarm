@@ -93,20 +93,24 @@ jobs:
             exit 1
           fi
           
-          # Ensure Docker username is valid (lowercase, no special chars)
-          DOCKER_USER=$(echo "$DOCKER_USER" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]_-')
+          # Convert username to lowercase and remove special characters
+          SANITIZED_USER=$(echo "$DOCKER_USER" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]_.-')
           
-          echo "Using Docker Hub username: $DOCKER_USER"
+          echo "Docker Hub username secret exists: true"
+          echo "Using Docker Hub username: $SANITIZED_USER"
           echo "Using version: $VERSION"
-          echo "Full image name: $DOCKER_USER/${{ env.IMAGE_NAME }}"
+          
+          # Full image name (should be valid format now)
+          FULL_IMAGE_NAME="$SANITIZED_USER/${{ env.IMAGE_NAME }}"
+          echo "Full image name: $FULL_IMAGE_NAME"
           
           # Tag the local image with proper tags
-          docker tag local-image:latest "$DOCKER_USER/${{ env.IMAGE_NAME }}:latest"
-          docker tag local-image:latest "$DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION"
+          docker tag local-image:latest "$FULL_IMAGE_NAME:latest"
+          docker tag local-image:latest "$FULL_IMAGE_NAME:$VERSION"
           
           # Push the tagged images
-          docker push "$DOCKER_USER/${{ env.IMAGE_NAME }}:latest"
-          docker push "$DOCKER_USER/${{ env.IMAGE_NAME }}:$VERSION"
+          docker push "$FULL_IMAGE_NAME:latest"
+          docker push "$FULL_IMAGE_NAME:$VERSION"
           
           echo "Successfully pushed images to Docker Hub"
 

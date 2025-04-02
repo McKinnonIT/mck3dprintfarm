@@ -27,7 +27,6 @@ export default async function PrusaLinkDiagnosticPage({ params }: PageProps) {
   const printer = await prisma.printer.findUnique({
     where: {
       id: params.id,
-      userId: userId,
     },
   });
 

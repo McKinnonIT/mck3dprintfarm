@@ -98,19 +98,20 @@ import os
 import urllib.parse
 
 # Set a shorter socket timeout to handle offline printers quickly
-socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+socket.setdefaulttimeout(5)  # Increased from 3 to 5 seconds
 
 # Use pre-installed packages if available, otherwise try to import or install
 try:
     # Try importing directly first
     from moonraker_api import MoonrakerClient, MoonrakerListener
     import requests
+    import aiohttp
     print("Using pre-installed packages", file=sys.stderr)
 except ImportError:
     print("Some packages are missing, will try to import or install them", file=sys.stderr)
     
     # Check if required packages are installed and install them if needed
-    required_packages = ['moonraker-api', 'requests']
+    required_packages = ['moonraker-api', 'requests', 'aiohttp']
     missing_packages = []
 
     for package in required_packages:
@@ -120,6 +121,9 @@ except ImportError:
                 print(f"Successfully imported {package}", file=sys.stderr)
             elif package == 'requests':
                 import requests
+                print(f"Successfully imported {package}", file=sys.stderr)
+            elif package == 'aiohttp':
+                import aiohttp
                 print(f"Successfully imported {package}", file=sys.stderr)
         except ImportError:
             missing_packages.append(package)
@@ -157,6 +161,7 @@ except ImportError:
             try:
                 from moonraker_api import MoonrakerClient, MoonrakerListener
                 import requests
+                import aiohttp
                 print("Successfully installed and imported required packages", file=sys.stderr)
             except ImportError as e:
                 print(json.dumps({
@@ -184,6 +189,7 @@ except ImportError:
 
 # Now continue with the main functionality
 async def main():
+    client = None
     try:
         print(f"DEBUG: Starting upload to Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
         print(f"DEBUG: File path: {repr('${filePath.replace(/\\/g, '\\\\')}')}", file=sys.stderr)
@@ -201,13 +207,13 @@ async def main():
             host = netloc
             port = 7125
         
-        # Connect to printer with shorter timeout
+        # Connect to printer with longer timeout
         client = MoonrakerClient(
             host=host,
             port=port,
             listener=MoonrakerListener(),
             api_key="${apiKey}" if '${apiKey}' else None,
-            timeout=3
+            timeout=10  # Increased timeout from 3 to 10 seconds
         )
         
         # Connect to the client
@@ -218,10 +224,17 @@ async def main():
         server_info = await client.get_server_info()
         print(f"DEBUG: Server info: {server_info}", file=sys.stderr)
         
-        # Get the file list
+        # Get the file list with a timeout to prevent hanging
         print(f"DEBUG: Getting file list", file=sys.stderr)
-        files = await client.call_method("server.files.list", root="gcodes")
-        print(f"DEBUG: Files: {files}", file=sys.stderr)
+        try:
+            files = await asyncio.wait_for(
+                client.call_method("server.files.list", root="gcodes"),
+                timeout=8.0  # Set an explicit timeout for this operation
+            )
+            print(f"DEBUG: Files: {files}", file=sys.stderr)
+        except asyncio.TimeoutError:
+            print(f"DEBUG: Timeout while getting file list", file=sys.stderr)
+            # Continue without file list if timed out
         
         # Define the remote path
         remote_path = "gcodes/${remoteName}"
@@ -336,8 +349,44 @@ async def main():
 
 # Run the async function and print the result
 if __name__ == "__main__":
-    result = asyncio.run(main())
-    print(json.dumps(result))
+    try:
+        result = asyncio.run(main())
+        print(json.dumps(result))
+    except asyncio.CancelledError:
+        print(json.dumps({
+            "success": False,
+            "message": "Operation was cancelled. The connection to the printer might have timed out.",
+            "error": "asyncio.CancelledError"
+        }))
+    except Exception as e:
+        # Get full traceback for debugging
+        print(f"ERROR: {str(e)}", file=sys.stderr)
+        traceback_details = traceback.format_exc()
+        print(f"TRACEBACK: {traceback_details}", file=sys.stderr)
+        
+        print(json.dumps({
+            "success": False,
+            "message": str(e),
+            "error": traceback_details
+        }))
+    finally:
+        # Ensure we clean up any remaining tasks
+        for task in asyncio.all_tasks() if hasattr(asyncio, 'all_tasks') else asyncio.Task.all_tasks():
+            try:
+                task.cancel()
+            except:
+                pass
+        
+        # Close any unclosed client sessions
+        if 'aiohttp' in sys.modules:
+            # Force close any remaining client sessions
+            for session in aiohttp.ClientSession._instances:
+                if not session.closed:
+                    print(f"DEBUG: Cleaning up unclosed client session", file=sys.stderr)
+                    try:
+                        session._connector._close()
+                    except:
+                        pass
 `;
     
     // Write the script to a file

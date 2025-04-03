@@ -16,6 +16,8 @@ services:
       - NODE_ENV=production
       # Skip HTTPS for Docker deployment
       - NEXTAUTH_URL=http://localhost:3000
+      # NextAuth secret for JWT encryption and session security
+      - NEXTAUTH_SECRET=your-super-secret-random-string-here-please-change-this
       # Default admin user credentials
       - DEFAULT_ADMIN_EMAIL=admin@example.com
       - DEFAULT_ADMIN_PASSWORD=Admin123!
@@ -31,5 +33,5 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 192.201.0.0/16
+        - subnet: 192.201.0.0/24
           gateway: 192.201.0.1 

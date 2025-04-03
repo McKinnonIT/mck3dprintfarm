@@ -96,6 +96,7 @@ import json
 import asyncio
 import os
 import urllib.parse
+import gc
 
 # Set a shorter socket timeout to handle offline printers quickly
 socket.setdefaulttimeout(5)  # Increased from 3 to 5 seconds
@@ -104,23 +105,19 @@ socket.setdefaulttimeout(5)  # Increased from 3 to 5 seconds
 try:
     # Try importing directly first
     from moonraker_api import MoonrakerClient, MoonrakerListener
-    import requests
     import aiohttp
     print("Using pre-installed packages", file=sys.stderr)
 except ImportError:
     print("Some packages are missing, will try to import or install them", file=sys.stderr)
     
     # Check if required packages are installed and install them if needed
-    required_packages = ['moonraker-api', 'requests', 'aiohttp']
+    required_packages = ['moonraker-api', 'aiohttp']
     missing_packages = []
 
     for package in required_packages:
         try:
             if package == 'moonraker-api':
                 from moonraker_api import MoonrakerClient, MoonrakerListener
-                print(f"Successfully imported {package}", file=sys.stderr)
-            elif package == 'requests':
-                import requests
                 print(f"Successfully imported {package}", file=sys.stderr)
             elif package == 'aiohttp':
                 import aiohttp
@@ -160,7 +157,6 @@ except ImportError:
             # Try importing again
             try:
                 from moonraker_api import MoonrakerClient, MoonrakerListener
-                import requests
                 import aiohttp
                 print("Successfully installed and imported required packages", file=sys.stderr)
             except ImportError as e:
@@ -227,14 +223,15 @@ async def main():
         # Get the file list with a timeout to prevent hanging
         print(f"DEBUG: Getting file list", file=sys.stderr)
         try:
+            # Use a timeout to prevent hanging
             files = await asyncio.wait_for(
                 client.call_method("server.files.list", root="gcodes"),
-                timeout=8.0  # Set an explicit timeout for this operation
+                timeout=8.0
             )
             print(f"DEBUG: Files: {files}", file=sys.stderr)
         except asyncio.TimeoutError:
-            print(f"DEBUG: Timeout while getting file list", file=sys.stderr)
-            # Continue without file list if timed out
+            print(f"DEBUG: Timeout while getting file list, continuing with upload", file=sys.stderr)
+            files = []  # Continue without file list if timed out
         
         # Define the remote path
         remote_path = "gcodes/${remoteName}"
@@ -244,96 +241,100 @@ async def main():
         with open(file_path, "rb") as f:
             file_data = f.read()
         
-        # For file uploads, we need to use the HTTP API directly
+        # For file uploads, use the HTTP API directly
         # Build the URL for upload
-        protocol = "https://" if False else "http://"  # Always use http for now
+        protocol = "https://" if parsed_url.scheme == "https" else "http://"
         base_url = f"{protocol}{host}:{port}"
         upload_url = f"{base_url}/server/files/upload"
         
-        # Upload the file using HTTP POST with multipart/form-data
-        files = {
-            'file': ('${remoteName}', file_data, 'application/octet-stream')
-        }
-        data = {
-            'root': 'gcodes'
-        }
-        
-        headers = {}
-        if "${apiKey}":
-            headers['X-Api-Key'] = "${apiKey}"
-        
-        print(f"DEBUG: Uploading file using HTTP POST to {upload_url}", file=sys.stderr)
-        response = requests.post(upload_url, files=files, data=data, headers=headers)
-        
-        # Check the response
-        if response.status_code not in (200, 201):
-            error_message = f"Upload failed with status {response.status_code}: {response.text}"
-            print(f"DEBUG: {error_message}", file=sys.stderr)
+        # Use aiohttp for the upload (properly cleaned up)
+        async with aiohttp.ClientSession() as session:
+            # Create form data for the upload
+            form = aiohttp.FormData()
+            form.add_field('root', 'gcodes')
+            form.add_field('file', file_data, 
+                          filename='${remoteName}',
+                          content_type='application/octet-stream')
             
-            # Special handling for 403 errors which are common with Moonraker
-            if response.status_code == 403:
-                try:
-                    error_json = response.json()
-                    error_text = error_json.get('error', {}).get('message', '')
-                    
-                    if "File is loaded" in error_text or "File currently in use" in error_text:
-                        error_message = "Cannot upload: A file with the same name is currently loaded on the printer. " + \
-                                       "The file has been renamed to avoid conflicts."
-                    elif "upload not permitted" in error_text:
-                        error_message = "Upload not permitted: The printer is currently printing or preparing to print."
-                except Exception:
-                    # If we can't parse the JSON, use the generic error message
-                    pass
-            
-            raise Exception(error_message)
-        
-        # Parse the response
-        upload_result = response.json()
-        print(f"DEBUG: Upload result: {upload_result}", file=sys.stderr)
-        
-        # Start printing if requested
-        if ${printAfterUpload ? 'True' : 'False'}:
-            print(f"DEBUG: Starting print for file: {remote_path}", file=sys.stderr)
-            
-            # Use HTTP API to start print
-            print_url = f"{base_url}/printer/print/start"
-            print_headers = {
-                'Content-Type': 'application/json'
-            }
+            # Set headers
+            headers = {}
             if "${apiKey}":
-                print_headers['X-Api-Key'] = "${apiKey}"
+                headers['X-Api-Key'] = "${apiKey}"
             
-            print_data = json.dumps({"filename": "${remoteName}"})
-            print_response = requests.post(print_url, data=print_data, headers=print_headers)
+            print(f"DEBUG: Uploading file using HTTP POST to {upload_url}", file=sys.stderr)
             
-            if print_response.status_code != 200:
-                error_message = f"Print start failed with status {print_response.status_code}: {print_response.text}"
-                print(f"DEBUG: {error_message}", file=sys.stderr)
-                raise Exception(error_message)
-            
-            print_result = print_response.json()
-            print(f"DEBUG: Print start result: {print_result}", file=sys.stderr)
-            
-            return {
-                "success": True,
-                "message": "File uploaded and print started successfully",
-                "data": {
-                    "path": remote_path,
-                    "upload_result": upload_result,
-                    "print_result": print_result
+            # Use a timeout for the upload request
+            async with session.post(upload_url, data=form, headers=headers, timeout=30) as response:
+                if response.status not in (200, 201):
+                    response_text = await response.text()
+                    error_message = f"Upload failed with status {response.status}: {response_text}"
+                    print(f"DEBUG: {error_message}", file=sys.stderr)
+                    
+                    # Special handling for 403 errors which are common with Moonraker
+                    if response.status == 403:
+                        try:
+                            error_json = await response.json()
+                            error_text = error_json.get('error', {}).get('message', '')
+                            
+                            if "File is loaded" in error_text or "File currently in use" in error_text:
+                                error_message = "Cannot upload: A file with the same name is currently loaded on the printer. " + \
+                                              "The file has been renamed to avoid conflicts."
+                            elif "upload not permitted" in error_text:
+                                error_message = "Upload not permitted: The printer is currently printing or preparing to print."
+                        except Exception:
+                            # If we can't parse the JSON, use the generic error message
+                            pass
+                    
+                    raise Exception(error_message)
+                
+                # Parse the response
+                upload_result = await response.json()
+                print(f"DEBUG: Upload result: {upload_result}", file=sys.stderr)
+                
+                # Start printing if requested
+                if ${printAfterUpload ? 'True' : 'False'}:
+                    print(f"DEBUG: Starting print for file: {remote_path}", file=sys.stderr)
+                    
+                    # Use HTTP API to start print
+                    print_url = f"{base_url}/printer/print/start"
+                    print_headers = {
+                        'Content-Type': 'application/json'
+                    }
+                    if "${apiKey}":
+                        print_headers['X-Api-Key'] = "${apiKey}"
+                    
+                    async with session.post(print_url, 
+                                      json={"filename": "${remoteName}"}, 
+                                      headers=print_headers) as print_response:
+                        if print_response.status != 200:
+                            print_text = await print_response.text()
+                            error_message = f"Print start failed with status {print_response.status}: {print_text}"
+                            print(f"DEBUG: {error_message}", file=sys.stderr)
+                            raise Exception(error_message)
+                        
+                        print_result = await print_response.json()
+                        print(f"DEBUG: Print start result: {print_result}", file=sys.stderr)
+                        
+                        return {
+                            "success": True,
+                            "message": "File uploaded and print started successfully",
+                            "data": {
+                                "path": remote_path,
+                                "upload_result": upload_result,
+                                "print_result": print_result
+                            }
+                        }
+                
+                # Return success response for upload only
+                return {
+                    "success": True,
+                    "message": "File successfully uploaded",
+                    "data": {
+                        "path": remote_path,
+                        "upload_result": upload_result,
+                        "_localFilePath": file_path
+                    }
                 }
-            }
-        
-        # Return success response
-        return {
-            "success": True,
-            "message": "File successfully uploaded",
-            "data": {
-                "path": remote_path,
-                "upload_result": upload_result,
-                "_localFilePath": file_path
-            }
-        }
     except Exception as e:
         # Get full traceback
         exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -346,8 +347,16 @@ async def main():
             "error": str(e),
             "traceback": "\\n".join(traceback_details)
         }
+    finally:
+        # Ensure client is disconnected properly
+        if client:
+            try:
+                await client.disconnect()
+                print(f"DEBUG: Client disconnected", file=sys.stderr)
+            except Exception as e:
+                print(f"ERROR: Failed to disconnect client: {str(e)}", file=sys.stderr)
 
-# Run the async function and print the result
+// Run the async function and print the result
 if __name__ == "__main__":
     try:
         result = asyncio.run(main())
@@ -369,24 +378,6 @@ if __name__ == "__main__":
             "message": str(e),
             "error": traceback_details
         }))
-    finally:
-        # Ensure we clean up any remaining tasks
-        for task in asyncio.all_tasks() if hasattr(asyncio, 'all_tasks') else asyncio.Task.all_tasks():
-            try:
-                task.cancel()
-            except:
-                pass
-        
-        # Close any unclosed client sessions
-        if 'aiohttp' in sys.modules:
-            # Force close any remaining client sessions
-            for session in aiohttp.ClientSession._instances:
-                if not session.closed:
-                    print(f"DEBUG: Cleaning up unclosed client session", file=sys.stderr)
-                    try:
-                        session._connector._close()
-                    except:
-                        pass
 `;
     
     // Write the script to a file

@@ -9,7 +9,8 @@ services:
       - "3000:3000"
     volumes:
       - ./uploads:/app/uploads
-      - ./prisma:/app/prisma
+      # Don't mount the entire prisma directory, just create data volume for persistence
+      - mck3dprintfarm_data:/app/prisma
       # Avoid mounting certificates since we're skipping HTTPS in dev mode in Docker
     restart: unless-stopped
     environment:
@@ -27,6 +28,10 @@ services:
       # Add other environment variables as needed
     networks:
       - printfarm_network
+
+# Named volumes for data persistence
+volumes:
+  mck3dprintfarm_data:
 
 # Define custom networks with specific subnet
 networks:

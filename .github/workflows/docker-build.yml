@@ -115,10 +115,10 @@ jobs:
           echo "Successfully pushed images to Docker Hub"
 
       # Update Docker Hub Description
-      - name: Update Docker Hub Description
-        uses: peter-evans/dockerhub-description@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
-          short-description: "McKinnon Secondary College 3D Print Farm management application" 
+      # - name: Update Docker Hub Description
+      #   uses: peter-evans/dockerhub-description@v3
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+      #     repository: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+      #     short-description: "McKinnon Secondary College 3D Print Farm management application" 

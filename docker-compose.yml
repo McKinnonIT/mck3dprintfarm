@@ -2,9 +2,9 @@ version: '3'
 
 services:
   mck3dprintfarm:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: alastairtech/mck3dprintfarm:latest
+    # You can also use a specific version tag:
+    # image: alastairtech/mck3dprintfarm:1.0.0
     ports:
       - "3000:3000"
     volumes:

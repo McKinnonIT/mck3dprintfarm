@@ -20,7 +20,10 @@ services:
         npx prisma generate &&
         echo 'Running Prisma db push to create tables directly...' &&
         npx prisma db push --accept-data-loss &&
-        echo 'Database schema created. Starting application...' &&
+        echo 'Database schema created.' &&
+        echo 'Creating admin user...' &&
+        node scripts/create-admin-user.js &&
+        echo 'Starting application...' &&
         npm start
       "
     ports:

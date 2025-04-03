@@ -9,55 +9,8 @@ if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
-// Check for the available Python executable
-async function findPythonExecutable() {
-  const possibleExecutables = ['python3', 'python', 'py'];
-  
-  for (const executable of possibleExecutables) {
-    try {
-      const process = spawn(executable, ['--version']);
-      
-      // Create a promise to get the result
-      const result = await new Promise((resolve, reject) => {
-        let output = '';
-        let errorOutput = '';
-        
-        process.stdout.on('data', (data) => {
-          output += data.toString();
-        });
-        
-        process.stderr.on('data', (data) => {
-          errorOutput += data.toString();
-        });
-        
-        process.on('close', (code) => {
-          if (code === 0) {
-            resolve(executable);
-          } else {
-            resolve(null);
-          }
-        });
-        
-        process.on('error', () => {
-          resolve(null);
-        });
-      });
-      
-      if (result) {
-        console.log(`Found Python executable: ${executable}`);
-        return executable;
-      }
-    } catch (error) {
-      // Ignore errors and try the next executable
-    }
-  }
-  
-  console.error('No Python executable found. Please install Python 3.');
-  return null;
-}
-
 // Cache the Python executable
-let pythonExecutable = null;
+let pythonExecutable = 'python3';
 
 // Keep track of active Python processes
 const activePythonProcesses = new Set();
@@ -103,17 +56,6 @@ setInterval(() => {
  * @returns {Promise<object>} - Result of the operation
  */
 async function uploadAndPrint(printerUrl, apiKey, filePath, remoteName = '', printAfterUpload = false) {
-  // Find Python executable if we don't have it yet
-  if (!pythonExecutable) {
-    pythonExecutable = await findPythonExecutable();
-    if (!pythonExecutable) {
-      return Promise.reject({
-        success: false,
-        message: 'Python is not installed or not found in PATH. Please install Python 3.'
-      });
-    }
-  }
-
   return new Promise((resolve, reject) => {
     // Create a temporary Python script to execute
     const scriptPath = path.join(TEMP_DIR, `upload_${Date.now()}.py`);
@@ -131,82 +73,182 @@ async function uploadAndPrint(printerUrl, apiKey, filePath, remoteName = '', pri
     
     // Create Python script content
     const pythonScript = `
+#!/usr/bin/env python3
 import sys
 import traceback
 import socket
 import json
 import asyncio
-try:
-    # Set a shorter socket timeout to handle offline printers quickly
-    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
-    
-    from moonraker_api import MoonrakerClient
-    from moonraker_api.file import FileManager
-except ImportError:
-    print(json.dumps({
-        "success": False,
-        "message": "moonraker-api not installed. Install with: pip install moonraker-api",
-        "error": "Module not found"
-    }))
-    sys.exit(1)
-
-import json
 import os
+import urllib.parse
+
+# Set a shorter socket timeout to handle offline printers quickly
+socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+
+# Check if required packages are installed and install them if needed
+required_packages = ['moonraker-api', 'requests']
+missing_packages = []
+
+for package in required_packages:
+    try:
+        if package == 'moonraker-api':
+            from moonraker_api import MoonrakerClient, MoonrakerListener
+            print(f"Successfully imported {package}", file=sys.stderr)
+        elif package == 'requests':
+            import requests
+            print(f"Successfully imported {package}", file=sys.stderr)
+    except ImportError:
+        missing_packages.append(package)
+
+# Install missing packages
+if missing_packages:
+    print(f"Packages not found: {', '.join(missing_packages)}, trying to install...", file=sys.stderr)
+    import subprocess
+    try:
+        # Attempt to install the packages
+        for package in missing_packages:
+            print(f"Installing {package}...", file=sys.stderr)
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--user", package],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True
+            )
+            print(f"Installation output for {package}: {result.stdout}", file=sys.stderr)
+        
+        # Try importing again
+        try:
+            from moonraker_api import MoonrakerClient, MoonrakerListener
+            import requests
+            print("Successfully installed and imported required packages", file=sys.stderr)
+        except ImportError as e:
+            print(json.dumps({
+                "success": False,
+                "message": f"Failed to install required packages. Please install them manually with: pip install --user {' '.join(missing_packages)}",
+                "error": f"ImportError: {str(e)}"
+            }))
+            sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error installing packages: {e.stderr}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": f"Failed to install required packages. Please install them manually with: pip install --user {' '.join(missing_packages)}",
+            "error": f"Installation error: {e.stderr}"
+        }))
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error during installation: {str(e)}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": "Failed to install required packages due to an unexpected error.",
+            "error": str(e)
+        }))
+        sys.exit(1)
+
+from moonraker_api import MoonrakerClient, MoonrakerListener
+import requests
 
 async def main():
     try:
-        print(f"DEBUG: Starting connection to Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
+        print(f"DEBUG: Starting upload to Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
         print(f"DEBUG: File path: {repr('${filePath.replace(/\\/g, '\\\\')}')}", file=sys.stderr)
-        print(f"DEBUG: Remote path: {repr('${remoteName}')}", file=sys.stderr)
+        print(f"DEBUG: Remote name: {repr('${remoteName}')}", file=sys.stderr)
         
-        # Parse the URL to get host, port, and API path
-        import urllib.parse
+        # Parse the URL to get host and port
         parsed_url = urllib.parse.urlparse('${printerUrl}')
-        host = parsed_url.netloc
-        if ':' not in host:
-            # Add default port if not specified
-            host = f"{host}:7125"
+        netloc = parsed_url.netloc
+        
+        # Split the host and port if specified
+        if ':' in netloc:
+            host, port = netloc.split(':')
+            port = int(port)
+        else:
+            host = netloc
+            port = 7125
         
         # Connect to printer with shorter timeout
         client = MoonrakerClient(
             host=host,
+            port=port,
+            listener=MoonrakerListener(),
             api_key="${apiKey}" if '${apiKey}' else None,
             timeout=3
         )
         
+        # Connect to the client
+        await client.connect()
+        
         # Check if connection works by getting server info
         print(f"DEBUG: Testing connection with server.info", file=sys.stderr)
-        server_info = await client.server.info()
+        server_info = await client.get_server_info()
         print(f"DEBUG: Server info: {server_info}", file=sys.stderr)
         
-        # Get the file manager
-        file_manager = client.file
+        # Get the file list
+        print(f"DEBUG: Getting file list", file=sys.stderr)
+        files = await client.call_method("server.files.list", root="gcodes")
+        print(f"DEBUG: Files: {files}", file=sys.stderr)
         
-        # Verify local file exists
-        file_path = "${filePath.replace(/\\/g, '\\\\')}"
-        if not os.path.exists(file_path):
-            print(json.dumps({
-                "success": False,
-                "message": f"File not found: {file_path}",
-                "error": "File not found on disk"
-            }))
-            sys.exit(1)
-        
-        # Upload the file
-        print(f"DEBUG: Uploading file", file=sys.stderr)
+        # Define the remote path
         remote_path = "gcodes/${remoteName}"
         
-        # Read the file
+        # Read the file for upload
+        file_path = "${filePath.replace(/\\/g, '\\\\')}"
         with open(file_path, "rb") as f:
             file_data = f.read()
-            
-        upload_result = await file_manager.upload(file_path=file_path, file_name="${remoteName}", directory="gcodes")
+        
+        # For file uploads, we need to use the HTTP API directly
+        # Build the URL for upload
+        protocol = "https://" if False else "http://"  # Always use http for now
+        base_url = f"{protocol}{host}:{port}"
+        upload_url = f"{base_url}/server/files/upload"
+        
+        # Upload the file using HTTP POST with multipart/form-data
+        files = {
+            'file': ('${remoteName}', file_data, 'application/octet-stream')
+        }
+        data = {
+            'root': 'gcodes'
+        }
+        
+        headers = {}
+        if "${apiKey}":
+            headers['X-Api-Key'] = "${apiKey}"
+        
+        print(f"DEBUG: Uploading file using HTTP POST to {upload_url}", file=sys.stderr)
+        response = requests.post(upload_url, files=files, data=data, headers=headers)
+        
+        # Check the response
+        if response.status_code not in (200, 201):
+            error_message = f"Upload failed with status {response.status_code}: {response.text}"
+            print(f"DEBUG: {error_message}", file=sys.stderr)
+            raise Exception(error_message)
+        
+        # Parse the response
+        upload_result = response.json()
         print(f"DEBUG: Upload result: {upload_result}", file=sys.stderr)
         
         # Start printing if requested
-        if ${printAfterUpload}:
+        if ${printAfterUpload ? 'True' : 'False'}:
             print(f"DEBUG: Starting print for file: {remote_path}", file=sys.stderr)
-            print_result = await client.printer.print_start(filename="${remoteName}")
+            
+            # Use HTTP API to start print
+            print_url = f"{base_url}/printer/print/start"
+            print_headers = {
+                'Content-Type': 'application/json'
+            }
+            if "${apiKey}":
+                print_headers['X-Api-Key'] = "${apiKey}"
+            
+            print_data = json.dumps({"filename": "${remoteName}"})
+            print_response = requests.post(print_url, data=print_data, headers=print_headers)
+            
+            if print_response.status_code != 200:
+                error_message = f"Print start failed with status {print_response.status_code}: {print_response.text}"
+                print(f"DEBUG: {error_message}", file=sys.stderr)
+                raise Exception(error_message)
+            
+            print_result = print_response.json()
             print(f"DEBUG: Print start result: {print_result}", file=sys.stderr)
             
             return {
@@ -225,7 +267,8 @@ async def main():
             "message": "File successfully uploaded",
             "data": {
                 "path": remote_path,
-                "upload_result": upload_result
+                "upload_result": upload_result,
+                "_localFilePath": file_path
             }
         }
     except Exception as e:
@@ -355,17 +398,6 @@ if __name__ == "__main__":
  * @returns {Promise<object>} - Result of the test
  */
 async function testConnection(printerUrl, apiKey) {
-  // Find Python executable if we don't have it yet
-  if (!pythonExecutable) {
-    pythonExecutable = await findPythonExecutable();
-    if (!pythonExecutable) {
-      return Promise.reject({
-        success: false,
-        message: 'Python is not installed or not found in PATH. Please install Python 3.'
-      });
-    }
-  }
-
   return new Promise((resolve, reject) => {
     // Create a temporary Python script to execute
     const scriptPath = path.join(TEMP_DIR, `test_${Date.now()}.py`);
@@ -383,39 +415,84 @@ import traceback
 import socket
 import json
 import asyncio
-try:
-    # Set a shorter socket timeout to handle offline printers quickly
-    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
-    
-    from moonraker_api import MoonrakerClient
-except ImportError:
-    print(json.dumps({
-        "success": False,
-        "message": "moonraker-api not installed. Install with: pip install moonraker-api",
-        "error": "Module not found"
-    }))
-    sys.exit(1)
 
-import json
+# First check and try to install moonraker-api if missing
+try:
+    from moonraker_api import MoonrakerClient, MoonrakerListener
+    print("Successfully imported moonraker_api package", file=sys.stderr)
+except ImportError:
+    print("moonraker-api package not found, trying to install...", file=sys.stderr)
+    import subprocess
+    try:
+        # Attempt to install the package
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--user", "moonraker-api"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        print(f"Installation output: {result.stdout}", file=sys.stderr)
+        
+        # Try importing again
+        try:
+            from moonraker_api import MoonrakerClient, MoonrakerListener
+            print("Successfully installed and imported moonraker_api package", file=sys.stderr)
+        except ImportError as e:
+            print(json.dumps({
+                "success": False,
+                "message": "Failed to install moonraker-api. Please install it manually with: pip install --user moonraker-api",
+                "error": f"ImportError: {str(e)}"
+            }))
+            sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error installing package: {e.stderr}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": "Failed to install moonraker-api. Please install it manually with: pip install --user moonraker-api",
+            "error": f"Installation error: {e.stderr}"
+        }))
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error during installation: {str(e)}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": "Failed to install moonraker-api due to an unexpected error.",
+            "error": str(e)
+        }))
+        sys.exit(1)
+
+# Set a shorter socket timeout to handle offline printers quickly
+socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
 
 async def main():
     try:
         print(f"DEBUG: Testing connection to Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
         
-        # Parse the URL to get host, port, and API path
+        # Parse the URL to get host and port
         import urllib.parse
         parsed_url = urllib.parse.urlparse('${printerUrl}')
-        host = parsed_url.netloc
-        if ':' not in host:
-            # Add default port if not specified
-            host = f"{host}:7125"
+        netloc = parsed_url.netloc
+        
+        # Split the host and port if specified
+        if ':' in netloc:
+            host, port = netloc.split(':')
+            port = int(port)
+        else:
+            host = netloc
+            port = 7125
         
         # Connect to printer with shorter timeout
         client = MoonrakerClient(
             host=host,
+            port=port,
+            listener=MoonrakerListener(),
             api_key="${apiKey}" if '${apiKey}' else None,
             timeout=3
         )
+        
+        # Connect to the client
+        await client.connect()
         
         # Get server info
         server_info = await client.server.info()
@@ -561,17 +638,6 @@ if __name__ == "__main__":
  * @returns {Promise<object>} - Current job status
  */
 async function getJobStatus(printerUrl, apiKey) {
-  // Find Python executable if we don't have it yet
-  if (!pythonExecutable) {
-    pythonExecutable = await findPythonExecutable();
-    if (!pythonExecutable) {
-      return Promise.reject({
-        success: false,
-        message: 'Python is not installed or not found in PATH. Please install Python 3.'
-      });
-    }
-  }
-
   return new Promise((resolve, reject) => {
     // Create a temporary Python script to execute
     const scriptPath = path.join(TEMP_DIR, `status_${Date.now()}.py`);
@@ -590,39 +656,84 @@ import socket
 import json
 import asyncio
 from datetime import datetime
-try:
-    # Set a shorter socket timeout to handle offline printers quickly
-    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
-    
-    from moonraker_api import MoonrakerClient
-except ImportError:
-    print(json.dumps({
-        "success": False,
-        "message": "moonraker-api not installed. Install with: pip install moonraker-api",
-        "error": "Module not found"
-    }))
-    sys.exit(1)
 
-import json
+# First check and try to install moonraker-api if missing
+try:
+    from moonraker_api import MoonrakerClient, MoonrakerListener
+    print("Successfully imported moonraker_api package", file=sys.stderr)
+except ImportError:
+    print("moonraker-api package not found, trying to install...", file=sys.stderr)
+    import subprocess
+    try:
+        # Attempt to install the package
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--user", "moonraker-api"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        print(f"Installation output: {result.stdout}", file=sys.stderr)
+        
+        # Try importing again
+        try:
+            from moonraker_api import MoonrakerClient, MoonrakerListener
+            print("Successfully installed and imported moonraker_api package", file=sys.stderr)
+        except ImportError as e:
+            print(json.dumps({
+                "success": False,
+                "message": "Failed to install moonraker-api. Please install it manually with: pip install --user moonraker-api",
+                "error": f"ImportError: {str(e)}"
+            }))
+            sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error installing package: {e.stderr}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": "Failed to install moonraker-api. Please install it manually with: pip install --user moonraker-api",
+            "error": f"Installation error: {e.stderr}"
+        }))
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error during installation: {str(e)}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": "Failed to install moonraker-api due to an unexpected error.",
+            "error": str(e)
+        }))
+        sys.exit(1)
+
+# Set a shorter socket timeout to handle offline printers quickly
+socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
 
 async def main():
     try:
         print(f"DEBUG: Getting status from Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
         
-        # Parse the URL to get host, port, and API path
+        # Parse the URL to get host and port
         import urllib.parse
         parsed_url = urllib.parse.urlparse('${printerUrl}')
-        host = parsed_url.netloc
-        if ':' not in host:
-            # Add default port if not specified
-            host = f"{host}:7125"
+        netloc = parsed_url.netloc
+        
+        # Split the host and port if specified
+        if ':' in netloc:
+            host, port = netloc.split(':')
+            port = int(port)
+        else:
+            host = netloc
+            port = 7125
         
         # Connect to printer with shorter timeout
         client = MoonrakerClient(
             host=host,
+            port=port,
+            listener=MoonrakerListener(),
             api_key="${apiKey}" if '${apiKey}' else None,
             timeout=3
         )
+        
+        # Connect to the client
+        await client.connect()
         
         # Get printer objects (including print_stats, extruder, heater_bed)
         objects_query = ["print_stats", "extruder", "heater_bed", "display_status"]
@@ -836,17 +947,6 @@ if __name__ == "__main__":
  * @returns {Promise<object>} - Result of the operation
  */
 async function startExistingPrint(printerUrl, apiKey, fileName) {
-  // Find Python executable if we don't have it yet
-  if (!pythonExecutable) {
-    pythonExecutable = await findPythonExecutable();
-    if (!pythonExecutable) {
-      return Promise.reject({
-        success: false,
-        message: 'Python is not installed or not found in PATH. Please install Python 3.'
-      });
-    }
-  }
-
   return new Promise((resolve, reject) => {
     // Create a temporary Python script to execute
     const scriptPath = path.join(TEMP_DIR, `start_print_${Date.now()}.py`);
@@ -864,39 +964,84 @@ import traceback
 import socket
 import json
 import asyncio
-try:
-    # Set a shorter socket timeout to handle offline printers quickly
-    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
-    
-    from moonraker_api import MoonrakerClient
-except ImportError:
-    print(json.dumps({
-        "success": False,
-        "message": "moonraker-api not installed. Install with: pip install moonraker-api",
-        "error": "Module not found"
-    }))
-    sys.exit(1)
 
-import json
+# First check and try to install moonraker-api if missing
+try:
+    from moonraker_api import MoonrakerClient, MoonrakerListener
+    print("Successfully imported moonraker_api package", file=sys.stderr)
+except ImportError:
+    print("moonraker-api package not found, trying to install...", file=sys.stderr)
+    import subprocess
+    try:
+        # Attempt to install the package
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--user", "moonraker-api"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        print(f"Installation output: {result.stdout}", file=sys.stderr)
+        
+        # Try importing again
+        try:
+            from moonraker_api import MoonrakerClient, MoonrakerListener
+            print("Successfully installed and imported moonraker_api package", file=sys.stderr)
+        except ImportError as e:
+            print(json.dumps({
+                "success": False,
+                "message": "Failed to install moonraker-api. Please install it manually with: pip install --user moonraker-api",
+                "error": f"ImportError: {str(e)}"
+            }))
+            sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error installing package: {e.stderr}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": "Failed to install moonraker-api. Please install it manually with: pip install --user moonraker-api",
+            "error": f"Installation error: {e.stderr}"
+        }))
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error during installation: {str(e)}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": "Failed to install moonraker-api due to an unexpected error.",
+            "error": str(e)
+        }))
+        sys.exit(1)
+
+# Set a shorter socket timeout to handle offline printers quickly
+socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
 
 async def main():
     try:
         print(f"DEBUG: Starting print job for file {repr('${fileName}')} on Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
         
-        # Parse the URL to get host, port, and API path
+        # Parse the URL to get host and port
         import urllib.parse
         parsed_url = urllib.parse.urlparse('${printerUrl}')
-        host = parsed_url.netloc
-        if ':' not in host:
-            # Add default port if not specified
-            host = f"{host}:7125"
+        netloc = parsed_url.netloc
+        
+        # Split the host and port if specified
+        if ':' in netloc:
+            host, port = netloc.split(':')
+            port = int(port)
+        else:
+            host = netloc
+            port = 7125
         
         # Connect to printer with shorter timeout
         client = MoonrakerClient(
             host=host,
+            port=port,
+            listener=MoonrakerListener(),
             api_key="${apiKey}" if '${apiKey}' else None,
             timeout=3
         )
+        
+        # Connect to the client
+        await client.connect()
         
         # Start the print job
         print_result = await client.printer.print_start(filename="${fileName}")
@@ -1038,17 +1183,6 @@ if __name__ == "__main__":
  * @returns {Promise<object>} - Result of the operation
  */
 async function cancelPrint(printerUrl, apiKey) {
-  // Find Python executable if we don't have it yet
-  if (!pythonExecutable) {
-    pythonExecutable = await findPythonExecutable();
-    if (!pythonExecutable) {
-      return Promise.reject({
-        success: false,
-        message: 'Python is not installed or not found in PATH. Please install Python 3.'
-      });
-    }
-  }
-
   return new Promise((resolve, reject) => {
     // Create a temporary Python script to execute
     const scriptPath = path.join(TEMP_DIR, `cancel_print_${Date.now()}.py`);
@@ -1066,39 +1200,84 @@ import traceback
 import socket
 import json
 import asyncio
-try:
-    # Set a shorter socket timeout to handle offline printers quickly
-    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
-    
-    from moonraker_api import MoonrakerClient
-except ImportError:
-    print(json.dumps({
-        "success": False,
-        "message": "moonraker-api not installed. Install with: pip install moonraker-api",
-        "error": "Module not found"
-    }))
-    sys.exit(1)
 
-import json
+# First check and try to install moonraker-api if missing
+try:
+    from moonraker_api import MoonrakerClient, MoonrakerListener
+    print("Successfully imported moonraker_api package", file=sys.stderr)
+except ImportError:
+    print("moonraker-api package not found, trying to install...", file=sys.stderr)
+    import subprocess
+    try:
+        # Attempt to install the package
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--user", "moonraker-api"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        print(f"Installation output: {result.stdout}", file=sys.stderr)
+        
+        # Try importing again
+        try:
+            from moonraker_api import MoonrakerClient, MoonrakerListener
+            print("Successfully installed and imported moonraker_api package", file=sys.stderr)
+        except ImportError as e:
+            print(json.dumps({
+                "success": False,
+                "message": "Failed to install moonraker-api. Please install it manually with: pip install --user moonraker-api",
+                "error": f"ImportError: {str(e)}"
+            }))
+            sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Error installing package: {e.stderr}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": "Failed to install moonraker-api. Please install it manually with: pip install --user moonraker-api",
+            "error": f"Installation error: {e.stderr}"
+        }))
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error during installation: {str(e)}", file=sys.stderr)
+        print(json.dumps({
+            "success": False,
+            "message": "Failed to install moonraker-api due to an unexpected error.",
+            "error": str(e)
+        }))
+        sys.exit(1)
+
+# Set a shorter socket timeout to handle offline printers quickly
+socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
 
 async def main():
     try:
         print(f"DEBUG: Cancelling print job on Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
         
-        # Parse the URL to get host, port, and API path
+        # Parse the URL to get host and port
         import urllib.parse
         parsed_url = urllib.parse.urlparse('${printerUrl}')
-        host = parsed_url.netloc
-        if ':' not in host:
-            # Add default port if not specified
-            host = f"{host}:7125"
+        netloc = parsed_url.netloc
+        
+        # Split the host and port if specified
+        if ':' in netloc:
+            host, port = netloc.split(':')
+            port = int(port)
+        else:
+            host = netloc
+            port = 7125
         
         # Connect to printer with shorter timeout
         client = MoonrakerClient(
             host=host,
+            port=port,
+            listener=MoonrakerListener(),
             api_key="${apiKey}" if '${apiKey}' else None,
             timeout=3
         )
+        
+        # Connect to the client
+        await client.connect()
         
         # Cancel the print job
         cancel_result = await client.printer.print_cancel()

@@ -828,8 +828,414 @@ if __name__ == "__main__":
   });
 }
 
+/**
+ * Starts printing a file that already exists on the printer
+ * @param {string} printerUrl - URL of the Moonraker instance
+ * @param {string} apiKey - API key for Moonraker (if required)
+ * @param {string} fileName - Name of the file to print
+ * @returns {Promise<object>} - Result of the operation
+ */
+async function startExistingPrint(printerUrl, apiKey, fileName) {
+  // Find Python executable if we don't have it yet
+  if (!pythonExecutable) {
+    pythonExecutable = await findPythonExecutable();
+    if (!pythonExecutable) {
+      return Promise.reject({
+        success: false,
+        message: 'Python is not installed or not found in PATH. Please install Python 3.'
+      });
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    // Create a temporary Python script to execute
+    const scriptPath = path.join(TEMP_DIR, `start_print_${Date.now()}.py`);
+    
+    // Normalize the printer URL
+    printerUrl = printerUrl.trim();
+    if (printerUrl.endsWith('/')) {
+      printerUrl = printerUrl.slice(0, -1);
+    }
+    
+    // Create Python script content
+    const pythonScript = `
+import sys
+import traceback
+import socket
+import json
+import asyncio
+try:
+    # Set a shorter socket timeout to handle offline printers quickly
+    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+    
+    from moonraker_api import MoonrakerClient
+except ImportError:
+    print(json.dumps({
+        "success": False,
+        "message": "moonraker-api not installed. Install with: pip install moonraker-api",
+        "error": "Module not found"
+    }))
+    sys.exit(1)
+
+import json
+
+async def main():
+    try:
+        print(f"DEBUG: Starting print job for file {repr('${fileName}')} on Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
+        
+        # Parse the URL to get host, port, and API path
+        import urllib.parse
+        parsed_url = urllib.parse.urlparse('${printerUrl}')
+        host = parsed_url.netloc
+        if ':' not in host:
+            # Add default port if not specified
+            host = f"{host}:7125"
+        
+        # Connect to printer with shorter timeout
+        client = MoonrakerClient(
+            host=host,
+            api_key="${apiKey}" if '${apiKey}' else None,
+            timeout=3
+        )
+        
+        # Start the print job
+        print_result = await client.printer.print_start(filename="${fileName}")
+        print(f"DEBUG: Print start result: {print_result}", file=sys.stderr)
+        
+        # Return success response
+        return {
+            "success": True,
+            "message": "Print job started successfully",
+            "data": {
+                "file": "${fileName}",
+                "print_result": print_result
+            }
+        }
+    except Exception as e:
+        # Get full traceback
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback_details = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        
+        # Return detailed error response
+        return {
+            "success": False,
+            "message": str(e),
+            "error": str(e),
+            "traceback": "\\n".join(traceback_details)
+        }
+
+# Run the async function and print the result
+if __name__ == "__main__":
+    result = asyncio.run(main())
+    print(json.dumps(result))
+`;
+    
+    // Write the script to a file
+    fs.writeFileSync(scriptPath, pythonScript);
+    
+    // Execute the Python script and register for cleanup
+    const pythonProcess = registerPythonProcess(spawn(pythonExecutable, [scriptPath]));
+    pythonProcess.startTime = Date.now(); // Track process start time
+    
+    let output = '';
+    let errorOutput = '';
+    
+    // Set a hard timeout to kill the process if it runs too long
+    const timeout = setTimeout(() => {
+      console.error('[moonraker-bridge] Python process timeout after 10 seconds');
+      try {
+        pythonProcess.kill();
+      } catch (e) {
+        console.error('Error killing Python process:', e);
+      }
+      
+      resolve({
+        success: false,
+        message: 'Connection to Moonraker timed out after 10 seconds'
+      });
+    }, 10000);
+    
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      const text = data.toString();
+      errorOutput += text;
+      
+      // Log debug messages to console
+      if (text.includes('DEBUG:')) {
+        console.log(`[moonraker-bridge] ${text.trim()}`);
+      }
+    });
+    
+    pythonProcess.on('close', (code) => {
+      clearTimeout(timeout);
+      
+      // Delete the temporary file
+      try {
+        fs.unlinkSync(scriptPath);
+      } catch (error) {
+        console.warn(`[moonraker-bridge] Could not delete temporary file: ${error.message}`);
+      }
+      
+      if (code !== 0) {
+        console.error(`[moonraker-bridge] Python process exited with code ${code}`);
+        console.error(`[moonraker-bridge] Error output: ${errorOutput}`);
+        
+        // Try to parse error from output first
+        try {
+          const result = JSON.parse(output);
+          if (!result.success) {
+            resolve(result);
+            return;
+          }
+        } catch (e) {
+          // If parsing fails, fall through to generic error
+        }
+        
+        resolve({
+          success: false,
+          message: errorOutput || `Process exited with code ${code}`,
+          error: errorOutput
+        });
+        return;
+      }
+      
+      // Try to parse the JSON output
+      try {
+        const result = JSON.parse(output);
+        resolve(result);
+      } catch (error) {
+        console.error(`[moonraker-bridge] Error parsing output: ${error.message}`);
+        console.error(`[moonraker-bridge] Raw output: ${output}`);
+        
+        resolve({
+          success: false,
+          message: `Failed to parse response: ${error.message}`,
+          error: error.message,
+          rawOutput: output
+        });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      clearTimeout(timeout);
+      console.error(`[moonraker-bridge] Python process error: ${error.message}`);
+      
+      resolve({
+        success: false,
+        message: error.message
+      });
+    });
+  });
+}
+
+/**
+ * Cancels an active print job
+ * @param {string} printerUrl - URL of the Moonraker instance
+ * @param {string} apiKey - API key for Moonraker (if required)
+ * @returns {Promise<object>} - Result of the operation
+ */
+async function cancelPrint(printerUrl, apiKey) {
+  // Find Python executable if we don't have it yet
+  if (!pythonExecutable) {
+    pythonExecutable = await findPythonExecutable();
+    if (!pythonExecutable) {
+      return Promise.reject({
+        success: false,
+        message: 'Python is not installed or not found in PATH. Please install Python 3.'
+      });
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    // Create a temporary Python script to execute
+    const scriptPath = path.join(TEMP_DIR, `cancel_print_${Date.now()}.py`);
+    
+    // Normalize the printer URL
+    printerUrl = printerUrl.trim();
+    if (printerUrl.endsWith('/')) {
+      printerUrl = printerUrl.slice(0, -1);
+    }
+    
+    // Create Python script content
+    const pythonScript = `
+import sys
+import traceback
+import socket
+import json
+import asyncio
+try:
+    # Set a shorter socket timeout to handle offline printers quickly
+    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+    
+    from moonraker_api import MoonrakerClient
+except ImportError:
+    print(json.dumps({
+        "success": False,
+        "message": "moonraker-api not installed. Install with: pip install moonraker-api",
+        "error": "Module not found"
+    }))
+    sys.exit(1)
+
+import json
+
+async def main():
+    try:
+        print(f"DEBUG: Cancelling print job on Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
+        
+        # Parse the URL to get host, port, and API path
+        import urllib.parse
+        parsed_url = urllib.parse.urlparse('${printerUrl}')
+        host = parsed_url.netloc
+        if ':' not in host:
+            # Add default port if not specified
+            host = f"{host}:7125"
+        
+        # Connect to printer with shorter timeout
+        client = MoonrakerClient(
+            host=host,
+            api_key="${apiKey}" if '${apiKey}' else None,
+            timeout=3
+        )
+        
+        # Cancel the print job
+        cancel_result = await client.printer.print_cancel()
+        print(f"DEBUG: Print cancel result: {cancel_result}", file=sys.stderr)
+        
+        # Return success response
+        return {
+            "success": True,
+            "message": "Print job cancelled successfully",
+            "data": {
+                "cancel_result": cancel_result
+            }
+        }
+    except Exception as e:
+        # Get full traceback
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback_details = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        
+        # Return detailed error response
+        return {
+            "success": False,
+            "message": str(e),
+            "error": str(e),
+            "traceback": "\\n".join(traceback_details)
+        }
+
+# Run the async function and print the result
+if __name__ == "__main__":
+    result = asyncio.run(main())
+    print(json.dumps(result))
+`;
+    
+    // Write the script to a file
+    fs.writeFileSync(scriptPath, pythonScript);
+    
+    // Execute the Python script and register for cleanup
+    const pythonProcess = registerPythonProcess(spawn(pythonExecutable, [scriptPath]));
+    pythonProcess.startTime = Date.now(); // Track process start time
+    
+    let output = '';
+    let errorOutput = '';
+    
+    // Set a hard timeout to kill the process if it runs too long
+    const timeout = setTimeout(() => {
+      console.error('[moonraker-bridge] Python process timeout after 10 seconds');
+      try {
+        pythonProcess.kill();
+      } catch (e) {
+        console.error('Error killing Python process:', e);
+      }
+      
+      resolve({
+        success: false,
+        message: 'Connection to Moonraker timed out after 10 seconds'
+      });
+    }, 10000);
+    
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      const text = data.toString();
+      errorOutput += text;
+      
+      // Log debug messages to console
+      if (text.includes('DEBUG:')) {
+        console.log(`[moonraker-bridge] ${text.trim()}`);
+      }
+    });
+    
+    pythonProcess.on('close', (code) => {
+      clearTimeout(timeout);
+      
+      // Delete the temporary file
+      try {
+        fs.unlinkSync(scriptPath);
+      } catch (error) {
+        console.warn(`[moonraker-bridge] Could not delete temporary file: ${error.message}`);
+      }
+      
+      if (code !== 0) {
+        console.error(`[moonraker-bridge] Python process exited with code ${code}`);
+        console.error(`[moonraker-bridge] Error output: ${errorOutput}`);
+        
+        // Try to parse error from output first
+        try {
+          const result = JSON.parse(output);
+          if (!result.success) {
+            resolve(result);
+            return;
+          }
+        } catch (e) {
+          // If parsing fails, fall through to generic error
+        }
+        
+        resolve({
+          success: false,
+          message: errorOutput || `Process exited with code ${code}`,
+          error: errorOutput
+        });
+        return;
+      }
+      
+      // Try to parse the JSON output
+      try {
+        const result = JSON.parse(output);
+        resolve(result);
+      } catch (error) {
+        console.error(`[moonraker-bridge] Error parsing output: ${error.message}`);
+        console.error(`[moonraker-bridge] Raw output: ${output}`);
+        
+        resolve({
+          success: false,
+          message: `Failed to parse response: ${error.message}`,
+          error: error.message,
+          rawOutput: output
+        });
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      clearTimeout(timeout);
+      console.error(`[moonraker-bridge] Python process error: ${error.message}`);
+      
+      resolve({
+        success: false,
+        message: error.message
+      });
+    });
+  });
+}
+
 module.exports = {
   uploadAndPrint,
   testConnection,
-  getJobStatus
+  getJobStatus,
+  startExistingPrint,
+  cancelPrint
 }; 

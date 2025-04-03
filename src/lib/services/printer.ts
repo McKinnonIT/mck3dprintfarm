@@ -238,37 +238,34 @@ export class PrinterService {
   }
 
   async startPrint(fileUrl: string): Promise<boolean> {
-    console.log(`Starting print on ${this.type} printer with file: ${fileUrl}`);
+    console.log(`Starting print on ${this.type} printer for file ${fileUrl}`);
     try {
       if (this.type === "prusalink") {
         const response = await axios.post(
-          `${this.baseUrl}/api/print`,
-          { command: "start", path: fileUrl },
+          `${this.baseUrl}/api/files/local/${fileUrl}`,
+          { command: "select", print: true },
           { headers: this.headers }
         );
         console.log(`PrusaLink print start response:`, response.status);
         return true;
       } else {
-        // Moonraker API - try multiple endpoint formats
+        // Use moonraker-bridge-py.js
+        const moonrakerBridge = require('../moonraker-bridge-py');
+        console.log(`Using moonraker-bridge-py to start print for ${fileUrl}`);
+        
         try {
-          console.log(`Attempting to start print via ${this.baseUrl}/api/printer/print/start`);
-          const response = await axios.post(`${this.baseUrl}/api/printer/print/start`, {
-            filename: fileUrl,
-          });
-          console.log(`Print start response:`, response.status);
-          return true;
-        } catch (error) {
-          console.log(`First endpoint failed: ${error.message}, trying alternative`);
-          try {
-            const response = await axios.post(`${this.baseUrl}/printer/print/start`, {
-              filename: fileUrl,
-            });
-            console.log(`Print start response (alternative endpoint):`, response.status);
+          const result = await moonrakerBridge.startExistingPrint(this.baseUrl, this.apiKey, fileUrl);
+          
+          if (result.success) {
+            console.log(`Print start successful: ${result.message}`);
             return true;
-          } catch (error) {
-            console.error(`Failed to start print: ${error.message}`);
-            throw error;
+          } else {
+            console.error(`Failed to start print: ${result.message}`);
+            throw new Error(result.message);
           }
+        } catch (error) {
+          console.error(`Error from moonraker-bridge:`, error);
+          throw error;
         }
       }
     } catch (error) {
@@ -289,22 +286,23 @@ export class PrinterService {
         console.log(`PrusaLink print stop response:`, response.status);
         return true;
       } else {
-        // Moonraker API - try multiple endpoint formats
+        // Use moonraker-bridge-py.js
+        const moonrakerBridge = require('../moonraker-bridge-py');
+        console.log(`Using moonraker-bridge-py to cancel print`);
+        
         try {
-          console.log(`Attempting to stop print via ${this.baseUrl}/api/printer/print/cancel`);
-          const response = await axios.post(`${this.baseUrl}/api/printer/print/cancel`);
-          console.log(`Print stop response:`, response.status);
-          return true;
-        } catch (error) {
-          console.log(`First endpoint failed: ${error.message}, trying alternative`);
-          try {
-            const response = await axios.post(`${this.baseUrl}/printer/print/cancel`);
-            console.log(`Print stop response (alternative endpoint):`, response.status);
+          const result = await moonrakerBridge.cancelPrint(this.baseUrl, this.apiKey);
+          
+          if (result.success) {
+            console.log(`Print cancel successful: ${result.message}`);
             return true;
-          } catch (error) {
-            console.error(`Failed to stop print: ${error.message}`);
-            throw error;
+          } else {
+            console.error(`Failed to cancel print: ${result.message}`);
+            throw new Error(result.message);
           }
+        } catch (error) {
+          console.error(`Error from moonraker-bridge:`, error);
+          throw error;
         }
       }
     } catch (error) {

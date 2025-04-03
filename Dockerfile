@@ -3,8 +3,10 @@ FROM node:18-alpine AS builder
 # Install Python and pip
 RUN apk add --no-cache python3 py3-pip
 
-# Install Python packages required for Moonraker support
-RUN pip3 install --no-cache-dir moonraker-api requests
+# Create and use a Python virtual environment instead of system-wide installation
+RUN python3 -m venv /app/venv
+ENV PATH="/app/venv/bin:$PATH"
+RUN . /app/venv/bin/activate && pip install --no-cache-dir moonraker-api requests
 
 WORKDIR /app
 
@@ -378,9 +380,11 @@ WORKDIR /app
 # Create uploads directory
 RUN mkdir -p uploads
 
-# Install Python requirements
-RUN python3 -m venv /app/venv && \
-    /app/venv/bin/pip install prusaLinkPy
+# Create Python virtual environment and install requirements
+RUN python3 -m venv /app/venv
+ENV PATH="/app/venv/bin:$PATH"
+ENV DOCKER_ENV=true
+RUN . /app/venv/bin/activate && pip install --no-cache-dir prusaLinkPy moonraker-api requests
 
 # Copy built assets from the builder stage
 COPY --from=builder /app/public ./public

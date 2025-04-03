@@ -10,7 +10,7 @@ if (!fs.existsSync(TEMP_DIR)) {
 }
 
 // Cache the Python executable
-let pythonExecutable = 'python3';
+let pythonExecutable = process.env.DOCKER_ENV ? '/app/venv/bin/python' : 'python3';
 
 // Keep track of active Python processes
 const activePythonProcesses = new Set();

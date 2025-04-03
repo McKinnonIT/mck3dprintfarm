@@ -3,6 +3,9 @@ FROM node:18-alpine AS builder
 # Install Python and pip
 RUN apk add --no-cache python3 py3-pip
 
+# Install Python packages required for Moonraker support
+RUN pip3 install --no-cache-dir moonraker-api requests
+
 WORKDIR /app
 
 # Copy package files and install dependencies

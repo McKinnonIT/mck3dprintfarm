@@ -85,70 +85,89 @@ import urllib.parse
 # Set a shorter socket timeout to handle offline printers quickly
 socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
 
-# Check if required packages are installed and install them if needed
-required_packages = ['moonraker-api', 'requests']
-missing_packages = []
+# Use pre-installed packages if available, otherwise try to import or install
+try:
+    # Try importing directly first
+    from moonraker_api import MoonrakerClient, MoonrakerListener
+    import requests
+    print("Using pre-installed packages", file=sys.stderr)
+except ImportError:
+    print("Some packages are missing, will try to import or install them", file=sys.stderr)
+    
+    # Check if required packages are installed and install them if needed
+    required_packages = ['moonraker-api', 'requests']
+    missing_packages = []
 
-for package in required_packages:
-    try:
-        if package == 'moonraker-api':
-            from moonraker_api import MoonrakerClient, MoonrakerListener
-            print(f"Successfully imported {package}", file=sys.stderr)
-        elif package == 'requests':
-            import requests
-            print(f"Successfully imported {package}", file=sys.stderr)
-    except ImportError:
-        missing_packages.append(package)
-
-# Install missing packages
-if missing_packages:
-    print(f"Packages not found: {', '.join(missing_packages)}, trying to install...", file=sys.stderr)
-    import subprocess
-    try:
-        # Attempt to install the packages
-        for package in missing_packages:
-            print(f"Installing {package}...", file=sys.stderr)
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "--user", package],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True
-            )
-            print(f"Installation output for {package}: {result.stdout}", file=sys.stderr)
-        
-        # Try importing again
+    for package in required_packages:
         try:
-            from moonraker_api import MoonrakerClient, MoonrakerListener
-            import requests
-            print("Successfully installed and imported required packages", file=sys.stderr)
-        except ImportError as e:
+            if package == 'moonraker-api':
+                from moonraker_api import MoonrakerClient, MoonrakerListener
+                print(f"Successfully imported {package}", file=sys.stderr)
+            elif package == 'requests':
+                import requests
+                print(f"Successfully imported {package}", file=sys.stderr)
+        except ImportError:
+            missing_packages.append(package)
+
+    # Install missing packages
+    if missing_packages:
+        print(f"Packages not found: {', '.join(missing_packages)}, trying to install...", file=sys.stderr)
+        import subprocess
+        try:
+            # Attempt to install the packages
+            for package in missing_packages:
+                print(f"Installing {package}...", file=sys.stderr)
+                # Try system-wide install first, then fall back to --user
+                try:
+                    result = subprocess.run(
+                        [sys.executable, "-m", "pip", "install", package],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        check=True
+                    )
+                except subprocess.CalledProcessError:
+                    print(f"System-wide install failed, trying user install...", file=sys.stderr)
+                    result = subprocess.run(
+                        [sys.executable, "-m", "pip", "install", "--user", package],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        check=True
+                    )
+                
+                print(f"Installation output for {package}: {result.stdout}", file=sys.stderr)
+            
+            # Try importing again
+            try:
+                from moonraker_api import MoonrakerClient, MoonrakerListener
+                import requests
+                print("Successfully installed and imported required packages", file=sys.stderr)
+            except ImportError as e:
+                print(json.dumps({
+                    "success": False,
+                    "message": f"Failed to install required packages. Please install them manually with: pip install {' '.join(missing_packages)}",
+                    "error": f"ImportError: {str(e)}"
+                }))
+                sys.exit(1)
+        except subprocess.CalledProcessError as e:
+            print(f"Error installing packages: {e.stderr}", file=sys.stderr)
             print(json.dumps({
                 "success": False,
-                "message": f"Failed to install required packages. Please install them manually with: pip install --user {' '.join(missing_packages)}",
-                "error": f"ImportError: {str(e)}"
+                "message": f"Failed to install required packages. Please install them manually with: pip install {' '.join(missing_packages)}",
+                "error": f"Installation error: {e.stderr}"
             }))
             sys.exit(1)
-    except subprocess.CalledProcessError as e:
-        print(f"Error installing packages: {e.stderr}", file=sys.stderr)
-        print(json.dumps({
-            "success": False,
-            "message": f"Failed to install required packages. Please install them manually with: pip install --user {' '.join(missing_packages)}",
-            "error": f"Installation error: {e.stderr}"
-        }))
-        sys.exit(1)
-    except Exception as e:
-        print(f"Unexpected error during installation: {str(e)}", file=sys.stderr)
-        print(json.dumps({
-            "success": False,
-            "message": "Failed to install required packages due to an unexpected error.",
-            "error": str(e)
-        }))
-        sys.exit(1)
+        except Exception as e:
+            print(f"Unexpected error during installation: {str(e)}", file=sys.stderr)
+            print(json.dumps({
+                "success": False,
+                "message": "Failed to install required packages due to an unexpected error.",
+                "error": str(e)
+            }))
+            sys.exit(1)
 
-from moonraker_api import MoonrakerClient, MoonrakerListener
-import requests
-
+# Now continue with the main functionality
 async def main():
     try:
         print(f"DEBUG: Starting upload to Moonraker at {repr('${printerUrl}')} with API key {repr('${apiKey}'[:4] + '****' if '${apiKey}' else 'none')}", file=sys.stderr)
@@ -410,6 +429,7 @@ async function testConnection(printerUrl, apiKey) {
     
     // Create Python script content
     const pythonScript = `
+#!/usr/bin/env python3
 import sys
 import traceback
 import socket
@@ -650,6 +670,7 @@ async function getJobStatus(printerUrl, apiKey) {
     
     // Create Python script content
     const pythonScript = `
+#!/usr/bin/env python3
 import sys
 import traceback
 import socket
@@ -959,6 +980,7 @@ async function startExistingPrint(printerUrl, apiKey, fileName) {
     
     // Create Python script content
     const pythonScript = `
+#!/usr/bin/env python3
 import sys
 import traceback
 import socket
@@ -1195,6 +1217,7 @@ async function cancelPrint(printerUrl, apiKey) {
     
     // Create Python script content
     const pythonScript = `
+#!/usr/bin/env python3
 import sys
 import traceback
 import socket

@@ -155,7 +155,7 @@ try:
     print(f"DEBUG: Remote path: {repr('${remoteName}')}", file=sys.stderr)
     
     # Connect to printer with shorter timeout
-    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}", timeout=3)
+    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}")
     
     # Check if connection works
     print(f"DEBUG: Testing connection with get_version()", file=sys.stderr)
@@ -381,7 +381,7 @@ try:
     print(f"DEBUG: Starting connection test to printer at {repr('${printerIp}')} with API key {repr('${apiKey}'[:4] + '****')}", file=sys.stderr)
     
     # Connect to printer with shorter timeout
-    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}", timeout=3)
+    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}")
     
     # Test printer connection
     print(f"DEBUG: Testing connection with get_version()", file=sys.stderr)
@@ -563,7 +563,7 @@ try:
     print(f"DEBUG: Starting connection to printer at {repr('${printerIp}')} with API key {repr('${apiKey}'[:4] + '****')}", file=sys.stderr)
     
     # Connect to printer with shorter timeout
-    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}", timeout=3)
+    printer = PrusaLinkPy.PrusaLinkPy("${printerIp}", "${apiKey}")
     
     # Get printer info
     printer_info = printer.get_printer()

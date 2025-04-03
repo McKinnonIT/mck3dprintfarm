@@ -9,11 +9,18 @@ services:
       sh -c "
         echo 'Initializing database...' &&
         mkdir -p /app/prisma &&
-        touch /app/prisma/dev.db &&
+        echo 'Creating empty database if it does not exist...' &&
+        if [ ! -f /app/prisma/dev.db ]; then
+          touch /app/prisma/dev.db
+          echo 'Created new database file'
+        else
+          echo 'Database file already exists'
+        fi &&
+        echo 'Generating Prisma client...' &&
         npx prisma generate &&
-        echo 'Running Prisma migrations...' &&
-        npx prisma migrate deploy --preview-feature &&
-        echo 'Migrations complete. Starting application...' &&
+        echo 'Running Prisma db push to create tables directly...' &&
+        npx prisma db push --accept-data-loss &&
+        echo 'Database schema created. Starting application...' &&
         npm start
       "
     ports:

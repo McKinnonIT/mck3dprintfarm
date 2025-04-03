@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { testPrinterConnection } from "@/lib/printer-utils";
 const prusaLinkBridge = require("@/lib/prusalink-bridge");
+const bambuLabBridge = require("@/lib/bambulabs-bridge");
 
 export async function POST(request: Request) {
   try {
@@ -40,6 +41,7 @@ export async function POST(request: Request) {
 
     // Test connection to printer
     const isPrusaLink = printer.type.toLowerCase().includes('prusa');
+    const isBambuLab = printer.type.toLowerCase() === 'bambulab';
     
     let connectionResult;
     if (isPrusaLink) {
@@ -103,6 +105,65 @@ export async function POST(request: Request) {
         if (error.traceback) {
           console.error("[DEBUG] Python traceback:", error.traceback);
           errorMessage = `PrusaLinkPy error: ${error.message}`;
+        }
+        
+        connectionResult = {
+          success: false,
+          message: errorMessage,
+          error: error
+        };
+      }
+    } else if (isBambuLab) {
+      console.log(`[DEBUG] Using bambulabs_api bridge for testing ${printer.name}`);
+      
+      if (!printer.apiKey || !printer.serialNumber) {
+        return NextResponse.json({
+          success: false,
+          message: "Access Code and Serial Number are required for Bambu Lab printers",
+          printer: {
+            id: printer.id,
+            name: printer.name,
+            type: printer.type
+          }
+        });
+      }
+      
+      // The apiUrl should be IP address for Bambu Lab printers
+      const printerIp = printer.apiUrl;
+      
+      // Use the bambulabs-bridge for testing
+      try {
+        // Add explicit timeout
+        const bambuBridgePromise = bambuLabBridge.connectPrinter(
+          printerIp,
+          printer.serialNumber,
+          printer.apiKey,
+          8 // 8 seconds timeout
+        );
+        
+        // Create a timeout promise
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Bambu Lab request timed out')), 10000);
+        });
+        
+        // Race the actual request against the timeout
+        connectionResult = await Promise.race([bambuBridgePromise, timeoutPromise])
+          .catch(error => {
+            console.error(`Bambu Lab request timed out for ${printer.name}`);
+            return { success: false, message: 'Request timed out', error: 'Timeout' };
+          });
+        
+        console.log("[DEBUG] Bambu Lab test result:", connectionResult);
+      } catch (error) {
+        console.error("[DEBUG] Bambu Lab bridge error:", error);
+        console.error("[DEBUG] Error details:", JSON.stringify(error, null, 2));
+        
+        let errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // If we have a traceback from Python, include that in the log
+        if (error.traceback) {
+          console.error("[DEBUG] Python traceback:", error.traceback);
+          errorMessage = `Bambu Lab API error: ${error.message}`;
         }
         
         connectionResult = {

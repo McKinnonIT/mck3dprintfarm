@@ -8,6 +8,7 @@ type Printer = {
   type: string;
   apiUrl: string;
   apiKey: string | null;
+  serialNumber?: string;
   status: string;
   operationalStatus: string;
 };

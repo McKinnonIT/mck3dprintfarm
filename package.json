@@ -1,6 +1,6 @@
 {
   "name": "stl-preview-slice",
-  "version": "1.0.0",
+  "version": "0.0.2a",
   "description": "STL preview and slice test application",
   "main": "server.js",
   "scripts": {

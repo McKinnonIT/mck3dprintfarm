@@ -31,6 +31,7 @@ model Printer {
   type              String
   apiUrl            String
   apiKey            String?
+  serialNumber      String?
   status            String   @default("active")
   operationalStatus String   @default("idle")
   lastSeen          DateTime @default(now())

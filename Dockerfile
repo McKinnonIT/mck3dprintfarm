@@ -6,7 +6,7 @@ RUN apk add --no-cache python3 py3-pip
 # Create and use a Python virtual environment instead of system-wide installation
 RUN python3 -m venv /app/venv
 ENV PATH="/app/venv/bin:$PATH"
-RUN . /app/venv/bin/activate && pip install --no-cache-dir moonraker-api requests
+RUN . /app/venv/bin/activate && pip install --no-cache-dir prusaLinkPy moonraker-api requests bambulabs_api
 
 WORKDIR /app
 
@@ -384,7 +384,7 @@ RUN mkdir -p uploads
 RUN python3 -m venv /app/venv
 ENV PATH="/app/venv/bin:$PATH"
 ENV DOCKER_ENV=true
-RUN . /app/venv/bin/activate && pip install --no-cache-dir prusaLinkPy moonraker-api requests
+RUN . /app/venv/bin/activate && pip install --no-cache-dir prusaLinkPy moonraker-api requests bambulabs_api
 
 # Copy built assets from the builder stage
 COPY --from=builder /app/public ./public

@@ -8,8 +8,8 @@ export default function AboutPage() {
       
       <p className="mb-6">
         The MCK 3D Print Farm application was developed for McKinnon Secondary College to manage 
-        3D printers across the school. This platform enables monitoring and management of both PrusaLink 
-        and Moonraker-based 3D printers, streamlining the 3D printing workflow for students and staff.
+        3D printers across the school. This platform enables monitoring and management of PrusaLink, 
+        Moonraker-based, and Bambu Lab 3D printers, streamlining the 3D printing workflow for students and staff.
       </p>
       
       <h2 className="text-2xl font-semibold mb-4 mt-8">Technologies Used</h2>
@@ -71,6 +71,30 @@ export default function AboutPage() {
                 Moonraker API
               </a>
               <span> - API server for Klipper-based 3D printers</span>
+            </li>
+            <li>
+              <a href="https://pypi.org/project/bambulabs-api/" target="_blank" className="text-blue-600 hover:underline font-medium">
+                Bambu Lab API
+              </a>
+              <span> - Python library for controlling Bambu Lab 3D printers</span>
+            </li>
+          </ul>
+        </section>
+        
+        <section>
+          <h3 className="text-xl font-medium mb-3">Deployment & Containerization</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>
+              <a href="https://www.docker.com" target="_blank" className="text-blue-600 hover:underline font-medium">
+                Docker
+              </a>
+              <span> - Container platform for packaging and running applications</span>
+            </li>
+            <li>
+              <a href="https://github.com/features/actions" target="_blank" className="text-blue-600 hover:underline font-medium">
+                GitHub Actions
+              </a>
+              <span> - CI/CD workflows for automated builds and deployment</span>
             </li>
           </ul>
         </section>
@@ -150,9 +174,16 @@ export default function AboutPage() {
       
       <div className="mt-12 border-t pt-8">
         <h2 className="text-2xl font-semibold mb-4">Acknowledgments</h2>
-        <p>
+        <p className="mb-4">
           Special thanks to the open-source community for creating and maintaining these incredible 
           tools and libraries that made this project possible.
+        </p>
+        <p>
+          <Link href="/changelog#v0.0.2a" className="text-blue-600 hover:underline">
+            Version 0.0.2a
+          </Link> adds support for Bambu Lab printers, enabling connectivity with Bambu Lab's 
+          X1 and P1 series printers through the bambulabs_api Python library.
+          See the <Link href="/changelog" className="text-blue-600 hover:underline">full changelog</Link> for more details.
         </p>
       </div>
       

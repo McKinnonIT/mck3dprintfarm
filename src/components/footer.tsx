@@ -2,7 +2,8 @@ import React from 'react';
 import Link from 'next/link';
 
 // App version - update this when making significant changes
-const APP_VERSION = '0.0.1a';
+const APP_VERSION = '0.0.2a';
+const VERSION_ANCHOR = 'v' + APP_VERSION; // for anchor links in changelog
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -15,7 +16,9 @@ export function Footer() {
             &copy; {currentYear} McKinnon Secondary College. All rights reserved.
           </div>
           <div className="mt-2 md:mt-0 flex space-x-4">
-            <span>Version {APP_VERSION}</span>
+            <Link href={`/changelog#${VERSION_ANCHOR}`} className="hover:text-blue-600">
+              Version {APP_VERSION}
+            </Link>
             <Link href="/about" className="hover:text-blue-600">
               About
             </Link>

@@ -31,15 +31,35 @@ const mapPrusaLinkState = (state: string): string => {
   }
 };
 
+// Add mapping function for Bambu Lab states (if needed)
+const mapBambuLabState = (state: string): string => {
+  switch (state.toLowerCase()) {
+    case 'printing':
+      return 'printing';
+    case 'idle':
+      return 'idle';
+    case 'paused':
+      return 'paused';
+    case 'error':
+      return 'error';
+    case 'offline':
+      return 'offline';
+    default:
+      return 'idle';
+  }
+};
+
 export class PrinterService {
   private baseUrl: string;
   private apiKey?: string;
-  private type: "prusalink" | "moonraker";
+  private type: "prusalink" | "moonraker" | "bambulab";
+  private serialNumber?: string;
 
-  constructor(baseUrl: string, type: "prusalink" | "moonraker", apiKey?: string) {
+  constructor(baseUrl: string, type: "prusalink" | "moonraker" | "bambulab", apiKey?: string, serialNumber?: string) {
     this.baseUrl = baseUrl;
     this.type = type;
     this.apiKey = apiKey;
+    this.serialNumber = serialNumber;
   }
 
   private get headers() {
@@ -196,6 +216,44 @@ export class PrinterService {
           console.error("[Detail] Critical error connecting to PrusaLink:", error);
           return { status: "offline" };
         }
+      } else if (this.type === "bambulab") {
+        // Bambu Lab API - use bambulabs-bridge.js
+        try {
+          console.log(`Connecting to Bambu Lab printer at ${this.baseUrl}`);
+          
+          // Use the bambulabs-bridge.js for getting status
+          const bambuBridge = require('../bambulabs-bridge');
+          const statusResult = await bambuBridge.getJobStatus(
+            this.baseUrl, 
+            this.serialNumber, 
+            this.apiKey
+          );
+          
+          console.log(`Bambu Lab status result:`, statusResult?.success);
+          
+          if (statusResult?.success) {
+            // Extract data from the response
+            const data = statusResult.data;
+            const state = data.printer?.state?.text || 'idle';
+            const bedTemp = data.printer?.temperature?.bed || 0;
+            const toolTemp = data.printer?.temperature?.tool0 || 0;
+            const progress = data.printer?.progress || 0;
+            
+            return {
+              status: state,
+              temperature: {
+                bed: bedTemp,
+                tool0: toolTemp
+              },
+              progress: progress
+            };
+          }
+          
+          return { status: "offline" };
+        } catch (error) {
+          console.error("Error connecting to Bambu Lab printer:", error);
+          return { status: "offline" };
+        }
       } else {
         // Moonraker API - use moonraker-bridge-py.js
         try {
@@ -248,6 +306,31 @@ export class PrinterService {
         );
         console.log(`PrusaLink print start response:`, response.status);
         return true;
+      } else if (this.type === "bambulab") {
+        // Use bambulabs-bridge.js
+        const bambuBridge = require('../bambulabs-bridge');
+        console.log(`Using bambulabs-bridge to start print for ${fileUrl}`);
+        
+        try {
+          const result = await bambuBridge.uploadAndPrint(
+            this.baseUrl,
+            this.serialNumber,
+            this.apiKey,
+            fileUrl,
+            true // printAfterUpload = true
+          );
+          
+          if (result.success) {
+            console.log(`Print start successful: ${result.message}`);
+            return true;
+          } else {
+            console.error(`Failed to start print: ${result.message}`);
+            throw new Error(result.message);
+          }
+        } catch (error) {
+          console.error(`Error from bambulabs-bridge:`, error);
+          throw error;
+        }
       } else {
         // Use moonraker-bridge-py.js
         const moonrakerBridge = require('../moonraker-bridge-py');
@@ -285,6 +368,29 @@ export class PrinterService {
         );
         console.log(`PrusaLink print stop response:`, response.status);
         return true;
+      } else if (this.type === "bambulab") {
+        // Use bambulabs-bridge.js
+        const bambuBridge = require('../bambulabs-bridge');
+        console.log(`Using bambulabs-bridge to stop print`);
+        
+        try {
+          const result = await bambuBridge.stopPrint(
+            this.baseUrl,
+            this.serialNumber,
+            this.apiKey
+          );
+          
+          if (result.success) {
+            console.log(`Print stop successful: ${result.message}`);
+            return true;
+          } else {
+            console.error(`Failed to stop print: ${result.message}`);
+            throw new Error(result.message);
+          }
+        } catch (error) {
+          console.error(`Error from bambulabs-bridge:`, error);
+          throw error;
+        }
       } else {
         // Use moonraker-bridge-py.js
         const moonrakerBridge = require('../moonraker-bridge-py');

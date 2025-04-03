@@ -1,10 +1,18 @@
+#!/bin/bash
+
+# Exit on error
+set -e
+
+echo "Building Docker image with Bambu Lab support..."
+docker build -t mck3dprintfarm:local .
+
+echo "Creating docker-compose.local.yml for local image..."
+cat > docker-compose.local.yml << EOF
 version: '3'
 
 services:
   mck3dprintfarm:
-    image: alastairtech/mck3dprintfarm:latest
-    # You can also use a specific version tag:
-    # image: alastairtech/mck3dprintfarm:1.0.0
+    image: mck3dprintfarm:local
     command: >
       sh -c "
         echo 'Initializing database...' &&
@@ -29,7 +37,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ../uploads:/app/uploads
+      - ./uploads:/app/uploads
       # Don't mount the entire prisma directory, just create data volume for persistence
       - mck3dprintfarm_data:/app/prisma
       # Avoid mounting certificates since we're skipping HTTPS in dev mode in Docker
@@ -50,4 +58,11 @@ services:
 
 # Named volumes for data persistence
 volumes:
-  mck3dprintfarm_data: 
+  mck3dprintfarm_data:
+EOF
+
+echo "Running with local image using docker-compose.local.yml..."
+docker-compose -f docker-compose.local.yml up -d
+
+echo "Container is starting at http://localhost:3000"
+echo "Admin credentials: admin@example.com / Admin123!" 

@@ -9,6 +9,7 @@ type Printer = {
   type: string;
   apiUrl: string;
   apiKey?: string;
+  serialNumber?: string;
   webcamUrl?: string;
   status: string;
 };
@@ -22,6 +23,7 @@ export function AddPrinterForm({ onAdd }: AddPrinterFormProps) {
   const [type, setType] = useState("moonraker");
   const [apiUrl, setApiUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
   const [webcamUrl, setWebcamUrl] = useState("");
   const [status, setStatus] = useState("active");
   const [error, setError] = useState("");
@@ -35,11 +37,22 @@ export function AddPrinterForm({ onAdd }: AddPrinterFormProps) {
       return;
     }
 
+    if (type === "prusalink" && !apiKey) {
+      setError("API Key is required for PrusaLink printers");
+      return;
+    }
+
+    if (type === "bambulab" && (!apiKey || !serialNumber)) {
+      setError("Serial Number and Access Code are required for Bambu Lab printers");
+      return;
+    }
+
     onAdd({
       name,
       type,
       apiUrl,
-      apiKey: type === "prusalink" ? apiKey : undefined,
+      apiKey: (type === "prusalink" || type === "bambulab") ? apiKey : undefined,
+      serialNumber: type === "bambulab" ? serialNumber : undefined,
       webcamUrl: webcamUrl || undefined,
       status: "active",
     });
@@ -74,6 +87,7 @@ export function AddPrinterForm({ onAdd }: AddPrinterFormProps) {
         >
           <option value="moonraker">Moonraker</option>
           <option value="prusalink">PrusaLink</option>
+          <option value="bambulab">Bambu Lab</option>
         </select>
       </div>
 
@@ -96,13 +110,14 @@ export function AddPrinterForm({ onAdd }: AddPrinterFormProps) {
 
       <div>
         <label htmlFor="apiUrl" className="block text-sm font-medium text-gray-700">
-          API URL
+          {type === "bambulab" ? "Printer IP Address" : "API URL"}
         </label>
         <input
-          type="url"
+          type={type === "bambulab" ? "text" : "url"}
           id="apiUrl"
           value={apiUrl}
           onChange={(e) => setApiUrl(e.target.value)}
+          placeholder={type === "bambulab" ? "192.168.0.123" : "http://printer.local"}
           className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           required
         />
@@ -122,6 +137,39 @@ export function AddPrinterForm({ onAdd }: AddPrinterFormProps) {
             required
           />
         </div>
+      )}
+
+      {type === "bambulab" && (
+        <>
+          <div>
+            <label htmlFor="serialNumber" className="block text-sm font-medium text-gray-700">
+              Printer Serial Number
+            </label>
+            <input
+              type="text"
+              id="serialNumber"
+              value={serialNumber}
+              onChange={(e) => setSerialNumber(e.target.value)}
+              placeholder="ABCDEFG123456"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700">
+              Access Code
+            </label>
+            <input
+              type="password"
+              id="apiKey"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="000000"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              required
+            />
+          </div>
+        </>
       )}
 
       <div>

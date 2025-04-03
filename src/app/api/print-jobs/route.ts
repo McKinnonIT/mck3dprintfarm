@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import { uploadFileToPrinter, startPrintJob } from "@/lib/printer-utils";
 const prusaLinkBridge = require("@/lib/prusalink-bridge");
-const moonrakerBridge = require("@/lib/moonraker-bridge");
+const moonrakerBridge = require("@/lib/moonraker-bridge-py");
 
 export async function POST(request: Request) {
   try {

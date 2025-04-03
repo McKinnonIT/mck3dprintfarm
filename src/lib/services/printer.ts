@@ -197,105 +197,32 @@ export class PrinterService {
           return { status: "offline" };
         }
       } else {
-        // Moonraker API - first fetch basic printer info
+        // Moonraker API - use moonraker-bridge-py.js
         try {
           console.log(`Connecting to moonraker at ${this.baseUrl}`);
           
-          // Use a timeout to avoid hanging requests
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          // Use the moonraker-bridge-py.js for getting status
+          const moonrakerBridge = require('../moonraker-bridge-py');
+          const statusResult = await moonrakerBridge.getJobStatus(this.baseUrl, this.apiKey);
           
-          // Try multiple API endpoint formats for server info
-          let response;
-          try {
-            response = await axios.get(`${this.baseUrl}/api/server/info`, {
-              signal: controller.signal
-            });
-          } catch (firstError) {
-            console.log(`First API format failed: ${firstError.message}`);
-            try {
-              response = await axios.get(`${this.baseUrl}/server/info`, {
-                signal: controller.signal
-              });
-            } catch (secondError) {
-              console.log(`Second API format failed: ${secondError.message}`);
-              throw new Error("Failed to connect to printer");
-            }
-          }
+          console.log(`Moonraker status result:`, statusResult?.success);
           
-          clearTimeout(timeoutId);
-          
-          console.log(`Connected to printer at ${this.baseUrl}`);
-          
-          if (response.data) {
-            // Then fetch object status for more details
-            try {
-              let objectsResponse;
-              try {
-                objectsResponse = await axios.get(
-                  `${this.baseUrl}/api/printer/objects/query?print_stats&extruder&heater_bed&display_status`
-                );
-              } catch (error) {
-                console.log(`First objects query failed: ${error.message}`);
-                try {
-                  objectsResponse = await axios.get(
-                    `${this.baseUrl}/printer/objects/query?print_stats&extruder&heater_bed&display_status`
-                  );
-                } catch (error) {
-                  console.log(`Second objects query failed: ${error.message}`);
-                  // If all object queries fail, try basic status endpoint
-                  try {
-                    objectsResponse = await axios.get(`${this.baseUrl}/api/printer/status`);
-                  } catch (error) {
-                    console.log(`Basic status query failed: ${error.message}`);
-                    throw new Error("Failed to get printer status");
-                  }
-                }
-              }
-              
-              const objectsData = objectsResponse.data;
-              
-              // Parse temperatures if available
-              let bedTemp, toolTemp, progress;
-              if (objectsData?.result?.status?.heater_bed) {
-                bedTemp = objectsData.result.status.heater_bed.temperature;
-              }
-              if (objectsData?.result?.status?.extruder) {
-                toolTemp = objectsData.result.status.extruder.temperature;
-              }
-              if (objectsData?.result?.status?.display_status) {
-                progress = objectsData.result.status.display_status.progress * 100;
-              }
-              
-              // Get printer state
-              let state = "idle";
-              if (objectsData?.result?.status?.print_stats) {
-                state = objectsData.result.status.print_stats.state.toLowerCase();
-                if (state === "ready") state = "idle";
-              }
-              
-              console.log(`Printer state: ${state}, temp: bed=${bedTemp}, tool=${toolTemp}, progress=${progress}`);
-              
-              return {
-                status: state,
-                temperature: {
-                  bed: bedTemp,
-                  tool0: toolTemp
-                },
-                progress: progress
-              };
-            } catch (objectsError) {
-              // If we can't get detailed status, return basic info
-              console.log(`Error getting printer objects: ${objectsError.message}`);
-              return {
-                status: "idle", // Basic "on" status
-                temperature: {
-                  bed: 0,
-                  tool0: 0
-                },
-                progress: 0
-              };
-            }
+          if (statusResult?.success) {
+            // Extract data from the response
+            const data = statusResult.data;
+            const state = data.printer?.state?.text || 'idle';
+            const bedTemp = data.printer?.temperature?.bed || 0;
+            const toolTemp = data.printer?.temperature?.tool0 || 0;
+            const progress = data.printer?.progress || 0;
+            
+            return {
+              status: state,
+              temperature: {
+                bed: bedTemp,
+                tool0: toolTemp
+              },
+              progress: progress
+            };
           }
           
           return { status: "offline" };

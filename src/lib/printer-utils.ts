@@ -208,8 +208,8 @@ export async function uploadFileToPrinter(
         throw error;
       }
     } else if (printer.type.toLowerCase() === 'moonraker') {
-      // For Moonraker printers, use moonraker-bridge.js
-      const moonrakerBridge = require('./moonraker-bridge');
+      // For Moonraker printers, use moonraker-bridge-py.js
+      const moonrakerBridge = require('./moonraker-bridge-py');
       try {
         console.log(`[Moonraker] Uploading file to Moonraker at ${printer.apiUrl}`);
         const result = await moonrakerBridge.uploadAndPrint(
@@ -346,8 +346,8 @@ export async function startPrintJob(
       
       console.log(`[DEBUG] File path from upload response: ${filePath}`);
       
-      // Use moonraker-bridge to print the file
-      const moonrakerBridge = require('./moonraker-bridge');
+      // Use moonraker-bridge-py to print the file
+      const moonrakerBridge = require('./moonraker-bridge-py');
       
       // We'll do a new upload and print request since that's the most reliable way
       try {

@@ -356,7 +356,7 @@ async def main():
             except Exception as e:
                 print(f"ERROR: Failed to disconnect client: {str(e)}", file=sys.stderr)
 
-// Run the async function and print the result
+# Run the async function and print the result
 if __name__ == "__main__":
     try:
         result = asyncio.run(main())

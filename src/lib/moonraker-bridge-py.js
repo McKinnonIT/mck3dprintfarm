@@ -65,6 +65,21 @@ async function uploadAndPrint(printerUrl, apiKey, filePath, remoteName = '', pri
       remoteName = path.basename(filePath);
     }
     
+    // Add timestamp to filename to avoid conflicts with existing files
+    const timestamp = Date.now();
+    const origName = remoteName;
+    const parts = remoteName.split('.');
+    if (parts.length > 1) {
+      // Insert timestamp before extension
+      const ext = parts.pop();
+      remoteName = `${parts.join('.')}_${timestamp}.${ext}`;
+    } else {
+      // No extension, just append timestamp
+      remoteName = `${remoteName}_${timestamp}`;
+    }
+    
+    console.log(`[moonraker-bridge] Adding timestamp to prevent filename conflicts: "${origName}" -> "${remoteName}"`);
+    
     // Normalize the printer URL
     printerUrl = printerUrl.trim();
     if (printerUrl.endsWith('/')) {
@@ -241,6 +256,22 @@ async def main():
         if response.status_code not in (200, 201):
             error_message = f"Upload failed with status {response.status_code}: {response.text}"
             print(f"DEBUG: {error_message}", file=sys.stderr)
+            
+            # Special handling for 403 errors which are common with Moonraker
+            if response.status_code == 403:
+                try:
+                    error_json = response.json()
+                    error_text = error_json.get('error', {}).get('message', '')
+                    
+                    if "File is loaded" in error_text or "File currently in use" in error_text:
+                        error_message = "Cannot upload: A file with the same name is currently loaded on the printer. " + \
+                                       "The file has been renamed to avoid conflicts."
+                    elif "upload not permitted" in error_text:
+                        error_message = "Upload not permitted: The printer is currently printing or preparing to print."
+                except Exception:
+                    # If we can't parse the JSON, use the generic error message
+                    pass
+            
             raise Exception(error_message)
         
         # Parse the response

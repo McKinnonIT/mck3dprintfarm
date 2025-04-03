@@ -179,10 +179,9 @@ export default function AboutPage() {
           tools and libraries that made this project possible.
         </p>
         <p>
-          <Link href="/changelog#v0.0.2a" className="text-blue-600 hover:underline">
-            Version 0.0.2a
-          </Link> adds support for Bambu Lab printers, enabling connectivity with Bambu Lab's 
-          X1 and P1 series printers through the bambulabs_api Python library.
+          <Link href="/changelog#v0.0.3a" className="text-blue-600 hover:underline">
+            Version 0.0.3a
+          </Link> improves printer connectivity with enhanced error handling and fixes for Moonraker and PrusaLink printers.
           See the <Link href="/changelog" className="text-blue-600 hover:underline">full changelog</Link> for more details.
         </p>
       </div>

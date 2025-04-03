@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 
 // App version - update this when making significant changes
-const APP_VERSION = '0.0.2a';
+const APP_VERSION = '0.0.3a';
 const VERSION_ANCHOR = 'v' + APP_VERSION; // for anchor links in changelog
 
 export function Footer() {

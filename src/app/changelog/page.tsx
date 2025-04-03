@@ -9,8 +9,23 @@ export default function ChangelogPage() {
       <div className="space-y-8">
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
-            <h2 className="text-2xl font-semibold" id="v0.0.2a">Version 0.0.2a</h2>
+            <h2 className="text-2xl font-semibold" id="v0.0.3a">Version 0.0.3a</h2>
             <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">Released: May 2024</p>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">Improvements</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Fixed Moonraker upload session cleanup using aiohttp throughout for proper session management</li>
+            <li>Fixed PrusaLinkPy upload error by removing unsupported timeout parameter</li>
+            <li>Fixed Python syntax error in Moonraker bridge script</li>
+            <li>Enhanced error handling for printer connection failures</li>
+          </ul>
+        </section>
+        
+        <section className="border-b pb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-2xl font-semibold" id="v0.0.2a">Version 0.0.2a</h2>
           </div>
           <p className="text-sm text-gray-500 mb-4">Released: June 2023</p>
           

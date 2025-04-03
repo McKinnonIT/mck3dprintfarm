@@ -20,4 +20,16 @@ services:
       - DEFAULT_ADMIN_EMAIL=admin@example.com
       - DEFAULT_ADMIN_PASSWORD=Admin123!
       - DEFAULT_ADMIN_NAME=Administrator
-      # Add other environment variables as needed 
+      # Add other environment variables as needed
+    networks:
+      - printfarm_network
+
+# Define custom networks with specific subnet
+networks:
+  printfarm_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1 

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import fs from "fs";
 import path from "path";
 import { uploadFileToPrinter, startPrintJob } from "@/lib/printer-utils";
-const prusaLinkBridge = require("@/lib/prusalink-bridge");
+const prusaLinkBridge = require("@/lib/prusalink-fixed-bridge");
 const moonrakerBridge = require("@/lib/moonraker-bridge-py");
 
 export async function POST(request: Request) {
@@ -136,7 +136,8 @@ export async function POST(request: Request) {
       
       // Use PrusaLinkPy bridge for Prusa printers
       if (isPrusaLink) {
-        console.log(`[DEBUG] Using PrusaLinkPy bridge for ${printer.name}, IP: ${printerIp}`);
+        console.log(`[DEBUG] Using PrusaLinkPy fixed bridge for ${printer.name}, IP: ${printerIp}`);
+        console.log(`[DEBUG] Uploading file: ${filePath} (File size: ${(fs.statSync(filePath).size / (1024 * 1024)).toFixed(2)} MB)`);
         
         if (!printer.apiKey) {
           throw new Error("API key is required for PrusaLink printers");
@@ -153,7 +154,13 @@ export async function POST(request: Request) {
         
         // Create a timeout promise
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('PrusaLinkPy request timed out')), 30000); // Longer timeout for file uploads
+          const timeoutDuration = 300000; // 5 minutes
+          console.log(`[DEBUG] Setting upload timeout to ${timeoutDuration/1000} seconds`);
+          
+          setTimeout(() => {
+            console.error(`[DEBUG] Upload timed out after ${timeoutDuration/1000} seconds`);
+            reject(new Error('PrusaLinkPy request timed out'));
+          }, timeoutDuration);
         });
         
         // Race the actual request against the timeout

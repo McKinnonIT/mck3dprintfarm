@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import fs from "fs";
 import path from "path";
 import { uploadFileToPrinter, startPrintJob } from "@/lib/printer-utils";
-const prusaLinkBridge = require("@/lib/prusalink-fixed-bridge");
+const prusaLinkBridge = require("@/lib/prusalink-pure");
 const moonrakerBridge = require("@/lib/moonraker-bridge-py");
 
 export async function POST(request: Request) {
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       
       // Use PrusaLinkPy bridge for Prusa printers
       if (isPrusaLink) {
-        console.log(`[DEBUG] Using PrusaLinkPy fixed bridge for ${printer.name}, IP: ${printerIp}`);
+        console.log(`[DEBUG] Using direct PrusaLinkPy script for ${printer.name}, IP: ${printerIp}`);
         console.log(`[DEBUG] Uploading file: ${filePath} (File size: ${(fs.statSync(filePath).size / (1024 * 1024)).toFixed(2)} MB)`);
         
         if (!printer.apiKey) {

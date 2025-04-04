@@ -6,6 +6,9 @@ set -e
 # Move to the project root directory
 cd "$(dirname "$0")/.."
 
+echo "Making Python file executable..."
+chmod +x src/lib/prusalink-direct.py
+
 echo "Modifying Dockerfile to include moonraker-api Python package..."
 # Use sed to modify the Dockerfile to add moonraker-api
 # Find the line that installs prusaLinkPy and add moonraker-api

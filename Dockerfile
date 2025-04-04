@@ -369,6 +369,15 @@ RUN npx prisma generate
 # Build the Next.js application
 RUN npm run build
 
+# Python setup for slicing and printer communication
+RUN apt-get update && apt-get install -y python3 python3-pip python3-venv
+RUN mkdir -p /app/venv
+RUN python3 -m venv /app/venv
+RUN /app/venv/bin/pip install --upgrade pip
+RUN /app/venv/bin/pip install prusaLinkPy requests urllib3 aiohttp
+
+# Install dependencies (production mode)
+
 # Production image, copy all the files and run next
 FROM node:18-alpine AS runner
 

@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# McK3DPrintFarm
+
+- Always use the python API libraries to communicate with the printers.

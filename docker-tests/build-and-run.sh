@@ -18,8 +18,8 @@ else
   sed -i -e 's#/app/venv/bin/pip install prusaLinkPy#/app/venv/bin/pip install prusaLinkPy moonraker-api#g' Dockerfile
 fi
 
-echo "Building Docker image with tag 0.0.2a..."
-docker build -t mck3dprintfarm:0.0.2a .
+echo "Building Docker image with tag 0.0.3a..."
+docker build -t mck3dprintfarm:0.0.3a .
 
 # Restore the original Dockerfile (so we don't commit the change)
 git checkout -- Dockerfile
@@ -36,7 +36,7 @@ echo "Stopping any existing containers from previous runs..."
 docker-compose down
 
 # Start the containers with the local image
-echo "Starting containers with the local 0.0.2a image..."
+echo "Starting containers with the local 0.0.3a image..."
 docker-compose up -d
 
 echo "Containers started. You can access the application at http://localhost:3000"

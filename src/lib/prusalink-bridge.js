@@ -130,12 +130,12 @@ import traceback
 import socket
 import json
 try:
-    # Set a shorter socket timeout to handle offline printers quickly
-    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+    # Set a moderate socket timeout for operations
+    socket.setdefaulttimeout(60)  # 60 second timeout for operations
     
-    # Also import urllib3 and set a shorter timeout there too
+    # Also import urllib3 and set a longer timeout
     import urllib3
-    urllib3.Timeout.DEFAULT_TIMEOUT = 3
+    urllib3.Timeout.DEFAULT_TIMEOUT = 60
     
     import PrusaLinkPy
 except ImportError:
@@ -169,6 +169,9 @@ try:
             "data": { "status": version.status_code }
         }))
         sys.exit(1)
+    
+    # Set longer socket timeout for upload operation
+    socket.setdefaulttimeout(180)  # 3 minutes timeout for upload
     
     # Upload file
     file_path = "${filePath.replace(/\\/g, '\\\\')}"
@@ -256,7 +259,7 @@ except Exception as e:
       } catch (err) {
         console.error('Error killing process:', err);
       }
-    }, 20000); // 20 second hard limit
+    }, 300000); // 5 minute hard limit (300 seconds) for large file uploads
     
     // Collect stdout data
     pythonProcess.stdout.on('data', (data) => {
@@ -358,12 +361,12 @@ import traceback
 import socket
 import json
 try:
-    # Set a shorter socket timeout to handle offline printers quickly
-    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+    # Set a moderate socket timeout for operations
+    socket.setdefaulttimeout(60)  # 60 second timeout for operations
     
-    # Also import urllib3 and set a shorter timeout there too
+    # Also import urllib3 and set a longer timeout
     import urllib3
-    urllib3.Timeout.DEFAULT_TIMEOUT = 3
+    urllib3.Timeout.DEFAULT_TIMEOUT = 60
     
     import PrusaLinkPy
 except ImportError:
@@ -540,12 +543,12 @@ import socket
 import json
 from datetime import datetime
 try:
-    # Set a shorter socket timeout to handle offline printers quickly
-    socket.setdefaulttimeout(3)  # 3 second timeout for all socket operations
+    # Set a moderate socket timeout for operations
+    socket.setdefaulttimeout(60)  # 60 second timeout for operations
     
-    # Also import urllib3 and set a shorter timeout there too
+    # Also import urllib3 and set a longer timeout
     import urllib3
-    urllib3.Timeout.DEFAULT_TIMEOUT = 3
+    urllib3.Timeout.DEFAULT_TIMEOUT = 60
     
     import PrusaLinkPy
 except ImportError:
@@ -854,7 +857,7 @@ except Exception as e:
       } catch (err) {
         console.error('Error killing process:', err);
       }
-    }, 20000); // 20 second hard limit
+    }, 300000); // 5 minute hard limit (300 seconds) for large file uploads
     
     // Collect stdout data
     pythonProcess.stdout.on('data', (data) => {

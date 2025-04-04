@@ -13,6 +13,7 @@ type PrinterCardProps = {
   operationalStatus: string;
   lastSeen?: Date;
   webcamUrl?: string;
+  onStopPrint?: () => Promise<void>;
 };
 
 export function PrinterCard({
@@ -22,7 +23,8 @@ export function PrinterCard({
   status,
   operationalStatus,
   lastSeen,
-  webcamUrl
+  webcamUrl,
+  onStopPrint
 }: PrinterCardProps) {
   return (
     <Card className="w-full h-full">
@@ -58,11 +60,18 @@ export function PrinterCard({
         <Link href={`/dashboard/printers/${id}`}>
           <Button variant="outline">Details</Button>
         </Link>
-        {webcamUrl && (
-          <Link href={`/dashboard/printers/${id}/webcam`}>
-            <Button variant="outline">Webcam</Button>
-          </Link>
-        )}
+        <div className="flex gap-2">
+          {operationalStatus === 'printing' && onStopPrint && (
+            <Button variant="outline" size="sm" onClick={onStopPrint} className="text-red-500 border-red-500 hover:bg-red-50">
+              Stop Print
+            </Button>
+          )}
+          {webcamUrl && (
+            <Link href={`/dashboard/printers/${id}/webcam`}>
+              <Button variant="outline">Webcam</Button>
+            </Link>
+          )}
+        </div>
       </CardFooter>
     </Card>
   );

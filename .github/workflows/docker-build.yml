@@ -1,7 +1,10 @@
 name: Build and Push Docker Image
 
 on:
-  # Only allow manual triggering
+  # Run on push to main branches and manual trigger
+  push:
+    branches: [ main, master, v0.0.3a ]
+  # Allow manual triggering
   workflow_dispatch:
 
 env:
@@ -33,6 +36,18 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version extracted: $VERSION"
 
+      # Set up .npmrc with the same settings as local
+      - name: Create .npmrc file
+        run: |
+          echo "legacy-peer-deps=true" > .npmrc
+          echo "node-linker=hoisted" >> .npmrc
+          echo "fetch-retries=5" >> .npmrc
+          echo "fetch-retry-mintimeout=20000" >> .npmrc
+          echo "fetch-retry-maxtimeout=120000" >> .npmrc
+          echo "network-timeout=300000" >> .npmrc
+          echo "save-exact=true" >> .npmrc
+          cat .npmrc
+
       # Login to DockerHub
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -41,6 +56,28 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Test build with the same parameters as local
+      - name: Test build Docker image locally
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          tags: mck3dprintfarm:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            NODE_ENV=production
+            NEXTAUTH_URL=http://localhost:3000
+            DATABASE_URL=file:/app/prisma/dev.db
+
+      # Verify test build works
+      - name: Verify test build
+        run: |
+          echo "Verifying the test Docker image..."
+          docker image ls mck3dprintfarm:test
+      
       # Get Docker username in correct format
       - name: Prepare Docker Hub username
         id: prep
@@ -56,7 +93,7 @@ jobs:
           echo "full_image_name=$FULL_IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "Full image name: $FULL_IMAGE_NAME"
 
-      # Build and push multi-platform images
+      # Build and push multi-platform images using exact same configuration as local test
       - name: Build and push Docker images
         uses: docker/build-push-action@v4
         with:
@@ -68,9 +105,11 @@ jobs:
             ${{ steps.prep.outputs.full_image_name }}:${{ steps.package-version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Enable detailed build output for debugging
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+            NODE_ENV=production
+            NEXTAUTH_URL=http://localhost:3000
+            DATABASE_URL=file:/app/prisma/dev.db
 
       # Final message about success
       - name: Display completion message

@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove styled-components compiler option
+  // Enable standalone output for Docker
+  output: 'standalone',
+  
+  // Configuration for handling dependencies
+  transpilePackages: ['lucide-react', '@radix-ui/react-icons'],
+  
+  // Webpack configuration
   webpack: (config) => {
     config.module.rules.push({
       test: /\.(stl)$/,
@@ -13,8 +19,10 @@ const nextConfig = {
         },
       },
     });
+    
     return config;
   },
+  
   images: {
     remotePatterns: [
       {

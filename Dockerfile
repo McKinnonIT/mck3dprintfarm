@@ -7,8 +7,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with production flag to save space
-RUN npm install --production=false && npm cache clean --force
+# Install dependencies with production flag to save space and ensure all deps are available
+RUN npm install --production=false && \
+    # Explicitly install UI dependencies that might be problematic
+    npm install --no-save lucide-react @radix-ui/react-icons && \
+    npm cache clean --force
 
 # Copy the source code
 COPY . .

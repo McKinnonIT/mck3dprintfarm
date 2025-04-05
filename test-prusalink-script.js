@@ -1,69 +1,81 @@
+#!/usr/bin/env node
 /**
- * Test script for the PrusaLink direct Python implementation
+ * Test script for the PrusaLink direct Python integration
+ * 
  * Usage: node test-prusalink-script.js <command> <printer-ip> <api-key> [args...]
+ * 
+ * Commands:
+ *   status - Get printer status
+ *   connect - Test connection
+ *   upload <file-path> <remote-path> [--print] - Upload a file
+ *   print <remote-path> - Start printing a file
+ *   stop - Stop current print
  */
 
-const prusaLink = require('./src/lib/prusalink-pure');
+const prusaLinkBridge = require('./src/lib/prusalink-pure');
 
 async function main() {
-  // Get command line arguments
-  const [,, command, printerIp, apiKey, ...args] = process.argv;
+  const args = process.argv.slice(2);
+  const command = args[0];
+  const printerIp = args[1];
+  const apiKey = args[2];
   
   if (!command || !printerIp || !apiKey) {
     console.error('Usage: node test-prusalink-script.js <command> <printer-ip> <api-key> [args...]');
-    console.error('Commands: status, upload, print, stop, connect');
     process.exit(1);
   }
   
   try {
     let result;
     
-    // Process the command
-    switch (command) {
-      case 'status':
-        result = await prusaLink.getJobStatus(printerIp, apiKey);
-        break;
-        
-      case 'upload':
-        if (args.length < 1) {
-          console.error('Error: File path is required for upload command');
-          process.exit(1);
-        }
-        const filePath = args[0];
-        const remoteName = args[1] || '';
-        const printAfterUpload = args[2] === 'true';
-        result = await prusaLink.uploadAndPrint(printerIp, apiKey, filePath, remoteName, printAfterUpload);
-        break;
-        
-      case 'print':
-        if (args.length < 1) {
-          console.error('Error: File name is required for print command');
-          process.exit(1);
-        }
-        const fileName = args[0];
-        result = await prusaLink.startPrint(printerIp, apiKey, fileName);
-        break;
-        
-      case 'stop':
-        result = await prusaLink.stopPrintJob(printerIp, apiKey);
-        break;
-        
-      case 'connect':
-        result = await prusaLink.testConnection(printerIp, apiKey);
-        break;
-        
-      default:
-        console.error(`Error: Unknown command: ${command}`);
+    if (command === 'status') {
+      console.log(`Getting status for ${printerIp}...`);
+      result = await prusaLinkBridge.getJobStatus(printerIp, apiKey);
+    } 
+    else if (command === 'connect') {
+      console.log(`Testing connection to ${printerIp}...`);
+      result = await prusaLinkBridge.testConnection(printerIp, apiKey);
+    }
+    else if (command === 'upload') {
+      const filePath = args[3];
+      const remotePath = args[4];
+      const printAfter = args.includes('--print');
+      
+      if (!filePath || !remotePath) {
+        console.error('Usage: node test-prusalink-script.js upload <printer-ip> <api-key> <file-path> <remote-path> [--print]');
         process.exit(1);
+      }
+      
+      console.log(`Uploading ${filePath} to ${printerIp} at ${remotePath}...`);
+      result = await prusaLinkBridge.uploadFileToPrinter(printerIp, apiKey, filePath, remotePath, printAfter);
+    }
+    else if (command === 'print') {
+      const remotePath = args[3];
+      
+      if (!remotePath) {
+        console.error('Usage: node test-prusalink-script.js print <printer-ip> <api-key> <remote-path>');
+        process.exit(1);
+      }
+      
+      console.log(`Starting print of ${remotePath} on ${printerIp}...`);
+      result = await prusaLinkBridge.startPrintJob(printerIp, apiKey, remotePath);
+    }
+    else if (command === 'stop') {
+      console.log(`Stopping print on ${printerIp}...`);
+      result = await prusaLinkBridge.stopPrintJob(printerIp, apiKey);
+    }
+    else {
+      console.error(`Unknown command: ${command}`);
+      process.exit(1);
     }
     
-    // Display the result
-    console.log('Result:', JSON.stringify(result, null, 2));
+    console.log('Result:');
+    console.log(JSON.stringify(result, null, 2));
+    
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error:', error.message);
     process.exit(1);
   }
 }
 
-// Run the script
 main(); 

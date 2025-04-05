@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +37,6 @@ export function PrusaLinkDiagnostic({ printerId, printerName }: PrusaLinkDiagnos
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : String(error),
-        className: "bg-destructive text-destructive-foreground border-destructive",
       });
     } finally {
       setIsLoading(false);

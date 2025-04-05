@@ -4,7 +4,7 @@ const prusaLinkBridge = require("@/lib/prusalink-bridge");
 
 // Keep track of offline PrusaLink printers with a backoff mechanism
 const offlinePrusaLinkPrinters = new Map<string, { until: Date }>();
-const OFFLINE_BACKOFF_TIME_MS = 2 * 60 * 1000; // 2 minutes backoff
+const OFFLINE_BACKOFF_TIME_MS = 30 * 1000; // 30 seconds backoff instead of 2 minutes
 
 // Add a semaphore for limiting concurrent connections
 class Semaphore {
@@ -100,11 +100,23 @@ export async function GET() {
     // Process printers in smaller batches with semaphore to limit concurrent connections
     const processPrinter = async (printer) => {
       try {
+        // Skip disabled printers
+        if (printer.status === "disabled") {
+          console.log(`Skipping disabled printer ${printer.name}`);
+          return {
+            id: printer.id,
+            updateData: {
+              lastSeen: new Date()
+            }
+          };
+        }
+
         let operationalStatus = "offline";
         let printStartTime: Date | undefined = undefined;
         let printTimeElapsed: number | undefined = undefined;
         let printTimeRemaining: number | undefined = undefined;
         let printImageUrl: string | undefined = undefined;
+        let printJobName: string | undefined = undefined;
         let bedTemp: number | null = null;
         let toolTemp: number | null = null;
         
@@ -118,7 +130,7 @@ export async function GET() {
               
               // Increase timeout and add headers
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 10000); // Increase timeout to 10 seconds
+              const timeoutId = setTimeout(() => controller.abort(), 5000); // Reduce timeout to 5 seconds
               
               // First try to get printer objects
               let statusResponse;
@@ -176,6 +188,35 @@ export async function GET() {
                         printTimeRemaining = (printTimeElapsed / displayStatus.progress) - printTimeElapsed;
                       }
                     }
+
+                    // Extract filename from print_stats in various formats, looking at multiple possible locations
+                    if (statusData.result?.status) {
+                      const status = statusData.result.status;
+                      
+                      // Try different paths for filename in Moonraker responses
+                      if (status.print_stats?.filename) {
+                        printJobName = status.print_stats.filename;
+                        console.log(`Print job name from print_stats for ${printer.name}: ${printJobName}`);
+                      } else if (status.display_status?.filename) {
+                        printJobName = status.display_status.filename;
+                        console.log(`Print job name from display_status for ${printer.name}: ${printJobName}`);
+                      } else if (status.current_file?.filename) {
+                        printJobName = status.current_file.filename;
+                        console.log(`Print job name from current_file for ${printer.name}: ${printJobName}`);
+                      } else if (status.job?.file?.name) {
+                        printJobName = status.job.file.name;
+                        console.log(`Print job name from job.file for ${printer.name}: ${printJobName}`);
+                      } else if (status.filename) {
+                        printJobName = status.filename;
+                        console.log(`Print job name from direct filename for ${printer.name}: ${printJobName}`);
+                      }
+                      
+                      // Clean up filename if needed - remove path prefixes
+                      if (printJobName && printJobName.includes('/')) {
+                        printJobName = printJobName.split('/').pop();
+                        console.log(`Cleaned print job name for ${printer.name}: ${printJobName}`);
+                      }
+                    }
                   } else {
                     console.log(`No print_stats in response for ${printer.name}`);
                     operationalStatus = "idle"; // If we got a response but no print stats, printer is likely idle
@@ -218,139 +259,46 @@ export async function GET() {
                   updateData: {
                     operationalStatus: "offline",
                     lastSeen: new Date(),
-                    bedTemp: null,
-                    toolTemp: null,
+                    // Don't include printJobName since it's causing schema errors
                   }
                 };
-              } else if (backoffInfo) {
-                // Backoff period expired, remove from backoff list
-                console.log(`Backoff period expired for ${printer.name}, attempting to connect again`);
-                offlinePrusaLinkPrinters.delete(printer.id);
               }
               
-              // Declare useFallbackHttp variable
-              let useFallbackHttp = false;
+              // Always use direct HTTP API - skip Python bridge entirely
+              console.log(`Using direct HTTP API for PrusaLink printer ${printer.name}`);
               
-              // Use prusaLinkPy bridge for more reliable status info
               try {
-                console.log(`Using PrusaLinkPy bridge to get status for ${printer.name}`);
-                
-                // Add explicit timeout for PrusaLinkPy requests
-                const prusaLinkPyPromise = prusaLinkBridge.getJobStatus(printerIp, printer.apiKey);
-                
-                // Create a timeout promise
-                const timeoutPromise = new Promise((_, reject) => {
-                  setTimeout(() => reject(new Error('PrusaLinkPy request timed out')), 8000);
-                });
-                
-                // Race the actual request against the timeout
-                const jobStatusResult = await Promise.race([prusaLinkPyPromise, timeoutPromise])
-                  .catch(error => {
-                    console.error(`PrusaLinkPy request timed out for ${printer.name}`);
-                    return { success: false, message: 'Request timed out', error: 'Timeout' };
-                  });
-                  
-                console.log(`PrusaLinkPy job status result for ${printer.name}:`, JSON.stringify(jobStatusResult));
-                
-                if (jobStatusResult.success) {
-                  const { data } = jobStatusResult;
-                  
-                  // Map printer state
-                  if (data.printer?.state?.text) {
-                    const rawStatus = data.printer.state.text.toLowerCase();
-                    operationalStatus = mapPrusaLinkState(rawStatus);
-                    console.log(`Operational status for ${printer.name}: ${rawStatus} → ${operationalStatus}`);
-                  }
-                  
-                  // Set temperature values if available
-                  if (data.printer?.temp_bed !== undefined) {
-                    bedTemp = Number(data.printer.temp_bed);
-                    console.log(`Bed temperature for ${printer.name}: ${bedTemp}°C`);
-                  }
-                  
-                  if (data.printer?.temp_nozzle !== undefined) {
-                    toolTemp = Number(data.printer.temp_nozzle);
-                    console.log(`Tool temperature for ${printer.name}: ${toolTemp}°C`);
-                  }
-                  
-                  // Get time data from status result
-                  if (data.status?.print_time_elapsed !== undefined) {
-                    printTimeElapsed = data.status.print_time_elapsed;
-                    console.log(`Print time elapsed for ${printer.name}: ${printTimeElapsed}s`);
-                  } else {
-                    console.log(`No print time elapsed data available for ${printer.name}`);
-                  }
-                  
-                  if (data.status?.print_time_remaining !== undefined) {
-                    printTimeRemaining = data.status.print_time_remaining;
-                    console.log(`Print time remaining for ${printer.name}: ${printTimeRemaining}s`);
-                  } else {
-                    console.log(`No print time remaining data available for ${printer.name}`);
-                  }
-                  
-                  // Get print start time
-                  if (data.status?.print_start_time) {
-                    printStartTime = new Date(data.status.print_start_time * 1000);
-                    console.log(`Print start time for ${printer.name}: ${printStartTime}`);
-                  }
-                  
-                  console.log(`[DEBUG] Complete status data for ${printer.name}:`, JSON.stringify(data.status));
-                } else {
-                  console.log(`Failed to get PrusaLinkPy status for ${printer.name}: ${jobStatusResult.message}`);
-                  // Fall back to HTTP API approach
-                  useFallbackHttp = true;
-                }
-              } catch (bridgeError) {
-                console.error(`PrusaLinkPy bridge error for ${printer.name}:`, bridgeError);
-                // Fall back to HTTP API approach
-                useFallbackHttp = true;
-              }
-              
-              // Use the HTTP API as a fallback
-              if (useFallbackHttp) {
-                console.log(`Falling back to HTTP API for ${printer.name}`);
-                
-                // Use timeout for PrusaLink too
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
-                
+                // First get the printer status
                 const response = await fetch(`${printer.apiUrl}/api/printer`, {
                   headers: {
                     'X-Api-Key': printer.apiKey || '',
                     'Accept': 'application/json'
                   },
-                  signal: controller.signal,
+                  // Use a shorter timeout
+                  signal: (new AbortController()).signal,
                   cache: 'no-store'
                 });
                 
-                clearTimeout(timeoutId);
-                
                 if (response.ok) {
                   const data = await response.json();
-                  console.log(`PrusaLink status data for ${printer.name}:`, JSON.stringify(data));
                   
-                  if (data.printer && data.printer.state && data.printer.state.text) {
-                    // Original response format
-                    const rawStatus = data.printer.state.text.toLowerCase();
-                    operationalStatus = mapPrusaLinkState(rawStatus);
-                    console.log(`Operational status for ${printer.name}: ${rawStatus} → ${operationalStatus}`);
+                  if (data) {
+                    // Mark as online first, then check specific state
+                    operationalStatus = "idle";
                     
-                    // Set temperature values if available
-                    if (data.printer.temp_bed !== undefined) {
-                      bedTemp = Number(data.printer.temp_bed);
-                      console.log(`Bed temperature for ${printer.name}: ${bedTemp}°C`);
+                    // Check if printer is printing
+                    if (data.state && data.state.flags) {
+                      if (data.state.flags.printing) {
+                        operationalStatus = "printing";
+                      } else if (data.state.flags.paused) {
+                        operationalStatus = "paused";
+                      } else if (data.state.flags.error) {
+                        operationalStatus = "error";
+                      }
+                      console.log(`Operational status (new format) for ${printer.name}: ${data.state.text} → ${operationalStatus}`);
                     }
-                    if (data.printer.temp_nozzle !== undefined) {
-                      toolTemp = Number(data.printer.temp_nozzle);
-                      console.log(`Tool temperature for ${printer.name}: ${toolTemp}°C`);
-                    }
-                  } else if (data.state && data.state.text) {
-                    // New format as seen in logs
-                    const rawStatus = data.state.text.toLowerCase();
-                    operationalStatus = mapPrusaLinkState(rawStatus);
-                    console.log(`Operational status (new format) for ${printer.name}: ${rawStatus} → ${operationalStatus}`);
                     
-                    // Extract temperatures from the new format
+                    // Get temperature data, first check newer PrusaLink data format
                     if (data.temperature && data.temperature.bed && data.temperature.bed.actual !== undefined) {
                       bedTemp = Number(data.temperature.bed.actual);
                       console.log(`Bed temperature (new format) for ${printer.name}: ${bedTemp}°C`);
@@ -371,64 +319,91 @@ export async function GET() {
                     operationalStatus = "error";
                   }
 
-                  // Get print progress if printing and we don't have time values from PrusaLinkPy
-                  if (operationalStatus === "printing" && printTimeElapsed === undefined) {
-                    try {
-                      const jobResponse = await fetch(`${printer.apiUrl}/api/job`, {
-                        headers: {
-                          'X-Api-Key': printer.apiKey || '',
-                          'Accept': 'application/json'
-                        },
-                        cache: 'no-store'
-                      });
-                      if (jobResponse.ok) {
-                        const jobData = await jobResponse.json();
-                        console.log(`Job data for ${printer.name}:`, JSON.stringify(jobData));
-                        
-                        // Extract the time data from various possible locations
-                        if (jobData.progress && typeof jobData.progress === 'object') {
-                          if (jobData.progress.printTime !== undefined) {
-                            printTimeElapsed = jobData.progress.printTime;
-                            console.log(`Print time elapsed from progress for ${printer.name}: ${printTimeElapsed}s`);
-                          }
-                          
-                          if (jobData.progress.printTimeLeft !== undefined) {
-                            printTimeRemaining = jobData.progress.printTimeLeft;
-                            console.log(`Print time remaining from progress for ${printer.name}: ${printTimeRemaining}s`);
-                          }
-                        }
-                        
-                        // Also check in job object
-                        if (jobData.job && typeof jobData.job === 'object') {
-                          if (jobData.job.start_time) {
-                            printStartTime = new Date(jobData.job.start_time);
-                          }
-                          
-                          if (printTimeElapsed === undefined && jobData.job.print_time !== undefined) {
-                            printTimeElapsed = jobData.job.print_time;
-                            console.log(`Print time elapsed from job object for ${printer.name}: ${printTimeElapsed}s`);
-                          }
-                          
-                          if (printTimeRemaining === undefined && jobData.job.print_time_remaining !== undefined) {
-                            printTimeRemaining = jobData.job.print_time_remaining;
-                            console.log(`Print time remaining from job object for ${printer.name}: ${printTimeRemaining}s`);
-                          }
-                          
-                          if (jobData.job.thumbnail_url) {
-                            printImageUrl = jobData.job.thumbnail_url;
-                          }
-                        }
-                      } else {
-                        console.log(`Failed to get job data for ${printer.name}: ${jobResponse.status}`);
+                  // Always fetch job data directly from the job endpoint
+                  try {
+                    console.log(`Fetching job data directly for ${printer.name}`);
+                    const jobResponse = await fetch(`${printer.apiUrl}/api/job`, {
+                      headers: {
+                        'X-Api-Key': printer.apiKey || '',
+                        'Accept': 'application/json'
+                      },
+                      // Use a shorter timeout
+                      signal: (new AbortController()).signal,
+                      cache: 'no-store'
+                    });
+                    if (jobResponse.ok) {
+                      // Mark as online if we get job data - the printer is responding
+                      operationalStatus = operationalStatus === "offline" ? "idle" : operationalStatus;
+                      
+                      const jobData = await jobResponse.json();
+                      console.log(`Job data for ${printer.name}:`, JSON.stringify(jobData));
+                      
+                      // Check job state first to see if the printer is printing
+                      if (jobData.state === "PRINTING" || jobData.state === "Printing") {
+                        operationalStatus = "printing";
+                        console.log(`Setting printer ${printer.name} to PRINTING status based on job state`);
                       }
-                    } catch (jobError) {
-                      console.error(`Error fetching job data for ${printer.name}:`, jobError);
+                      
+                      // Check for snake_case time fields at top level (PrusaLink)
+                      if (jobData.time_printing !== undefined) {
+                        printTimeElapsed = jobData.time_printing;
+                        console.log(`Print time elapsed (snake_case) for ${printer.name}: ${printTimeElapsed}s`);
+                      }
+                      
+                      if (jobData.time_remaining !== undefined) {
+                        printTimeRemaining = jobData.time_remaining;
+                        console.log(`Print time remaining (snake_case) for ${printer.name}: ${printTimeRemaining}s`);
+                      }
+                      
+                      // Extract time from progress object if present (most common in PrusaLink responses)
+                      if (jobData.progress) {
+                        if (printTimeElapsed === undefined && jobData.progress.printTime !== undefined) {
+                          printTimeElapsed = Number(jobData.progress.printTime);
+                          console.log(`Print time elapsed from progress for ${printer.name}: ${printTimeElapsed}s`);
+                        }
+                        
+                        if (printTimeRemaining === undefined && jobData.progress.printTimeLeft !== undefined) {
+                          printTimeRemaining = Number(jobData.progress.printTimeLeft);
+                          console.log(`Print time remaining from progress for ${printer.name}: ${printTimeRemaining}s`);
+                        }
+                      }
+                      
+                      // Get the job name from the file object (PrusaLink)
+                      if (jobData.file) {
+                        if (jobData.file.display_name) {
+                          printJobName = jobData.file.display_name;
+                        } else if (jobData.file.name) {
+                          printJobName = jobData.file.name;
+                        } else if (jobData.file.display) {
+                          printJobName = jobData.file.display;
+                        }
+                        console.log(`Print job name for ${printer.name}: ${printJobName}`);
+                      }
+                      
+                      // Also check job object for start time and thumbnail
+                      if (jobData.job && typeof jobData.job === 'object') {
+                        if (jobData.job.start_time) {
+                          printStartTime = new Date(jobData.job.start_time);
+                          console.log(`Print start time from job endpoint for ${printer.name}: ${printStartTime}`);
+                        }
+                        
+                        if (jobData.job.thumbnail_url) {
+                          printImageUrl = jobData.job.thumbnail_url;
+                        }
+                      }
+                    } else {
+                      console.log(`Failed to get job data for ${printer.name}: ${jobResponse.status}`);
                     }
+                  } catch (jobError) {
+                    console.error(`Error fetching job data for ${printer.name}:`, jobError);
                   }
                 } else {
                   console.error(`HTTP error from PrusaLink for ${printer.name}: ${response.status}`);
                   operationalStatus = "offline";
                 }
+              } catch (apiError) {
+                console.error(`Error connecting to PrusaLink API for ${printer.name}:`, apiError);
+                operationalStatus = "offline";
               }
             } catch (error) {
               console.error(`Cannot connect to PrusaLink printer ${printer.name}:`, error);
@@ -453,17 +428,33 @@ export async function GET() {
           if (printTimeElapsed !== undefined) updateData.printTimeElapsed = printTimeElapsed;
           if (printTimeRemaining !== undefined) updateData.printTimeRemaining = printTimeRemaining;
           if (printImageUrl !== undefined) updateData.printImageUrl = printImageUrl;
+          
+          // Only keep printJobName if printer is printing, otherwise clear it
+          // Temporarily disabled due to schema mismatch
+          // if (operationalStatus === 'printing') {
+          //   if (printJobName !== undefined) {
+          //     updateData.printJobName = printJobName;
+          //     console.log(`Saving print job name for ${printer.name}: ${printJobName}`);
+          //   }
+          // } else {
+          //   // Clear print job name when printer is not printing
+          //   updateData.printJobName = null;
+          //   console.log(`Clearing print job name for ${printer.name} (status: ${operationalStatus})`);
+          // }
+          
+          // Log the print job name but don't add it to update data until schema is updated
+          if (operationalStatus === 'printing') {
+            if (printJobName !== undefined) {
+              console.log(`Print job name for ${printer.name}: ${printJobName} (not saved due to schema mismatch)`);
+            }
+          } else {
+            console.log(`Print job name cleared for ${printer.name} (status: ${operationalStatus})`);
+          }
+          
           if (bedTemp !== null) updateData.bedTemp = bedTemp;
           if (toolTemp !== null) updateData.toolTemp = toolTemp;
 
-          console.log(`[DEBUG] Updating printer ${printer.name} in database with:`, JSON.stringify({
-            operationalStatus,
-            printStartTime: printStartTime?.toISOString(),
-            printTimeElapsed,
-            printTimeRemaining,
-            bedTemp,
-            toolTemp
-          }));
+          console.log(`FINAL UPDATE DATA for ${printer.name}:`, JSON.stringify(updateData));
 
           // Return the update information
           return { 
@@ -553,7 +544,7 @@ export async function GET() {
     }
     
     // Wait for all DB updates to complete
-    await Promise.all(dbUpdatePromises);
+    await Promise.allSettled(dbUpdatePromises);
     
     // Add a small delay to ensure connections are released
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -561,9 +552,38 @@ export async function GET() {
     // Fetch updated printers
     const updatedPrinters = await prisma.printer.findMany();
     
-    // Removed webcam URL validation to avoid incorrectly marking valid URLs as invalid
+    // Ensure all printer data is complete and properly typed before returning
+    const processedPrinters = updatedPrinters.map(printer => {
+      // Basic printer object with data type conversions
+      const processedPrinter = {
+        ...printer,
+        // Convert string values to numbers if they exist
+        printTimeElapsed: printer.printTimeElapsed !== null ? Number(printer.printTimeElapsed) : null, 
+        printTimeRemaining: printer.printTimeRemaining !== null ? Number(printer.printTimeRemaining) : null,
+        bedTemp: printer.bedTemp !== null ? Number(printer.bedTemp) : null,
+        toolTemp: printer.toolTemp !== null ? Number(printer.toolTemp) : null
+      };
+
+      // Make sure disabled printers have a clear operational status
+      if (printer.status === 'disabled') {
+        processedPrinter.operationalStatus = 'disabled';
+      }
+      
+      // Ensure printing printers have the necessary time data
+      if (processedPrinter.operationalStatus === 'printing') {
+        // If missing time data, default to sensible values
+        if (processedPrinter.printTimeElapsed === null) {
+          processedPrinter.printTimeElapsed = 0;
+        }
+        if (processedPrinter.printTimeRemaining === null) {
+          processedPrinter.printTimeRemaining = 0;
+        }
+      }
+      
+      return processedPrinter;
+    });
     
-    return NextResponse.json(updatedPrinters);
+    return NextResponse.json(processedPrinters);
   } catch (error) {
     console.error("Failed to update printer statuses:", error);
     return NextResponse.json({ error: "Failed to update printer statuses" }, { status: 500 });

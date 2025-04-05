@@ -4,6 +4,9 @@ globs:
 alwaysApply: true
 ---
 
-# McK3DPrintFarm
+# mck3dprintfarm rules
 
-- Always use the python API libraries to communicate with the printers.
+- The test environment is an Alpine Linux docker container. Never use apt-get to obtain packages.
+- Only push changes to github when asked by the user.
+- Productione environment is also using docker. Make sure the docker container is repoducable on any system.
+- We have a database versioning. When we add or remove features from the database make sure the version is updated. node scripts/create-migration.js "Add new feature XYZ"

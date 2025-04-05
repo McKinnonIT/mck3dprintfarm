@@ -1,201 +1,270 @@
 /**
- * Simple PrusaLink bridge that uses a dedicated Python script
- * This avoids any issues with complex bridging logic or handling connect parameters
+ * Direct PrusaLinkPy Implementation
+ * This bridge directly calls the Python script that uses PrusaLinkPy library
  */
 
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 
-// Get the absolute path to the Python script
-const PYTHON_SCRIPT_PATH = path.join(__dirname, 'prusalink-direct.py');
-
-// Make the Python script executable if it isn't already
-try {
-  fs.chmodSync(PYTHON_SCRIPT_PATH, '755');
-} catch (err) {
-  console.error(`Warning: Could not make Python script executable: ${err.message}`);
-}
-
-/**
- * Find a working Python executable
- * @returns {Promise<string>} Path to the Python executable
- */
-async function findPythonExecutable() {
-  // Try different Python executable names
-  const pythonExecutables = ['python3', 'python', 'py'];
+// Find a working Python executable
+function findPython() {
+  const pythonCommands = ['python3', 'python', 'py'];
   
-  for (const executable of pythonExecutables) {
+  for (const cmd of pythonCommands) {
     try {
-      const { stdout } = require('child_process').execSync(`${executable} --version`, { encoding: 'utf8' });
-      if (stdout.includes('Python 3')) {
-        return executable;
+      const result = require('child_process').spawnSync(cmd, ['-c', 'print("test")']);
+      if (result.status === 0) {
+        console.log(`Found Python executable: ${cmd}`);
+        return cmd;
       }
-    } catch (err) {
-      // Try next executable
+    } catch (error) {
+      console.log(`Command ${cmd} not found`);
     }
   }
   
-  // No Python found
-  throw new Error('Python 3 is not installed or not found in PATH. Please install Python 3.');
+  throw new Error('No Python executable found');
 }
 
-/**
- * Calls the Python script with the given arguments
- * @param {string[]} args - Arguments to pass to the Python script
- * @returns {Promise<object>} Result of the Python script
- */
+// Call the Python script with arguments
 async function callPythonScript(args) {
-  // Find Python executable
-  const pythonExecutable = await findPythonExecutable();
-  
   return new Promise((resolve, reject) => {
-    // Launch the Python script
-    const pythonProcess = spawn(pythonExecutable, [PYTHON_SCRIPT_PATH, ...args]);
+    const scriptPath = path.join(__dirname, 'prusalink-direct.py');
     
-    let output = '';
-    let errorOutput = '';
+    // Ensure the script exists and is executable
+    if (!fs.existsSync(scriptPath)) {
+      return reject(new Error(`Python script not found at ${scriptPath}`));
+    }
     
-    // Set a long timeout for the process (10 minutes)
-    const timeoutDuration = 10 * 60 * 1000; // 10 minutes
-    const timeoutId = setTimeout(() => {
-      console.error(`Python process timed out after ${timeoutDuration/1000} seconds`);
-      pythonProcess.kill();
-      reject({
-        success: false,
-        message: `Process timed out after ${timeoutDuration/1000} seconds`
-      });
-    }, timeoutDuration);
-    
-    // Collect output
-    pythonProcess.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-    
-    // Collect error output
-    pythonProcess.stderr.on('data', (data) => {
-      errorOutput += data.toString();
-      // Log the output for debugging
-      console.log(`[PrusaLink Python] ${data.toString().trim()}`);
-    });
-    
-    // Handle process completion
-    pythonProcess.on('close', (code) => {
-      clearTimeout(timeoutId);
+    try {
+      const pythonCmd = findPython();
+      console.log(`Executing: ${pythonCmd} ${scriptPath} ${args.join(' ')}`);
       
-      if (code === 0) {
-        try {
-          const result = JSON.parse(output);
-          resolve(result);
-        } catch (error) {
-          console.error(`Failed to parse Python output: ${error.message}`);
-          console.error(`Raw output: ${output}`);
-          console.error(`Error output: ${errorOutput}`);
-          
-          reject({
-            success: false,
-            message: 'Failed to parse Python output',
-            error: error.message,
-            output: output,
-            stderr: errorOutput
-          });
-        }
-      } else {
-        try {
-          // Try to parse error output as JSON
-          const errorResult = JSON.parse(output);
-          reject(errorResult);
-        } catch (error) {
-          // If we can't parse as JSON, use the raw output
-          reject({
-            success: false,
-            message: 'Python script failed',
-            error: errorOutput || output || `Process exited with code ${code}`,
-            code
-          });
-        }
-      }
-    });
-    
-    // Handle process errors
-    pythonProcess.on('error', (error) => {
-      clearTimeout(timeoutId);
-      reject({
-        success: false,
-        message: `Failed to start Python process: ${error.message}`,
-        error: error.message
+      const process = spawn(pythonCmd, [scriptPath, ...args], {
+        timeout: 600000  // 10 minute timeout
       });
-    });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      process.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      process.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      process.on('close', (code) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(stdout);
+            resolve(result);
+          } catch (error) {
+            reject(new Error(`Failed to parse Python script output: ${error.message}\nOutput: ${stdout}`));
+          }
+        } else {
+          reject(new Error(`Python script exited with code ${code}\nStderr: ${stderr}\nStdout: ${stdout}`));
+        }
+      });
+      
+      process.on('error', (error) => {
+        reject(new Error(`Failed to start Python process: ${error.message}`));
+      });
+    } catch (error) {
+      reject(new Error(`Error calling Python script: ${error.message}`));
+    }
   });
 }
 
-/**
- * Gets the status of a PrusaLink printer
- * @param {string} printerIp - IP address of the printer
- * @param {string} apiKey - API key for the printer
- * @returns {Promise<object>} Printer status
- */
+// Get job status from printer (includes print times, temperatures, etc.)
 async function getJobStatus(printerIp, apiKey) {
-  console.log(`Getting status for printer at ${printerIp}`);
-  return callPythonScript(['status', printerIp, apiKey]);
-}
-
-/**
- * Uploads a file to a PrusaLink printer and optionally starts printing
- * @param {string} printerIp - IP address of the printer
- * @param {string} apiKey - API key for the printer
- * @param {string} filePath - Path to the file to upload
- * @param {string} remoteName - Name to give the file on the printer
- * @param {boolean} printAfterUpload - Whether to start printing after upload
- * @returns {Promise<object>} Upload result
- */
-async function uploadAndPrint(printerIp, apiKey, filePath, remoteName = '', printAfterUpload = false) {
-  console.log(`Uploading file ${filePath} to printer at ${printerIp}`);
-  if (!remoteName) {
-    remoteName = path.basename(filePath);
+  console.log(`[DEBUG] Getting job status for ${printerIp} using direct Python script`);
+  
+  try {
+    const result = await callPythonScript(['status', printerIp, apiKey]);
+    
+    // Return a standardized format
+    if (result.success) {
+      console.log(`[DEBUG] Successfully got status from ${printerIp}`);
+      
+      // Extract the time data and temperatures
+      const data = result.data;
+      const status = {
+        success: true,
+        data: {
+          printer: data.printer || {},
+          telemetry: data.telemetry || {},
+          status: data.status || {},
+          raw_endpoints: data.raw_endpoints || {}
+        }
+      };
+      
+      // Log detailed time information
+      if (data.status && data.status.print_time_elapsed !== undefined) {
+        console.log(`[DEBUG] Print time elapsed: ${data.status.print_time_elapsed}s`);
+      }
+      
+      if (data.status && data.status.print_time_remaining !== undefined) {
+        console.log(`[DEBUG] Print time remaining: ${data.status.print_time_remaining}s`);
+      }
+      
+      return status;
+    } else {
+      console.error(`[ERROR] Failed to get status from ${printerIp}: ${result.message}`);
+      return {
+        success: false,
+        message: result.message,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    console.error(`[ERROR] Exception getting status: ${error.message}`);
+    return {
+      success: false,
+      message: "Failed to get printer status",
+      error: error.message
+    };
   }
-  return callPythonScript(['upload', printerIp, apiKey, filePath, remoteName, printAfterUpload.toString()]);
 }
 
-/**
- * Starts printing a file that's already on the printer
- * @param {string} printerIp - IP address of the printer
- * @param {string} apiKey - API key for the printer
- * @param {string} fileName - Name of the file to print
- * @returns {Promise<object>} Print result
- */
-async function startPrint(printerIp, apiKey, fileName) {
-  console.log(`Starting print of ${fileName} on printer at ${printerIp}`);
-  return callPythonScript(['print', printerIp, apiKey, fileName]);
+// Upload file to printer
+async function uploadFileToPrinter(printerIp, apiKey, filePath, remotePath, printAfterUpload = false) {
+  console.log(`[DEBUG] Uploading file to ${printerIp} using direct Python script`);
+  
+  try {
+    const args = [
+      'upload',
+      printerIp,
+      apiKey,
+      '--file', filePath,
+      '--remote', remotePath
+    ];
+    
+    if (printAfterUpload) {
+      args.push('--print-after');
+    }
+    
+    const result = await callPythonScript(args);
+    
+    if (result.success) {
+      console.log(`[DEBUG] Successfully uploaded file to ${printerIp}`);
+      return {
+        success: true,
+        message: result.message
+      };
+    } else {
+      console.error(`[ERROR] Failed to upload file to ${printerIp}: ${result.message}`);
+      return {
+        success: false,
+        message: result.message,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    console.error(`[ERROR] Exception uploading file: ${error.message}`);
+    return {
+      success: false,
+      message: "Failed to upload file",
+      error: error.message
+    };
+  }
 }
 
-/**
- * Stops the current print job
- * @param {string} printerIp - IP address of the printer
- * @param {string} apiKey - API key for the printer
- * @returns {Promise<object>} Stop result
- */
+// Start print job
+async function startPrintJob(printerIp, apiKey, filePath) {
+  console.log(`[DEBUG] Starting print job on ${printerIp} using direct Python script`);
+  
+  try {
+    const result = await callPythonScript([
+      'print',
+      printerIp,
+      apiKey,
+      '--file', filePath
+    ]);
+    
+    if (result.success) {
+      console.log(`[DEBUG] Successfully started print on ${printerIp}`);
+      return {
+        success: true,
+        message: result.message
+      };
+    } else {
+      console.error(`[ERROR] Failed to start print on ${printerIp}: ${result.message}`);
+      return {
+        success: false,
+        message: result.message,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    console.error(`[ERROR] Exception starting print: ${error.message}`);
+    return {
+      success: false,
+      message: "Failed to start print",
+      error: error.message
+    };
+  }
+}
+
+// Stop print job
 async function stopPrintJob(printerIp, apiKey) {
-  console.log(`Stopping print job on printer at ${printerIp}`);
-  return callPythonScript(['stop', printerIp, apiKey]);
+  console.log(`[DEBUG] Stopping print job on ${printerIp} using direct Python script`);
+  
+  try {
+    const result = await callPythonScript(['stop', printerIp, apiKey]);
+    
+    if (result.success) {
+      console.log(`[DEBUG] Successfully stopped print on ${printerIp}`);
+      return {
+        success: true,
+        message: result.message
+      };
+    } else {
+      console.error(`[ERROR] Failed to stop print on ${printerIp}: ${result.message}`);
+      return {
+        success: false,
+        message: result.message,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    console.error(`[ERROR] Exception stopping print: ${error.message}`);
+    return {
+      success: false,
+      message: "Failed to stop print",
+      error: error.message
+    };
+  }
 }
 
-/**
- * Tests connection to a PrusaLink printer
- * @param {string} printerIp - IP address of the printer
- * @param {string} apiKey - API key for the printer
- * @returns {Promise<object>} Connection test result
- */
+// Test connection to printer
 async function testConnection(printerIp, apiKey) {
-  console.log(`Testing connection to printer at ${printerIp}`);
-  return callPythonScript(['connect', printerIp, apiKey]);
+  console.log(`[DEBUG] Testing connection to ${printerIp} using direct Python script`);
+  
+  try {
+    const result = await callPythonScript(['connect', printerIp, apiKey]);
+    
+    return {
+      success: result.success,
+      message: result.message,
+      error: result.error
+    };
+  } catch (error) {
+    console.error(`[ERROR] Exception testing connection: ${error.message}`);
+    return {
+      success: false,
+      message: "Failed to connect to printer",
+      error: error.message
+    };
+  }
 }
 
+// Export all functions
 module.exports = {
   getJobStatus,
-  uploadAndPrint,
-  startPrint,
+  uploadFileToPrinter,
+  startPrintJob,
   stopPrintJob,
   testConnection
 }; 

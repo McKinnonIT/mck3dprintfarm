@@ -13,7 +13,6 @@ type PrinterCardProps = {
   operationalStatus: string;
   lastSeen?: Date;
   webcamUrl?: string;
-  onStopPrint?: () => Promise<void>;
 };
 
 export function PrinterCard({
@@ -23,28 +22,41 @@ export function PrinterCard({
   status,
   operationalStatus,
   lastSeen,
-  webcamUrl,
-  onStopPrint
+  webcamUrl
 }: PrinterCardProps) {
+  // Determine if the printer is disabled
+  const isDisabled = status === "disabled";
+  
   return (
-    <Card className="w-full h-full">
+    <Card className={`w-full h-full ${isDisabled ? "bg-gray-50 opacity-75" : ""}`}>
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
           <span>{name}</span>
-          <span className="text-sm font-normal bg-blue-100 text-blue-800 px-2 py-1 rounded">
-            {type}
-          </span>
+          <div className="flex gap-2">
+            {isDisabled && (
+              <span className="text-sm font-normal bg-gray-200 text-gray-700 px-2 py-1 rounded">
+                Disabled
+              </span>
+            )}
+            <span className="text-sm font-normal bg-blue-100 text-blue-800 px-2 py-1 rounded">
+              {type}
+            </span>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
           <div className="flex justify-between">
             <span className="text-gray-500">Status:</span>
-            <span className="font-medium">{status}</span>
+            <span className={`font-medium ${isDisabled ? "text-gray-500" : ""}`}>
+              {isDisabled ? "Disabled" : status}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Operational Status:</span>
-            <span className="font-medium">{operationalStatus}</span>
+            <span className="font-medium">
+              {isDisabled ? "N/A" : operationalStatus}
+            </span>
           </div>
           {lastSeen && (
             <div className="flex justify-between">
@@ -60,18 +72,11 @@ export function PrinterCard({
         <Link href={`/dashboard/printers/${id}`}>
           <Button variant="outline">Details</Button>
         </Link>
-        <div className="flex gap-2">
-          {operationalStatus === 'printing' && onStopPrint && (
-            <Button variant="outline" size="sm" onClick={onStopPrint} className="text-red-500 border-red-500 hover:bg-red-50">
-              Stop Print
-            </Button>
-          )}
-          {webcamUrl && (
-            <Link href={`/dashboard/printers/${id}/webcam`}>
-              <Button variant="outline">Webcam</Button>
-            </Link>
-          )}
-        </div>
+        {webcamUrl && !isDisabled && (
+          <Link href={`/dashboard/printers/${id}/webcam`}>
+            <Button variant="outline">Webcam</Button>
+          </Link>
+        )}
       </CardFooter>
     </Card>
   );

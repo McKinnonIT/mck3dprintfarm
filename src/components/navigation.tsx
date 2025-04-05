@@ -4,10 +4,32 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
+import { BellIcon, CogIcon } from "@heroicons/react/24/outline";
+import { useEffect, useState } from "react";
 
 export function Navigation() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const [printFarmTitle, setPrintFarmTitle] = useState("McKinnon 3D Print Farm");
+
+  useEffect(() => {
+    // Fetch settings when component mounts
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await fetch("/api/settings");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.printFarmTitle) {
+          setPrintFarmTitle(data.printFarmTitle);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching print farm title:", error);
+    }
+  };
 
   const isActive = (path: string) => pathname === path;
 
@@ -17,7 +39,7 @@ export function Navigation() {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
             <span className="text-xl font-bold text-gray-900">
-              McKinnon 3D Print Farm
+              {printFarmTitle}
             </span>
           </div>
 
@@ -76,17 +98,28 @@ export function Navigation() {
                 </Link>
               </>
             )}
-            {session?.user?.role === "admin" && (
-              <Link
-                href="/users"
-                className={`rounded-md px-3 py-2 text-sm font-medium ${
-                  isActive("/users")
-                    ? "bg-gray-100 text-gray-900"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                Users
-              </Link>
+            {session && (
+              <>
+                <Link 
+                  href="#" 
+                  className="rounded-md p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                  title="Notifications"
+                >
+                  <BellIcon className="h-5 w-5" />
+                </Link>
+                
+                <Link 
+                  href="/settings" 
+                  className={`rounded-md p-2 ${
+                    isActive("/settings")
+                      ? "bg-gray-100 text-gray-900"
+                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                  }`}
+                  title="Settings"
+                >
+                  <CogIcon className="h-5 w-5" />
+                </Link>
+              </>
             )}
             {session ? (
               <Link

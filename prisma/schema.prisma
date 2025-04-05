@@ -40,6 +40,7 @@ model Printer {
   printTimeRemaining Float?
   webcamUrl         String?
   printImageUrl     String?
+  printJobName      String?
   bedTemp           Float?
   toolTemp          Float?
   printJobs         PrintJob[]
@@ -91,4 +92,12 @@ model Group {
   updatedAt   DateTime  @updatedAt
   printers    Printer[]
   files       File[]
+}
+
+model Setting {
+  id                String   @id @default(cuid())
+  key               String   @unique
+  value             String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }

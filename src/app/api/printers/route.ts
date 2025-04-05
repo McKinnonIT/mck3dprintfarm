@@ -1,20 +1,25 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
     const printers = await prisma.printer.findMany({
-      include: {
-        group: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+      orderBy: {
+        createdAt: 'desc',
       },
     })
+    
     return NextResponse.json(printers)
   } catch (error) {
+    console.error('Error fetching printers:', error)
     return NextResponse.json({ error: 'Failed to fetch printers' }, { status: 500 })
   }
 }

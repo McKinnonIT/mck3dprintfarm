@@ -12,7 +12,15 @@ export default function ChangelogPage() {
             <h2 className="text-2xl font-semibold" id="v0.0.3a">Version 0.0.3a</h2>
             <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
           </div>
-          <p className="text-sm text-gray-500 mb-4">Released: May 2024</p>
+          <p className="text-sm text-gray-500 mb-4">Released: May 14, 2024</p>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Added dynamic Settings page with tabs for configuration</li>
+            <li>Added SSO configuration tab with support for Google and Microsoft Entra ID providers</li>
+            <li>Redesigned About page with improved visual layout and dynamic content</li>
+            <li>Added self-healing database structure for Docker deployments</li>
+          </ul>
           
           <h3 className="text-lg font-medium mt-4 mb-2">Improvements</h3>
           <ul className="list-disc pl-6 space-y-2">
@@ -20,6 +28,19 @@ export default function ChangelogPage() {
             <li>Fixed PrusaLinkPy upload error by removing unsupported timeout parameter</li>
             <li>Fixed Python syntax error in Moonraker bridge script</li>
             <li>Enhanced error handling for printer connection failures</li>
+            <li>Improved Settings API with automatic table creation and error recovery</li>
+            <li>Fixed Docker environment to properly handle limited disk space on Alpine Linux</li>
+            <li>Added dynamic version display in the footer from package.json</li>
+          </ul>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">Under the Hood</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Resolved ENOSPC errors in Docker Alpine Linux builds</li>
+            <li>Improved Dockerfile with better npm cache configuration</li>
+            <li>Enhanced Docker startup scripts with database verification</li>
+            <li>Added direct SQLite integration for database resilience</li>
+            <li>Created fallback mechanism for settings persistence using raw SQL queries</li>
+            <li>Optimized Next.js server-side rendering for browser-specific APIs</li>
           </ul>
         </section>
         

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import fs from "fs";
 import path from "path";
 import { uploadFileToPrinter, startPrintJob } from "@/lib/printer-utils";
-const prusaLinkBridge = require("@/lib/prusalink-pure");
+const prusaLinkBridge = require("@/lib/prusalink-bridge");
 const moonrakerBridge = require("@/lib/moonraker-bridge-py");
 
 export async function POST(request: Request) {
@@ -56,19 +56,29 @@ export async function POST(request: Request) {
     // Determine status based on printNow flag
     const jobStatus = printNow ? "pending" : "uploaded";
     
-    // Create print job
+    // Create a temporary file record in the database
+    const filePath = file.path;
+    const fileRecord = await prisma.file.create({
+      data: {
+        name: file.name,
+        path: filePath,
+        size: file.size,
+        type: "gcode",
+        uploadedBy: session.user.id
+      }
+    });
+
+    // Create a record of the print job in the database
     const printJob = await prisma.printJob.create({
       data: {
         name: file.name,
-        status: jobStatus,
-        fileId: file.id,
-        printerId: printer.id,
-        userId: session.user.id,
-      },
+        fileId: fileRecord.id,
+        printerId: printerId,
+        status: "uploaded",
+        userId: session.user.id
+      }
     });
 
-    const filePath = file.path;
-    
     // Check if file exists on disk
     if (!fs.existsSync(filePath)) {
       return NextResponse.json(
@@ -117,208 +127,85 @@ export async function POST(request: Request) {
     }
 
     try {
-      // Extract API URL to get IP address for PrusaLink
-      let printerIp = "";
-      if (isPrusaLink) {
-        // Extract IP from API URL
-        const apiUrl = printer.apiUrl;
-        const match = apiUrl.match(/https?:\/\/([^:\/]+)/);
-        if (match && match[1]) {
-          printerIp = match[1];
-        } else {
-          throw new Error("Could not extract IP address from API URL");
-        }
-      }
+      // Get the printer's IP address
+      const printerIp = printer.apiUrl.replace(/^https?:\/\//, '').replace(/:\d+$/, '');
+      console.log(`Printer IP: ${printerIp}`);
 
-      console.log(`[DEBUG] Processing print job for ${file.name} on ${printer.name} (${printer.type})`);
-      
-      let uploadResult;
-      
-      // Use PrusaLinkPy bridge for Prusa printers
-      if (isPrusaLink) {
-        console.log(`[DEBUG] Using direct PrusaLinkPy script for ${printer.name}, IP: ${printerIp}`);
-        console.log(`[DEBUG] Uploading file: ${filePath} (File size: ${(fs.statSync(filePath).size / (1024 * 1024)).toFixed(2)} MB)`);
+      // Use our direct Python implementation of PrusaLinkPy
+      console.log(`[DEBUG] Using direct PrusaLinkPy script for ${printer.name}, IP: ${printerIp}`);
+
+      try {
+        // Upload the file to the printer using the direct Python implementation
+        console.log(`[DEBUG] Uploading file ${filePath} (${file.size / 1024 / 1024}MB) to printer ${printer.name}`);
         
-        if (!printer.apiKey) {
-          throw new Error("API key is required for PrusaLink printers");
-        }
+        const prusaLinkBridge = require('@/lib/prusalink-pure');
         
-        // Add explicit timeout for PrusaLinkPy requests
-        const prusaLinkPyPromise = prusaLinkBridge.uploadAndPrint(
-          printerIp,
-          printer.apiKey,
-          filePath,
-          file.name,
-          printNow // Use the printNow parameter
-        );
+        // Generate a unique remote filename to avoid conflicts
+        const timestamp = new Date().getTime();
+        const remoteFilename = `PrintFarm_${timestamp}_${path.basename(file.name)}`;
         
-        // Create a timeout promise
-        const timeoutPromise = new Promise((_, reject) => {
-          const timeoutDuration = 300000; // 5 minutes
-          console.log(`[DEBUG] Setting upload timeout to ${timeoutDuration/1000} seconds`);
-          
-          setTimeout(() => {
-            console.error(`[DEBUG] Upload timed out after ${timeoutDuration/1000} seconds`);
-            reject(new Error('PrusaLinkPy request timed out'));
-          }, timeoutDuration);
-        });
+        // Determine storage location (use /usb/ for Prusa printers)
+        const remoteStorage = printer.type === "prusalink" ? "/usb/" : "";
+        const remotePath = `${remoteStorage}${remoteFilename}`;
         
-        // Race the actual request against the timeout
-        const uploadResultPromise = Promise.race([prusaLinkPyPromise, timeoutPromise])
-          .catch(error => {
-            console.error(`PrusaLinkPy upload request timed out for ${printer.name}`);
-            return { success: false, message: 'Upload request timed out', error: 'Timeout' };
-          });
-        
-        try {
-          uploadResult = await uploadResultPromise;
-          
-          console.log(`[DEBUG] PrusaLinkPy bridge result:`, uploadResult);
-          
-          if (!uploadResult.success) {
-            console.error('[DEBUG] PrusaLinkPy bridge returned error:', uploadResult);
-            throw new Error(uploadResult.message || "Unknown error from PrusaLinkPy");
-          }
-        } catch (error) {
-          console.error('[DEBUG] PrusaLinkPy bridge error:', error);
-          console.error('[DEBUG] Error details:', JSON.stringify(error, null, 2));
-          
-          // Throw enhanced error
-          if (error.traceback) {
-            throw new Error(`PrusaLinkPy error: ${error.message}\n${error.traceback}`);
-          } else {
-            throw error;
-          }
-        }
-        
-        // If we're printing, update the job status
-        if (printNow) {
-          await prisma.printJob.update({
-            where: { id: printJob.id },
-            data: {
-              status: "printing",
-              startedAt: new Date()
-            }
-          });
-        } else {
-          await prisma.printJob.update({
-            where: { id: printJob.id },
-            data: {
-              status: "uploaded"
-            }
-          });
-        }
-      } else if (isMoonraker) {
-        // For Moonraker printers
-        console.log(`[DEBUG] Using Moonraker bridge for ${printer.name}`);
-        
-        // Use moonrakerBridge.uploadAndPrint which handles both upload and print
-        console.log(`[DEBUG] Uploading file to Moonraker at ${printer.apiUrl}`);
-        try {
-          uploadResult = await moonrakerBridge.uploadAndPrint(
-            printer.apiUrl,
-            printer.apiKey,
-            filePath,
-            file.name,
-            printNow
-          );
-          
-          console.log(`[DEBUG] Moonraker bridge result:`, uploadResult);
-          
-          if (!uploadResult.success) {
-            console.error('[DEBUG] Moonraker bridge returned error:', uploadResult);
-            throw new Error(uploadResult.message || "Unknown error from Moonraker");
-          }
-        } catch (error) {
-          console.error('[DEBUG] Moonraker bridge error:', error);
-          console.error('[DEBUG] Error details:', JSON.stringify(error, null, 2));
-          throw error;
-        }
-        
-        // Update job status based on operation result
-        if (printNow) {
-          await prisma.printJob.update({
-            where: { id: printJob.id },
-            data: {
-              status: "printing",
-              startedAt: new Date()
-            }
-          });
-          
-          // Update the printer status
-          await prisma.printer.update({
-            where: { id: printer.id },
-            data: { 
-              operationalStatus: "printing",
-              printStartTime: new Date()
-            },
-          });
-        } else {
-          await prisma.printJob.update({
-            where: { id: printJob.id },
-            data: {
-              status: "uploaded"
-            }
-          });
-        }
-      } else {
-        // For other printer types, use the existing implementation
-        // Step 1: Upload file to printer
-        console.log(`[DEBUG] Using standard upload for ${printer.name}`);
-        uploadResult = await uploadFileToPrinter(printer, filePath, file.name);
+        // Upload the file
+        console.log(`[DEBUG] Remote path: ${remotePath}`);
+        const uploadResult = await prusaLinkBridge.uploadFileToPrinter(printerIp, printer.apiKey, filePath, remotePath);
         
         if (!uploadResult.success) {
-          console.log(`[DEBUG] Upload failed with message: ${uploadResult.message}`);
-          throw new Error(uploadResult.message);
+          console.error(`[ERROR] Failed to upload file to printer ${printer.name}:`, uploadResult.error);
+          return NextResponse.json({ 
+            error: `Failed to upload file to printer: ${uploadResult.message}` 
+          }, { status: 500 });
         }
         
-        console.log('[DEBUG] Upload successful:', uploadResult.message);
-        
-        // Step 2: Start print job if requested
+        // Start printing only if printNow is true
         if (printNow) {
-          console.log(`[DEBUG] Starting print job for ${file.name} on ${printer.name}`);
+          console.log(`[DEBUG] Starting print job on printer ${printer.name}`);
           
-          const printResult = await startPrintJob(printer, uploadResult, file.name);
+          const printResult = await prusaLinkBridge.startPrintJob(printerIp, printer.apiKey, remotePath);
           
           if (!printResult.success) {
-            console.log(`[DEBUG] Print start failed with message: ${printResult.message}`);
-            throw new Error(printResult.message);
+            console.error(`[ERROR] Failed to start print job on printer ${printer.name}:`, printResult.error);
+            
+            // Update job status to reflect the failure
+            await prisma.printJob.update({
+              where: { id: printJob.id },
+              data: { 
+                status: "failed",
+                error: printResult.message
+              }
+            });
+            
+            return NextResponse.json({ 
+              error: `File uploaded successfully but print failed to start: ${printResult.message}`,
+              jobId: printJob.id
+            }, { status: 500 });
           }
           
-          console.log('[DEBUG] Print job started:', printResult.message);
-          
-          // Update print job status to printing
+          // Update job status to printing
           await prisma.printJob.update({
             where: { id: printJob.id },
-            data: {
-              status: "printing",
-              startedAt: new Date()
-            }
+            data: { status: "printing" }
           });
           
-          // Update the printer status
-          await prisma.printer.update({
-            where: { id: printer.id },
-            data: { 
-              operationalStatus: "printing",
-              printStartTime: new Date()
-            },
-          });
-        } else {
-          // Just update the job status to uploaded
-          await prisma.printJob.update({
-            where: { id: printJob.id },
-            data: {
-              status: "uploaded"
-            }
+          return NextResponse.json({ 
+            message: "File uploaded and print started successfully", 
+            jobId: printJob.id 
           });
         }
+        
+        return NextResponse.json({ 
+          message: "File uploaded successfully", 
+          jobId: printJob.id 
+        });
+        
+      } catch (error) {
+        console.error(`[ERROR] Exception in print-jobs API:`, error);
+        return NextResponse.json({ 
+          error: `Server error: ${error.message}` 
+        }, { status: 500 });
       }
-      
-      return NextResponse.json({
-        ...printJob,
-        status: printNow ? "printing" : "uploaded"
-      });
     } catch (error) {
       console.error('Printer communication error:', error);
       console.error('[DEBUG] Error type:', typeof error);

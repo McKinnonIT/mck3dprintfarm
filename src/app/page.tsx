@@ -86,7 +86,12 @@ export default function HomePage() {
             printTimeElapsed: printer.printTimeElapsed,
             printTimeRemaining: printer.printTimeRemaining,
             hasElapsed: !!printer.printTimeElapsed,
-            hasRemaining: !!printer.printTimeRemaining
+            hasRemaining: !!printer.printTimeRemaining,
+            bedTemp: printer.bedTemp,
+            toolTemp: printer.toolTemp,
+            hasBedTemp: printer.bedTemp !== null && printer.bedTemp !== undefined,
+            hasToolTemp: printer.toolTemp !== null && printer.toolTemp !== undefined,
+            operationalStatus: printer.operationalStatus,
           });
         }
       });

@@ -1,194 +1,128 @@
-import React from "react";
-import Link from "next/link";
+"use client";
+
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import packageInfo from '../../../package.json';
 
 export default function AboutPage() {
+  const [settings, setSettings] = useState({
+    organizationName: "McKelvey Engineering",
+    organizationWebsite: "https://engineering.wustl.edu",
+    printFarmTitle: "MCK 3D Print Farm"
+  });
+
+  useEffect(() => {
+    // Fetch settings when component mounts
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await fetch("/api/settings");
+      if (response.ok) {
+        const data = await response.json();
+        setSettings({
+          organizationName: data.organizationName || "McKelvey Engineering",
+          organizationWebsite: data.organizationWebsite || "https://engineering.wustl.edu",
+          printFarmTitle: data.printFarmTitle || "MCK 3D Print Farm"
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+    }
+  };
+
   return (
-    <div className="container mx-auto py-8 px-4">
-      <h1 className="text-3xl font-bold mb-6">About MCK 3D Print Farm</h1>
-      
-      <p className="mb-6">
-        The MCK 3D Print Farm application was developed for McKinnon Secondary College to manage 
-        3D printers across the school. This platform enables monitoring and management of PrusaLink, 
-        Moonraker-based, and Bambu Lab 3D printers, streamlining the 3D printing workflow for students and staff.
-      </p>
-      
-      <h2 className="text-2xl font-semibold mb-4 mt-8">Technologies Used</h2>
-      
-      <div className="space-y-8">
-        <section>
-          <h3 className="text-xl font-medium mb-3">Core Frameworks & Libraries</h3>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>
-              <a href="https://nextjs.org" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Next.js
-              </a>
-              <span> - React framework for server-rendered applications</span>
-            </li>
-            <li>
-              <a href="https://react.dev" target="_blank" className="text-blue-600 hover:underline font-medium">
-                React
-              </a>
-              <span> - JavaScript library for building user interfaces</span>
-            </li>
-            <li>
-              <a href="https://www.prisma.io" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Prisma
-              </a>
-              <span> - Next-generation ORM for Node.js and TypeScript</span>
-            </li>
-            <li>
-              <a href="https://tailwindcss.com" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Tailwind CSS
-              </a>
-              <span> - Utility-first CSS framework</span>
-            </li>
-            <li>
-              <a href="https://next-auth.js.org" target="_blank" className="text-blue-600 hover:underline font-medium">
-                NextAuth.js
-              </a>
-              <span> - Authentication for Next.js</span>
-            </li>
-          </ul>
-        </section>
-        
-        <section>
-          <h3 className="text-xl font-medium mb-3">3D Printing Integration</h3>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>
-              <a href="https://github.com/prusa3d/prusalink" target="_blank" className="text-blue-600 hover:underline font-medium">
-                PrusaLink API
-              </a>
-              <span> - API for controlling Prusa 3D printers</span>
-            </li>
-            <li>
-              <a href="https://github.com/TheInsomniac/PrusaLinkPy" target="_blank" className="text-blue-600 hover:underline font-medium">
-                PrusaLinkPy
-              </a>
-              <span> - Python library for interacting with PrusaLink</span>
-            </li>
-            <li>
-              <a href="https://moonraker.readthedocs.io" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Moonraker API
-              </a>
-              <span> - API server for Klipper-based 3D printers</span>
-            </li>
-            <li>
-              <a href="https://pypi.org/project/bambulabs-api/" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Bambu Lab API
-              </a>
-              <span> - Python library for controlling Bambu Lab 3D printers</span>
-            </li>
-          </ul>
-        </section>
-        
-        <section>
-          <h3 className="text-xl font-medium mb-3">Deployment & Containerization</h3>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>
-              <a href="https://www.docker.com" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Docker
-              </a>
-              <span> - Container platform for packaging and running applications</span>
-            </li>
-            <li>
-              <a href="https://github.com/features/actions" target="_blank" className="text-blue-600 hover:underline font-medium">
-                GitHub Actions
-              </a>
-              <span> - CI/CD workflows for automated builds and deployment</span>
-            </li>
-          </ul>
-        </section>
-        
-        <section>
-          <h3 className="text-xl font-medium mb-3">UI Components & Utilities</h3>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>
-              <a href="https://heroicons.com" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Heroicons
-              </a>
-              <span> - Beautiful hand-crafted SVG icons</span>
-            </li>
-            <li>
-              <a href="https://github.com/axios/axios" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Axios
-              </a>
-              <span> - Promise-based HTTP client</span>
-            </li>
-            <li>
-              <a href="https://github.com/diced/prisma-extension-pagination" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Prisma Client Extensions
-              </a>
-              <span> - Extensions for Prisma client</span>
-            </li>
-            <li>
-              <a href="https://github.com/lukeed/clsx" target="_blank" className="text-blue-600 hover:underline font-medium">
-                clsx
-              </a>
-              <span> - Utility for constructing className strings conditionally</span>
-            </li>
-            <li>
-              <a href="https://github.com/dcastil/tailwind-merge" target="_blank" className="text-blue-600 hover:underline font-medium">
-                tailwind-merge
-              </a>
-              <span> - Merge Tailwind CSS classes without style conflicts</span>
-            </li>
-          </ul>
-        </section>
-        
-        <section>
-          <h3 className="text-xl font-medium mb-3">Backend & API Utilities</h3>
-          <ul className="list-disc pl-6 space-y-2">
-            <li>
-              <a href="https://github.com/form-data/form-data" target="_blank" className="text-blue-600 hover:underline font-medium">
-                form-data
-              </a>
-              <span> - Library for creating readable "multipart/form-data" streams</span>
-            </li>
-            <li>
-              <a href="https://github.com/node-fetch/node-fetch" target="_blank" className="text-blue-600 hover:underline font-medium">
-                node-fetch
-              </a>
-              <span> - A light-weight module that brings window.fetch to Node.js</span>
-            </li>
-            <li>
-              <a href="https://github.com/expressjs/cors" target="_blank" className="text-blue-600 hover:underline font-medium">
-                CORS
-              </a>
-              <span> - Express middleware for enabling CORS</span>
-            </li>
-            <li>
-              <a href="https://github.com/expressjs/multer" target="_blank" className="text-blue-600 hover:underline font-medium">
-                Multer
-              </a>
-              <span> - Middleware for handling multipart/form-data</span>
-            </li>
-            <li>
-              <a href="https://github.com/dcodeIO/bcrypt.js" target="_blank" className="text-blue-600 hover:underline font-medium">
-                bcryptjs
-              </a>
-              <span> - Password hashing function</span>
-            </li>
-          </ul>
-        </section>
+    <div className="container mx-auto py-12 px-4 max-w-5xl">
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold mb-4 text-blue-800">{settings.printFarmTitle}</h1>
+        <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+          A state-of-the-art 3D printing facility powering innovation and creativity.
+        </p>
+        <div className="mt-4 inline-block bg-blue-100 px-3 py-1 rounded-full text-blue-800">
+          Version {packageInfo.version}
+        </div>
       </div>
       
-      <div className="mt-12 border-t pt-8">
-        <h2 className="text-2xl font-semibold mb-4">Acknowledgments</h2>
-        <p className="mb-4">
-          Special thanks to the open-source community for creating and maintaining these incredible 
-          tools and libraries that made this project possible.
-        </p>
-        <p>
-          <Link href="/changelog#v0.0.3a" className="text-blue-600 hover:underline">
-            Version 0.0.3a
-          </Link> improves printer connectivity with enhanced error handling and fixes for Moonraker and PrusaLink printers.
-          See the <Link href="/changelog" className="text-blue-600 hover:underline">full changelog</Link> for more details.
-        </p>
+      <div className="grid md:grid-cols-2 gap-8 mb-12">
+        <div className="bg-white rounded-xl shadow-lg p-8 transform transition-all hover:scale-105">
+          <div className="rounded-full bg-blue-100 w-12 h-12 flex items-center justify-center mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-4 text-blue-800">Our Mission</h2>
+          <p className="text-gray-700 mb-4 leading-relaxed">
+            The {settings.printFarmTitle} provides streamlined access to 3D printing technology 
+            for educational, research, and innovative projects.
+          </p>
+          <p className="text-gray-700 leading-relaxed">
+            We aim to democratize access to advanced manufacturing technologies, enabling 
+            the creation of innovative projects and fostering technical skills development.
+          </p>
+        </div>
+        
+        <div className="bg-white rounded-xl shadow-lg p-8 transform transition-all hover:scale-105">
+          <div className="rounded-full bg-blue-100 w-12 h-12 flex items-center justify-center mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-4 text-blue-800">About {settings.organizationName}</h2>
+          <p className="text-gray-700 mb-4 leading-relaxed">
+            {settings.organizationName} is committed to providing quality education and 
+            fostering innovation through cutting-edge technology and research.
+          </p>
+          <p className="text-gray-700 mb-4 leading-relaxed">
+            Our focus on technology and practical skills helps prepare students and 
+            researchers for the challenges of advanced manufacturing.
+          </p>
+          <a 
+            href={settings.organizationWebsite} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Visit Our Website
+          </a>
+        </div>
       </div>
-      
-      <div className="mt-8 text-center">
-        <Link href="/" className="text-blue-600 hover:underline">
-          Back to Dashboard
+
+      <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-xl shadow-lg p-8 text-white">
+        <h2 className="text-2xl font-bold mb-4">Features</h2>
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="flex flex-col items-center p-4 bg-white bg-opacity-20 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+            </svg>
+            <h3 className="text-lg font-semibold mb-2">Multi-Printer Management</h3>
+            <p className="text-center">Manage various 3D printers from a single interface.</p>
+          </div>
+          <div className="flex flex-col items-center p-4 bg-white bg-opacity-20 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            <h3 className="text-lg font-semibold mb-2">Job Queue System</h3>
+            <p className="text-center">Efficiently manage print jobs with our intuitive queue system.</p>
+          </div>
+          <div className="flex flex-col items-center p-4 bg-white bg-opacity-20 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            <h3 className="text-lg font-semibold mb-2">Real-time Monitoring</h3>
+            <p className="text-center">Monitor print progress with live status updates and webcam feeds.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-12 text-center">
+        <h2 className="text-2xl font-bold mb-6 text-blue-800">Have Questions?</h2>
+        <Link 
+          href="/contact" 
+          className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg shadow-md"
+        >
+          Contact Us
         </Link>
       </div>
     </div>

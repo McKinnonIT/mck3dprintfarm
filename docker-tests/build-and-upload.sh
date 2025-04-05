@@ -13,7 +13,15 @@ IMAGE_NAME="mck3dprintfarm"
 # Get current branch name
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 VERSION=$(grep '"version"' package.json | cut -d '"' -f 4)
-TAG="${VERSION}-${BRANCH}"
+
+# Check if branch name already contains the version
+if [[ "$BRANCH" == *"$VERSION"* ]]; then
+  # If branch already contains version, just use the branch name
+  TAG="${BRANCH}"
+else
+  # Otherwise use the original format
+  TAG="${VERSION}-${BRANCH}"
+fi
 
 echo "=========================================================="
 echo "Building and pushing Docker image from the local environment"

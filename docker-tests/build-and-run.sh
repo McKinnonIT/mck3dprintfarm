@@ -6,26 +6,17 @@ set -e
 # Move to the project root directory
 cd "$(dirname "$0")/.."
 
-echo "Making Python file executable..."
-chmod +x src/lib/prusalink-direct.py
+# Create a backup of the Dockerfile
+echo "Creating a backup of the Dockerfile..."
+cp Dockerfile Dockerfile.bak
 
-echo "Modifying Dockerfile to include moonraker-api Python package..."
-# Use sed to modify the Dockerfile to add moonraker-api
-# Find the line that installs prusaLinkPy and add moonraker-api
-# Check if we're on macOS or Linux (different sed syntax)
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  # macOS version
-  sed -i '' -e 's#/app/venv/bin/pip install prusaLinkPy#/app/venv/bin/pip install prusaLinkPy moonraker-api#g' Dockerfile
-else
-  # Linux version
-  sed -i -e 's#/app/venv/bin/pip install prusaLinkPy#/app/venv/bin/pip install prusaLinkPy moonraker-api#g' Dockerfile
-fi
-
+# No modifications to the Dockerfile - using our optimized version directly
 echo "Building Docker image with tag 0.0.3a..."
-docker build -t mck3dprintfarm:0.0.3a .
+docker build --no-cache -t mck3dprintfarm:0.0.3a .
 
-# Restore the original Dockerfile (so we don't commit the change)
-git checkout -- Dockerfile
+# Restore the original Dockerfile from our backup
+echo "Restoring the original Dockerfile from backup..."
+mv Dockerfile.bak Dockerfile
 
 echo "Docker image built successfully."
 echo "Moving to docker-tests directory..."
@@ -35,8 +26,9 @@ cd docker-tests
 mkdir -p ../uploads
 
 # If any containers are running from the test compose file, stop them
-echo "Stopping any existing containers from previous runs..."
-docker-compose down
+# BUT preserve volumes by not using the -v flag
+echo "Stopping any existing containers from previous runs (preserving volumes)..."
+docker-compose down --remove-orphans
 
 # Start the containers with the local image
 echo "Starting containers with the local 0.0.3a image..."

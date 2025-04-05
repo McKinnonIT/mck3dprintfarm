@@ -4,7 +4,7 @@
 set -e
 
 echo "Building Docker image with Bambu Lab support..."
-docker build -t mck3dprintfarm:local .
+docker build --no-cache -t mck3dprintfarm:local .
 
 echo "Creating docker-compose.local.yml for local image..."
 cat > docker-compose.local.yml << EOF

@@ -1,4 +1,4 @@
-import { PrusaLinkSetup } from "@/components/printers/PrusaLinkSetup";
+import { SetupClient } from "./client";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -38,7 +38,7 @@ export default async function PrusaLinkSetupPage() {
       </div>
       
       <div className="space-y-8">
-        <PrusaLinkSetup />
+        <SetupClient />
         
         {prusaPrinters.length > 0 && (
           <div className="mt-8">

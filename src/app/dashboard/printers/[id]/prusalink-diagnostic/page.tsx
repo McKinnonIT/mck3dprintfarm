@@ -1,4 +1,4 @@
-import { PrusaLinkDiagnostic } from "@/components/printers/PrusaLinkDiagnostic";
+import { DiagnosticClient } from "./client";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -67,7 +67,7 @@ export default async function PrusaLinkDiagnosticPage({ params }: PageProps) {
           Run diagnostic tests for your PrusaLink printer
         </p>
       </div>
-      <PrusaLinkDiagnostic printerId={printer.id} printerName={printer.name} />
+      <DiagnosticClient printerId={printer.id} printerName={printer.name} />
     </div>
   );
 } 

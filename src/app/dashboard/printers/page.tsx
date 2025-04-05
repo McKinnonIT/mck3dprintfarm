@@ -1,28 +1,77 @@
+"use client";
+
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { PrinterCard } from "@/components/printers/PrinterCard";
-import { InfoCircledIcon } from "@radix-ui/react-icons";
+import { InfoIcon } from "./infoicon";
+import { LoadingScreen } from "@/components/loading-screen";
+import { PrinterSkeleton } from "@/components/printer-skeleton";
+import { useSession } from "next-auth/react";
 
-export default async function PrintersPage() {
-  const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+export default function PrintersPage() {
+  const { data: session, status } = useSession();
+  const [printers, setPrinters] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!userId) {
+  useEffect(() => {
+    // Only fetch printers if the user is authenticated
+    if (status === "authenticated") {
+      const fetchPrinters = async () => {
+        try {
+          setLoading(true);
+          const startTime = Date.now();
+          
+          // First get the basic printer list
+          const printerResponse = await fetch("/api/printers");
+          if (!printerResponse.ok) {
+            throw new Error("Failed to fetch printers");
+          }
+          
+          const printerData = await printerResponse.json();
+          
+          // Then get the current status for all printers
+          const statusResponse = await fetch("/api/printers/status");
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            
+            // For management view, show all printers including disabled/offline
+            // but with clear visual indicators of their status
+            setPrinters(statusData);
+          } else {
+            // Fall back to basic data if status fetch fails
+            setPrinters(printerData);
+          }
+          
+          // Ensure loading state shows for at least 1 second
+          const elapsed = Date.now() - startTime;
+          if (elapsed < 1000) {
+            await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
+          }
+        } catch (error) {
+          console.error("Error fetching printers:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchPrinters();
+    } else if (status === "unauthenticated") {
+      setLoading(false);
+    }
+  }, [status]);
+
+  if (status === "loading") {
+    return <LoadingScreen message="Loading printers" />;
+  }
+
+  if (status === "unauthenticated") {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Please sign in to view this page.</p>
       </div>
     );
   }
-
-  const printers = await prisma.printer.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
 
   // Check if there are Prusa printers
   const hasPrusaPrinters = printers.some(printer => 
@@ -47,7 +96,7 @@ export default async function PrintersPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
           <div className="flex">
             <div className="flex-shrink-0">
-              <InfoCircledIcon className="h-5 w-5 text-blue-400" />
+              <InfoIcon />
             </div>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-blue-800">
@@ -72,7 +121,14 @@ export default async function PrintersPage() {
         </div>
       )}
 
-      {printers.length === 0 ? (
+      {loading ? (
+        // Show skeleton cards while loading
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array(3).fill(0).map((_, index) => (
+            <PrinterSkeleton key={index} />
+          ))}
+        </div>
+      ) : printers.length === 0 ? (
         <div className="text-center py-10">
           <p className="text-muted-foreground mb-4">
             You haven&apos;t added any printers yet.

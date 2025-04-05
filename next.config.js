@@ -3,11 +3,18 @@ const nextConfig = {
   // Enable standalone output for Docker
   output: 'standalone',
   
-  // Configuration for handling dependencies
-  transpilePackages: ['lucide-react', '@radix-ui/react-icons'],
+  // Configuration for handling dependencies - include all UI libraries
+  transpilePackages: [
+    'lucide-react', 
+    '@radix-ui/react-icons',
+    '@radix-ui/react-slot',
+    '@radix-ui/react-tabs',
+    '@radix-ui/react-toast'
+  ],
   
-  // Webpack configuration
-  webpack: (config) => {
+  // Webpack configuration with improved module resolution
+  webpack: (config, { dev, isServer }) => {
+    // Add STL file handling
     config.module.rules.push({
       test: /\.(stl)$/,
       use: {
@@ -19,6 +26,21 @@ const nextConfig = {
         },
       },
     });
+    
+    // Improve module resolution
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': process.cwd() + '/src'
+    };
+    
+    // Ensure externals are properly handled
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+      };
+    }
     
     return config;
   },

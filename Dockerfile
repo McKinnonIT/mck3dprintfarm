@@ -7,10 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with production flag to save space and ensure all deps are available
-RUN npm install --production=false && \
-    # Explicitly install UI dependencies that might be problematic
-    npm install --no-save lucide-react @radix-ui/react-icons && \
+# Install all dependencies properly and ensure UI libraries are available
+RUN npm ci && \
     npm cache clean --force
 
 # Copy the source code
@@ -18,6 +16,12 @@ COPY . .
 
 # Generate Prisma client
 RUN npx prisma generate
+
+# Create a special .env file for the build process
+RUN echo "NEXT_PUBLIC_BUILD_ENV=production" > .env
+
+# Set NODE_ENV to production for the build
+ENV NODE_ENV=production
 
 # Build the Next.js application
 RUN npm run build && npm prune --production && npm cache clean --force

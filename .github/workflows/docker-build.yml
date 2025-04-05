@@ -56,12 +56,21 @@ jobs:
 
           # Install all dependencies properly and ensure UI libraries are available
           RUN npm ci && \
-              npm install --no-save --legacy-peer-deps lucide-react @radix-ui/react-icons @radix-ui/react-slot @radix-ui/react-tabs @radix-ui/react-toast && \
+              npm install --no-save --legacy-peer-deps lucide-react @radix-ui/react-icons @radix-ui/react-slot @radix-ui/react-tabs @radix-ui/react-toast class-variance-authority tailwind-merge && \
               npm cache clean --force
 
           # Copy the source code
           COPY . .
 
+          # Fix path resolution issues - explicit symlinks for key components
+          RUN echo "Fixing path resolution by creating explicit aliases..." && \
+              mkdir -p /app/node_modules/@/components && \
+              ln -s /app/src/components /app/node_modules/@/components && \
+              mkdir -p /app/node_modules/@/lib && \
+              ln -s /app/src/lib /app/node_modules/@/lib && \
+              mkdir -p /app/node_modules/@/app && \
+              ln -s /app/src/app /app/node_modules/@/app
+          
           # Add explicit use client directives to all components that might need it
           RUN echo 'Adding "use client" directive to components that might need it...' && \
               find src/components -name "*.tsx" -exec sh -c 'if ! grep -q "use client" {}; then sed -i "1s/^/\"use client\";\n\n/" {}; fi' \; && \
@@ -76,8 +85,8 @@ jobs:
           # Set NODE_ENV to production for the build
           ENV NODE_ENV=production
 
-          # Build the Next.js application
-          RUN NEXT_TELEMETRY_DISABLED=1 npm run build && npm prune --production && npm cache clean --force
+          # Build the Next.js application with direct path for static exports
+          RUN NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" npm run build && npm prune --production && npm cache clean --force
 
           # Production image - use a smaller footprint
           FROM node:18-alpine AS runner
@@ -156,6 +165,59 @@ jobs:
           network-timeout=300000
           save-exact=true
           EOF
+          
+          # Check if printer-skeleton.tsx exists and print its path for debugging
+          if [ -f "src/components/printer-skeleton.tsx" ]; then
+            echo "printer-skeleton.tsx exists at src/components/printer-skeleton.tsx"
+            cat src/components/printer-skeleton.tsx | head -n 5
+          else
+            echo "printer-skeleton.tsx not found, creating it..."
+            mkdir -p src/components
+            cat > src/components/printer-skeleton.tsx << 'EOF'
+          "use client";
+          
+          import React from "react";
+          import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+          
+          export function PrinterSkeleton() {
+            return (
+              <Card className="w-full h-full animate-pulse">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+                    <div className="h-5 bg-gray-200 rounded w-1/4"></div>
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-1/4 mt-2"></div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Preview area */}
+                    <div className="w-full h-32 bg-gray-200 rounded"></div>
+                    
+                    {/* Temperatures */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <div className="h-4 bg-gray-200 rounded w-1/5"></div>
+                        <div className="h-4 bg-gray-200 rounded w-1/5"></div>
+                      </div>
+                      <div className="flex justify-between">
+                        <div className="h-4 bg-gray-200 rounded w-1/5"></div>
+                        <div className="h-4 bg-gray-200 rounded w-1/5"></div>
+                      </div>
+                    </div>
+                    
+                    {/* Empty space for job status */}
+                    <div className="h-24 bg-gray-200 rounded mt-4"></div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+                </CardFooter>
+              </Card>
+            );
+          }
+          EOF
+          fi
           
           echo "Environment preparation complete."
 

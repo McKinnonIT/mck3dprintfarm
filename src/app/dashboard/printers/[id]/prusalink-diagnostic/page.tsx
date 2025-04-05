@@ -1,9 +1,8 @@
-import { DiagnosticClient } from "./client";
+import { DiagnosticClient, BackLink } from "./client";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
 interface PageProps {
@@ -39,10 +38,7 @@ export default async function PrusaLinkDiagnosticPage({ params }: PageProps) {
     return (
       <div className="container py-10">
         <div className="mb-6">
-          <Link href="/dashboard/printers" className="flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Back to printers
-          </Link>
+          <BackLink />
           <h1 className="text-2xl font-bold">Printer Diagnostic</h1>
         </div>
         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-4">
@@ -58,10 +54,7 @@ export default async function PrusaLinkDiagnosticPage({ params }: PageProps) {
   return (
     <div className="container py-10">
       <div className="mb-6">
-        <Link href="/dashboard/printers" className="flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to printers
-        </Link>
+        <BackLink />
         <h1 className="text-2xl font-bold">{printer.name} Diagnostic</h1>
         <p className="text-muted-foreground">
           Run diagnostic tests for your PrusaLink printer

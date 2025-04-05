@@ -5,24 +5,49 @@ services:
     # Use locally built image with 0.0.3a tag
     image: mck3dprintfarm:0.0.3a
     # No need to pull from DockerHub since we're using a local image
-    command: >
+    command: |
       sh -c "
         echo 'Initializing database...' &&
         mkdir -p /app/prisma &&
-        echo 'Creating empty database if it does not exist...' &&
+        
+        # Check if database exists
         if [ ! -f /app/prisma/dev.db ]; then
-          touch /app/prisma/dev.db
-          echo 'Created new database file'
+          echo 'Creating new database...' &&
+          touch /app/prisma/dev.db &&
+          
+          # For new database, run full schema push
+          echo 'Generating Prisma client...' &&
+          npx prisma generate &&
+          
+          echo 'Pushing full schema to new database...' &&
+          npx prisma db push --accept-data-loss --skip-generate &&
+          
+          # Only run ensure_tables.sql if it exists
+          if [ -f /app/prisma/ensure_tables.sql ]; then
+            echo 'Running schema consistency check...' &&
+            sqlite3 /app/prisma/dev.db < /app/prisma/ensure_tables.sql
+          else
+            echo 'Skipping schema consistency check (ensure_tables.sql not found)'
+          fi
         else
-          echo 'Database file already exists'
+          echo 'Existing database found' &&
+          
+          # For existing database, only generate client
+          echo 'Generating Prisma client...' &&
+          npx prisma generate &&
+          
+          # Only run ensure_tables.sql if it exists
+          if [ -f /app/prisma/ensure_tables.sql ]; then
+            echo 'Running schema consistency check...' &&
+            sqlite3 /app/prisma/dev.db < /app/prisma/ensure_tables.sql
+          else
+            echo 'Skipping schema consistency check (ensure_tables.sql not found)'
+          fi
         fi &&
-        echo 'Generating Prisma client...' &&
-        npx prisma generate &&
-        echo 'Running Prisma db push to create tables directly...' &&
-        npx prisma db push --accept-data-loss &&
-        echo 'Database schema created.' &&
+        
         echo 'Checking and creating admin user if needed...' &&
         node scripts/create-admin-user.js &&
+        
         echo 'Starting application...' &&
         npm start
       "
@@ -30,9 +55,8 @@ services:
       - "3000:3000"
     volumes:
       - ../uploads:/app/uploads
-      # Don't mount the entire prisma directory, just create data volume for persistence
+      # Keep database persistence with volume mount
       - mck3dprintfarm_data:/app/prisma
-      # Avoid mounting certificates since we're skipping HTTPS in dev mode in Docker
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -46,7 +70,6 @@ services:
       - DEFAULT_ADMIN_EMAIL=admin@example.com
       - DEFAULT_ADMIN_PASSWORD=Admin123!
       - DEFAULT_ADMIN_NAME=Administrator
-      # Add other environment variables as needed
     networks:
       - printfarm_network
 

@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
+import bcrypt from 'bcryptjs';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -16,24 +17,38 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        console.log(`Attempting authorization for user: ${credentials.email}`);
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
-        console.log("Found user:", user);
+        console.log(`Found user in DB for ${credentials.email}:`, user ? {id: user.id, email: user.email, name: user.name, hasPassword: !!user.password} : null);
 
         if (!user) {
           console.log("No user found with email:", credentials.email);
           return null;
         }
+        
+        // Ensure user has a password set in the database
+        if (!user.password) {
+          console.log(`User ${credentials.email} found, but has no password set.`);
+          return null; 
+        }
 
-        // For demo purposes, we'll use a simple password check
-        // In a real app, you would use proper password hashing
-        if (credentials.password !== "password123") {
-          console.log("Invalid password");
+        // Compare the provided password with the stored hash
+        console.log(`Comparing provided password with hash for user ${credentials.email}...`);
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+        console.log(`Password validation result for ${credentials.email}: ${isPasswordValid}`);
+
+        if (!isPasswordValid) {
+          console.log("Invalid password for user:", credentials.email);
           return null;
         }
 
-        console.log("User authenticated successfully:", user);
+        console.log("User authenticated successfully:", {id: user.id, email: user.email});
+        // Return user object without the password hash
         return {
           id: user.id,
           email: user.email,

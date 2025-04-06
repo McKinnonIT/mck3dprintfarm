@@ -26,13 +26,13 @@ cd docker-tests
 mkdir -p ../uploads
 
 # If any containers are running from the test compose file, stop them
-# BUT preserve volumes by not using the -v flag
-echo "Stopping any existing containers from previous runs (preserving volumes)..."
-docker-compose down --remove-orphans
+# AND remove associated volumes
+echo "Stopping any existing containers and removing associated volumes..."
+docker-compose down --remove-orphans --volumes
 
-# Start the containers with the local image
-echo "Starting containers with the local 0.0.3a image..."
-docker-compose up -d
+# Start the containers with the local image, force rebuild and recreate
+echo "Starting containers, forcing image build and container recreation..."
+docker-compose up -d --build --force-recreate
 
 echo "Containers started. You can access the application at http://localhost:3000"
 echo "View logs with: docker-compose logs -f" 

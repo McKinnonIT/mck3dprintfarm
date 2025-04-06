@@ -104,7 +104,7 @@ export default function PrintersPage() {
               </h3>
               <div className="mt-2 text-sm text-blue-700">
                 <p>
-                  You have PrusaLink printers which require Python and the PrusaLinkPy library.
+                  You have PrusaLink printers which require Python and the pyprusalink library.
                   Please make sure these dependencies are installed.
                 </p>
                 <p className="mt-2">

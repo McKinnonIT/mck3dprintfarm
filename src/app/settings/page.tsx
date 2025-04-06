@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSession } from "next-auth/react";
 import { PencilIcon, KeyIcon, TrashIcon, PlusIcon, XMarkIcon, CheckIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import DebugLogViewer from "@/components/settings/debug-log-viewer";
 
 interface User {
   id: string;
@@ -24,7 +25,7 @@ interface UserFormData {
 
 export default function SettingsPage() {
   const { data: session } = useSession();
-  const isAdmin = session?.user?.role === 'admin';
+  const isAdmin = session?.user?.role === 'ADMIN';
   
   // Sample roles data for demonstration
   const [roles, setRoles] = useState([
@@ -53,9 +54,9 @@ export default function SettingsPage() {
 
   // States for site settings
   const [siteSettings, setSiteSettings] = useState({
-    printFarmTitle: "McKinnon 3D Print Farm",
-    organizationName: "McKelvey Engineering",
-    organizationWebsite: "https://engineering.wustl.edu",
+    printFarmTitle: "",
+    organizationName: "",
+    organizationWebsite: "",
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -67,13 +68,19 @@ export default function SettingsPage() {
     microsoftEntra: ""
   });
 
-  // Fetch users when admin user accesses the page
+  // Fetch data when component mounts
   useEffect(() => {
-    if (session?.user?.role === "admin") {
+    // Check role inside the effect
+    if (session?.user?.role === "ADMIN") {
+      console.log("Admin user detected, fetching users and settings...");
       fetchUsers();
       fetchSettings();
+    } else if (session) {
+      // Log if user is logged in but not admin
+      console.log(`User detected with role '${session.user.role}', skipping admin data fetch.`);
     }
-  }, [session]);
+    // Empty dependency array ensures this runs once on mount
+  }, [session]); // Keep session as dependency to refetch if user logs in/out
   
   // Set redirect URIs safely on the client side
   useEffect(() => {
@@ -96,13 +103,19 @@ export default function SettingsPage() {
       
       const data = await response.json();
       setSiteSettings({
-        printFarmTitle: data.printFarmTitle || "McKinnon 3D Print Farm",
-        organizationName: data.organizationName || "McKelvey Engineering",
-        organizationWebsite: data.organizationWebsite || "https://engineering.wustl.edu",
+        printFarmTitle: data.printFarmTitle || "",
+        organizationName: data.organizationName || "",
+        organizationWebsite: data.organizationWebsite || "",
       });
+      setSettingsError(null);
     } catch (err) {
       console.error("Error in fetchSettings:", err);
       setSettingsError(err instanceof Error ? err.message : "An error occurred");
+      setSiteSettings({
+        printFarmTitle: "Error Loading",
+        organizationName: "Error Loading",
+        organizationWebsite: "Error Loading",
+      });
     }
   };
 
@@ -138,6 +151,8 @@ export default function SettingsPage() {
       }
 
       setSettingsSaved(true);
+      // Refetch settings after successful save to update UI immediately
+      fetchSettings(); 
       // Hide the success message after 3 seconds
       setTimeout(() => setSettingsSaved(false), 3000);
     } catch (err) {
@@ -297,161 +312,134 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-8">
+        <TabsList className="grid w-full grid-cols-6 mb-8">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="sso">SSO</TabsTrigger>
           <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
         
-        {/* General Tab */}
+        {/* General Tab - Restructured */}
         <TabsContent value="general" className="space-y-6">
           <Card>
+            {/* Combined Header (Optional - Or keep separate sections within content) */}
+            {/* 
             <CardHeader>
-              <CardTitle>Print Farm Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 mb-4">Configure details about your print farm and organization.</p>
+              <CardTitle>General Settings</CardTitle>
+            </CardHeader> 
+            */}
+            
+            <CardContent className="pt-6 space-y-6"> {/* Added pt-6 for padding if header is removed */} 
+            
+              {/* Print Farm Information Section */}
+              <div>
+                 <h3 className="text-lg font-medium mb-2">Print Farm Information</h3>
+                 <p className="text-gray-500 mb-4">Configure the basic details displayed throughout the application.</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Print Farm Title
+                    </label>
+                    <input 
+                      type="text" 
+                      name="printFarmTitle"
+                      value={siteSettings.printFarmTitle}
+                      onChange={handleSettingsChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">This sets the title displayed in the header and potentially other places.</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Organization Name
+                    </label>
+                    <input 
+                      type="text" 
+                      name="organizationName"
+                      value={siteSettings.organizationName}
+                      onChange={handleSettingsChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Used in the footer and potentially other branding.</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Organization Website
+                    </label>
+                    <input 
+                      type="url" 
+                      name="organizationWebsite"
+                      value={siteSettings.organizationWebsite}
+                      onChange={handleSettingsChange}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">This sets the link to the organization in the about page.</p>
+                  </div>
+                </div>
+              </div>
               
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Print Farm Title
-                  </label>
-                  <input 
-                    type="text" 
-                    name="printFarmTitle"
-                    value={siteSettings.printFarmTitle}
-                    onChange={handleSettingsChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">This sets the name of the print farm in the navigation bar.</p>
+              {/* Divider (Optional) */}
+              <hr className="my-6" />
+              
+              {/* Notification Settings Section */}
+              <div>
+                 <h3 className="text-lg font-medium mb-2">Notification Settings</h3>
+                 <p className="text-gray-500 mb-4">Configure how you receive notifications about print jobs and printers.</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email Notifications
+                    </label>
+                    <select 
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                    >
+                      <option value="none">Disabled</option>
+                      <option value="errors">Errors Only</option>
+                      <option value="completed">Completed Jobs</option>
+                      <option value="all">All Events</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Notification Email Address
+                    </label>
+                    <input 
+                      type="email" 
+                      placeholder="Leave blank to use your account email" 
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                    />
+                  </div>
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Organization Name
-                  </label>
-                  <input 
-                    type="text" 
-                    name="organizationName"
-                    value={siteSettings.organizationName}
-                    onChange={handleSettingsChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">This sets the name of the organization in the copyright info in the footer and about page.</p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Organization Website
-                  </label>
-                  <input 
-                    type="url" 
-                    name="organizationWebsite"
-                    value={siteSettings.organizationWebsite}
-                    onChange={handleSettingsChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">This sets the link to the organization in the about page.</p>
-                </div>
-
+              </div>
+              
+              {/* Save Button Area */}
+              <div className="pt-4 border-t mt-6"> {/* Added padding and border */} 
                 {settingsError && (
-                  <div className="mt-2 text-sm text-red-600">
+                  <div className="mb-2 text-sm text-red-600">
                     {settingsError}
                   </div>
                 )}
 
                 {settingsSaved && (
-                  <div className="mt-2 text-sm text-green-600">
+                  <div className="mb-2 text-sm text-green-600">
                     Settings saved successfully!
                   </div>
                 )}
 
-                <div className="mt-4">
-                  <button 
-                    onClick={saveSettings}
-                    disabled={isSavingSettings}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSavingSettings ? 'Saving...' : 'Save Settings'}
-                  </button>
-                </div>
+                <button 
+                  onClick={saveSettings}
+                  disabled={isSavingSettings}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSavingSettings ? 'Saving...' : 'Save General Settings'} {/* Changed button text */} 
+                </button>
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>User Preferences</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 mb-4">Configure your personal preferences for the dashboard.</p>
               
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Default Dashboard View
-                  </label>
-                  <select 
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                  >
-                    <option value="grid">Grid View</option>
-                    <option value="list">List View</option>
-                    <option value="groups">Group View</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Auto-refresh Interval
-                  </label>
-                  <select 
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                  >
-                    <option value="15000">15 seconds</option>
-                    <option value="30000">30 seconds</option>
-                    <option value="60000">1 minute</option>
-                    <option value="300000">5 minutes</option>
-                  </select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Settings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 mb-4">Configure how and when you receive notifications.</p>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">Print Job Completed</span>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">Print Job Failed</span>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">Printer Offline</span>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1303,6 +1291,22 @@ export default function SettingsPage() {
                   Reset All Settings
                 </button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Debug Tab */}
+        <TabsContent value="debug" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Container Logs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isAdmin ? (
+                 <DebugLogViewer />
+              ) : (
+                 <p className="text-red-600">Admin access required to view debug logs.</p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -17,6 +17,9 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
+# Remove the potentially populated database file before copying
+RUN rm -f /app/prisma/dev.db || true
+
 # Create a special .env file for the build process
 RUN echo "NEXT_PUBLIC_BUILD_ENV=production" > .env
 
@@ -49,42 +52,52 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/package.json ./package.json
 
 # Install necessary tools including sqlite3 for direct db access
+# Add Python and required libraries directly (no virtual environment)
 RUN apk add --no-cache sqlite && \
-    apk add --no-cache --virtual .gyp python3 make g++ && \
+    apk add --no-cache python3 py3-pip && \
     mkdir -p /tmp/npm-tmp && \
     npm config set cache /tmp/npm-tmp && \
     npm install -g prisma --no-optional && \
     npm install bcryptjs && \
-    apk del .gyp && \
+    # Install Python packages globally
+    pip3 install --break-system-packages pyprusalink aiohttp moonraker-api bambulabs_api && \
+    # Make sure Python is in the path with proper permissions
+    which python3 && \
+    chmod +x $(which python3) && \
+    python3 -c "print('Python test successful')" && \
     rm -rf /tmp/npm-tmp
 
-# Create startup script with improved Prisma migration handling
+# Make sure to copy Python scripts to all possible locations
+COPY --from=builder /app/src/lib/*.py /app/src/lib/
+RUN mkdir -p /app/.next/server/app/api/test-prusalink-status && \
+    cp /app/src/lib/prusalink-direct.py /app/.next/server/app/api/test-prusalink-status/ && \
+    mkdir -p /app/.next/server/chunks/app/src/lib && \
+    cp /app/src/lib/prusalink-direct.py /app/.next/server/chunks/app/src/lib/ && \
+    # Ensure all Python scripts are executable
+    chmod +x /app/src/lib/*.py /app/.next/server/app/api/test-prusalink-status/*.py /app/.next/server/chunks/app/src/lib/*.py
+
+# Copy the new script and make it executable
+COPY prisma/run-ensure-tables.sh /app/prisma/run-ensure-tables.sh
+RUN chmod +x /app/prisma/run-ensure-tables.sh
+
+# Create startup script with improved Prisma migration handling and conditional SQL execution
 RUN echo '#!/bin/sh' > /app/docker-entrypoint.sh && \
     echo 'set -e' >> /app/docker-entrypoint.sh && \
     echo 'echo "Running Prisma generate with local schema..."' >> /app/docker-entrypoint.sh && \
     echo 'cd /app && npx prisma generate' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Checking if database exists and is initialized..."' >> /app/docker-entrypoint.sh && \
+    echo 'echo "Applying Prisma schema (db push)..."' >> /app/docker-entrypoint.sh && \
     echo 'cd /app && npx prisma db push --accept-data-loss --skip-generate' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Applying migrations if needed..."' >> /app/docker-entrypoint.sh && \
-    echo 'cd /app && npx prisma migrate deploy --schema=./prisma/schema.prisma' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Directly creating tables with SQLite..."' >> /app/docker-entrypoint.sh && \
-    echo 'DB_PATH=$(grep -o "file:.*" ./prisma/schema.prisma | cut -d\" -f2)' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Database path: $DB_PATH"' >> /app/docker-entrypoint.sh && \
-    echo 'if [ -f "./prisma/$DB_PATH" ]; then' >> /app/docker-entrypoint.sh && \
-    echo '  echo "Database file exists, executing ensure_tables.sql..."' >> /app/docker-entrypoint.sh && \
-    echo '  sqlite3 "./prisma/$DB_PATH" < ./prisma/ensure_tables.sql' >> /app/docker-entrypoint.sh && \
-    echo 'else' >> /app/docker-entrypoint.sh && \
-    echo '  echo "Database file does not exist at ./prisma/$DB_PATH"' >> /app/docker-entrypoint.sh && \
-    echo '  ls -la ./prisma/' >> /app/docker-entrypoint.sh && \
-    echo 'fi' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Creating admin user if needed..."' >> /app/docker-entrypoint.sh && \
-    echo 'node /app/scripts/create-admin-user.js' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Starting server..."' >> /app/docker-entrypoint.sh && \
-    echo 'node server.js' >> /app/docker-entrypoint.sh && \
-    chmod +x /app/docker-entrypoint.sh
+    echo 'echo "Checking if initial table setup is needed..."' >> /app/docker-entrypoint.sh && \
+    echo 'cd /app && sh /app/prisma/run-ensure-tables.sh' >> /app/docker-entrypoint.sh && \
+    echo 'echo "Checking and creating admin user if needed..."' >> /app/docker-entrypoint.sh && \
+    echo 'cd /app && node scripts/create-admin-user.js' >> /app/docker-entrypoint.sh && \
+    echo 'echo "Starting application..."' >> /app/docker-entrypoint.sh && \
+    echo 'node server.js' >> /app/docker-entrypoint.sh
+
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Expose port
 EXPOSE 3000
 
 # Start the application
-CMD ["/app/docker-entrypoint.sh"] 
+ENTRYPOINT ["/app/docker-entrypoint.sh"] 

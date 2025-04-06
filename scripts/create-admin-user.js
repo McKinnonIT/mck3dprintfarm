@@ -66,10 +66,15 @@ async function createAdminUser() {
     
     // Hash the password
     const salt = await bcrypt.genSalt(10);
+    // ADDED: Log the actual password variable before hashing
+    console.log(`DEBUG: Password variable before hashing: [${adminPassword}]`);
     const hashedPassword = await bcrypt.hash(adminPassword, salt);
     
     console.log('Password hashed successfully.');
     
+    // ADDED: Log the password source for debugging
+    console.log(`DEBUG: Hashing password originating from: ${process.env.DEFAULT_ADMIN_PASSWORD ? 'Environment Variable' : 'Fallback Default'}`);
+
     // Create the user with admin role
     try {
       const user = await prisma.user.create({

@@ -9,7 +9,8 @@ const APP_VERSION = packageInfo.version;
 const VERSION_ANCHOR = 'v' + APP_VERSION; // for anchor links in changelog
 
 export function Footer() {
-  const [organizationName, setOrganizationName] = useState("McKelvey Engineering");
+  // Initialize state as null (loading)
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
@@ -19,15 +20,19 @@ export function Footer() {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch("/api/settings");
-      if (response.ok) {
-        const data = await response.json();
-        if (data.organizationName) {
-          setOrganizationName(data.organizationName);
-        }
+      console.log("Footer: Fetching settings...");
+      const response = await fetch("/api/settings"); // Assumes this returns { organizationName: "..." }
+      if (!response.ok) {
+         console.error(`Footer: Failed to fetch settings - Status ${response.status}`);
+         throw new Error(`HTTP error ${response.status}`);
       }
+      const data = await response.json();
+      console.log("Footer: Settings fetched:", data);
+      // Set name from fetched data, fallback to default if needed
+      setOrganizationName(data.organizationName || "Default Org Name"); 
     } catch (error) {
-      console.error("Error fetching organization name:", error);
+      console.error("Footer: Error fetching organization name:", error);
+      setOrganizationName("Error Loading Org"); // Indicate error in UI
     }
   };
 
@@ -36,7 +41,8 @@ export function Footer() {
       <div className="container mx-auto px-4">
         <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-600">
           <div>
-            &copy; {currentYear} {organizationName}. All rights reserved.
+            {/* Display name or loading/error state */}
+            &copy; {currentYear} {organizationName === null ? "Loading..." : organizationName}. All rights reserved.
           </div>
           <div className="mt-2 md:mt-0 flex space-x-4">
             <Link href={`/changelog#${VERSION_ANCHOR}`} className="hover:text-blue-600">

@@ -16,8 +16,8 @@ export async function GET() {
 
     // Check Python installation
     const pythonInfo = await findPythonExecutable();
-    const prusaLinkPyStatus = pythonInfo.found 
-      ? await checkPrusaLinkPy(pythonInfo.executable) 
+    const pyPrusaLinkStatus = pythonInfo.found 
+      ? await checkPyPrusaLink(pythonInfo.executable) 
       : { installed: false, error: "Python not found" };
 
     return NextResponse.json({
@@ -27,8 +27,8 @@ export async function GET() {
         executable: pythonInfo.executable,
         error: pythonInfo.error
       },
-      prusaLinkPy: prusaLinkPyStatus,
-      allReady: pythonInfo.found && prusaLinkPyStatus.installed
+      prusaLinkPy: pyPrusaLinkStatus,
+      allReady: pythonInfo.found && pyPrusaLinkStatus.installed
     });
   } catch (error) {
     console.error("Failed to check dependencies:", error);
@@ -114,7 +114,7 @@ async function checkPython(executable: string): Promise<{
   });
 }
 
-async function checkPrusaLinkPy(pythonExecutable: string): Promise<{ 
+async function checkPyPrusaLink(pythonExecutable: string): Promise<{ 
   installed: boolean; 
   version?: string; 
   error: string 
@@ -123,10 +123,10 @@ async function checkPrusaLinkPy(pythonExecutable: string): Promise<{
     const pythonScript = `
 import sys
 try:
-    import PrusaLinkPy
-    print(f"PrusaLinkPy installed")
+    import pyprusalink
+    print(f"pyprusalink installed")
 except ImportError as e:
-    print(f"PrusaLinkPy not installed: {e}")
+    print(f"pyprusalink not installed: {e}")
     sys.exit(1)
 `;
     
@@ -160,7 +160,7 @@ except ImportError as e:
       } else {
         resolve({
           installed: false,
-          error: errorOutput || output || 'Failed to check PrusaLinkPy'
+          error: errorOutput || output || 'Failed to check pyprusalink'
         });
       }
     });

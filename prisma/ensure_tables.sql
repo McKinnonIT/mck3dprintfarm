@@ -93,15 +93,16 @@ CREATE TABLE IF NOT EXISTS "Setting" (
 CREATE UNIQUE INDEX IF NOT EXISTS "Setting_key_key" ON "Setting"("key");
 CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");
 
--- Only insert default settings if the Setting table is empty
-INSERT OR IGNORE INTO "Setting" ("id", "key", "value", "createdAt", "updatedAt") 
-SELECT '1', 'printFarmTitle', 'MCK 3D Print Farm', datetime('now'), datetime('now')
-WHERE NOT EXISTS (SELECT 1 FROM "Setting" WHERE key = 'printFarmTitle');
-
-INSERT OR IGNORE INTO "Setting" ("id", "key", "value", "createdAt", "updatedAt") 
-SELECT '2', 'organizationName', 'McKelvey Engineering', datetime('now'), datetime('now')
-WHERE NOT EXISTS (SELECT 1 FROM "Setting" WHERE key = 'organizationName');
-
-INSERT OR IGNORE INTO "Setting" ("id", "key", "value", "createdAt", "updatedAt") 
-SELECT '3', 'organizationWebsite', 'https://engineering.wustl.edu/', datetime('now'), datetime('now')
-WHERE NOT EXISTS (SELECT 1 FROM "Setting" WHERE key = 'organizationWebsite'); 
+-- Removed default data insertion
+-- -- Only insert default settings if the Setting table is empty
+-- INSERT OR IGNORE INTO "Setting" ("id", "key", "value", "createdAt", "updatedAt") 
+-- SELECT '1', 'printFarmTitle', 'MCK 3D Print Farm', datetime('now'), datetime('now')
+-- WHERE NOT EXISTS (SELECT 1 FROM "Setting" WHERE key = 'printFarmTitle');
+-- 
+-- INSERT OR IGNORE INTO "Setting" ("id", "key", "value", "createdAt", "updatedAt") 
+-- SELECT '2', 'organizationName', 'McKelvey Engineering', datetime('now'), datetime('now')
+-- WHERE NOT EXISTS (SELECT 1 FROM "Setting" WHERE key = 'organizationName');
+-- 
+-- INSERT OR IGNORE INTO "Setting" ("id", "key", "value", "createdAt", "updatedAt") 
+-- SELECT '3', 'organizationWebsite', 'https://engineering.wustl.edu/', datetime('now'), datetime('now')
+-- WHERE NOT EXISTS (SELECT 1 FROM "Setting" WHERE key = 'organizationWebsite'); 

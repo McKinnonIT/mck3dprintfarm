@@ -1,6 +1,6 @@
 /**
- * Direct PrusaLinkPy Implementation
- * This bridge directly calls the Python script that uses PrusaLinkPy library
+ * Direct pyprusalink Implementation
+ * This bridge directly calls the Python script that uses pyprusalink library
  */
 
 const { spawn } = require('child_process');
@@ -9,31 +9,73 @@ const fs = require('fs');
 
 // Find a working Python executable
 function findPython() {
-  const pythonCommands = ['python3', 'python', 'py'];
+  // In Alpine Linux, we're using the system Python only
+  const pythonCommands = ['python3'];
+  
+  console.log(`[DEBUG] Searching for Python executable...`);
   
   for (const cmd of pythonCommands) {
     try {
-      const result = require('child_process').spawnSync(cmd, ['-c', 'print("test")']);
-      if (result.status === 0) {
-        console.log(`Found Python executable: ${cmd}`);
-        return cmd;
+      console.log(`[DEBUG] Trying Python command: ${cmd}`);
+      
+      // First, check if the command exists in the PATH
+      const whichResult = require('child_process').spawnSync('which', [cmd]);
+      if (whichResult.status === 0) {
+        const pythonPath = whichResult.stdout.toString().trim();
+        console.log(`[DEBUG] Found Python at: ${pythonPath}`);
+        
+        // Test if we can run Python
+        const testResult = require('child_process').spawnSync(cmd, ['-c', 'print("Python test successful")']);
+        if (testResult.status === 0) {
+          console.log(`[DEBUG] Python test successful: ${testResult.stdout.toString().trim()}`);
+          return cmd;
+        } else {
+          console.log(`[DEBUG] Python test failed with status ${testResult.status}`);
+          if (testResult.stderr) {
+            console.log(`[DEBUG] Error: ${testResult.stderr.toString()}`);
+          }
+        }
+      } else {
+        console.log(`[DEBUG] Command ${cmd} not found in PATH`);
       }
     } catch (error) {
-      console.log(`Command ${cmd} not found`);
+      console.log(`[DEBUG] Exception trying ${cmd}: ${error.message}`);
     }
   }
   
-  throw new Error('No Python executable found');
+  // If we get here, we couldn't find a working Python
+  console.error(`[ERROR] No Python executable found. Make sure python3 is installed and in the PATH.`);
+  throw new Error('No Python executable found. Make sure python3 is installed and in the PATH.');
 }
 
 // Call the Python script with arguments
 async function callPythonScript(args) {
   return new Promise((resolve, reject) => {
-    const scriptPath = path.join(__dirname, 'prusalink-direct.py');
+    // Try multiple possible script locations
+    const possiblePaths = [
+      path.join(__dirname, 'prusalink-direct.py'),
+      path.resolve('/app/src/lib/prusalink-direct.py'),
+      path.resolve('/app/.next/server/chunks/app/src/lib/prusalink-direct.py'),
+      path.resolve('/app/.next/server/app/src/lib/prusalink-direct.py'),
+      path.resolve('/app/.next/server/app/api/test-prusalink-status/prusalink-direct.py'),
+      '/app/src/lib/prusalink-direct.py',
+      '/app/.next/server/app/api/test-prusalink-status/prusalink-direct.py'
+    ];
     
-    // Ensure the script exists and is executable
-    if (!fs.existsSync(scriptPath)) {
-      return reject(new Error(`Python script not found at ${scriptPath}`));
+    let scriptPath = null;
+    for (const possiblePath of possiblePaths) {
+      if (fs.existsSync(possiblePath)) {
+        scriptPath = possiblePath;
+        console.log(`Found Python script at ${scriptPath}`);
+        break;
+      } else {
+        console.log(`Python script not found at ${possiblePath}`);
+      }
+    }
+    
+    // Ensure the script exists
+    if (!scriptPath) {
+      return reject(new Error(`Python script not found in any of the expected locations`));
     }
     
     try {

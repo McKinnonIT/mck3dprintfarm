@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 export function Navigation() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const [printFarmTitle, setPrintFarmTitle] = useState("McKinnon 3D Print Farm");
+  const [printFarmTitle, setPrintFarmTitle] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch settings when component mounts
@@ -19,15 +19,20 @@ export function Navigation() {
 
   const fetchSettings = async () => {
     try {
+      console.log("Navigation: Fetching settings...");
       const response = await fetch("/api/settings");
-      if (response.ok) {
-        const data = await response.json();
-        if (data.printFarmTitle) {
-          setPrintFarmTitle(data.printFarmTitle);
-        }
+      if (!response.ok) {
+         // Handle non-OK responses (like 401/403 if auth is added later)
+         console.error(`Navigation: Failed to fetch settings - Status ${response.status}`);
+         throw new Error(`HTTP error ${response.status}`);
       }
+      const data = await response.json();
+      console.log("Navigation: Settings fetched:", data);
+      // Set title from fetched data, fallback to empty string if needed
+      setPrintFarmTitle(data.printFarmTitle || "Farm Title Missing"); 
     } catch (error) {
-      console.error("Error fetching print farm title:", error);
+      console.error("Navigation: Error fetching print farm title:", error);
+      setPrintFarmTitle("Error Loading Title"); // Indicate error in UI
     }
   };
 
@@ -39,7 +44,7 @@ export function Navigation() {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
             <span className="text-xl font-bold text-gray-900">
-              {printFarmTitle}
+              {printFarmTitle === null ? "Loading..." : printFarmTitle}
             </span>
           </div>
 

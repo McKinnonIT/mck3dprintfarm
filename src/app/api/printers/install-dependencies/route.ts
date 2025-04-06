@@ -24,8 +24,8 @@ export async function POST() {
       );
     }
 
-    // Try to install PrusaLinkPy
-    const installResult = await installPrusaLinkPy(pythonExecutable.executable);
+    // Try to install pyprusalink
+    const installResult = await installPyPrusaLink(pythonExecutable.executable);
 
     if (!installResult.success) {
       return NextResponse.json(
@@ -88,13 +88,13 @@ async function findPythonExecutable(): Promise<{
   };
 }
 
-async function installPrusaLinkPy(pythonExecutable: string): Promise<{ success: boolean; output: string; error?: string }> {
+async function installPyPrusaLink(pythonExecutable: string): Promise<{ success: boolean; output: string; error?: string }> {
   return new Promise((resolve) => {
     // First, try pip associated with the Python executable
     const pipExecutable = pythonExecutable === 'python3' ? 'pip3' : 'pip';
     
     // Use pip to install or upgrade the package
-    const pipProcess = spawn(pipExecutable, ['install', 'prusaLinkPy', '--upgrade']);
+    const pipProcess = spawn(pipExecutable, ['install', 'pyprusalink', '--upgrade']);
     
     let output = '';
     let errorOutput = '';
@@ -109,7 +109,7 @@ async function installPrusaLinkPy(pythonExecutable: string): Promise<{ success: 
     
     pipProcess.on('error', () => {
       // If direct pip fails, try using Python -m pip
-      const pythonPipProcess = spawn(pythonExecutable, ['-m', 'pip', 'install', 'prusaLinkPy', '--upgrade']);
+      const pythonPipProcess = spawn(pythonExecutable, ['-m', 'pip', 'install', 'pyprusalink', '--upgrade']);
       
       let pythonPipOutput = '';
       let pythonPipErrorOutput = '';
@@ -132,7 +132,7 @@ async function installPrusaLinkPy(pythonExecutable: string): Promise<{ success: 
           resolve({
             success: false,
             output: pythonPipOutput,
-            error: pythonPipErrorOutput || 'Failed to install PrusaLinkPy using Python -m pip'
+            error: pythonPipErrorOutput || 'Failed to install pyprusalink using Python -m pip'
           });
         }
       });
@@ -154,7 +154,7 @@ async function installPrusaLinkPy(pythonExecutable: string): Promise<{ success: 
         });
       } else {
         // Try using Python -m pip instead
-        const pythonPipProcess = spawn(pythonExecutable, ['-m', 'pip', 'install', 'prusaLinkPy', '--upgrade']);
+        const pythonPipProcess = spawn(pythonExecutable, ['-m', 'pip', 'install', 'pyprusalink', '--upgrade']);
         
         let pythonPipOutput = '';
         let pythonPipErrorOutput = '';
@@ -177,7 +177,7 @@ async function installPrusaLinkPy(pythonExecutable: string): Promise<{ success: 
             resolve({
               success: false,
               output: output + '\n' + pythonPipOutput,
-              error: errorOutput || pythonPipErrorOutput || 'Failed to install PrusaLinkPy'
+              error: errorOutput || pythonPipErrorOutput || 'Failed to install pyprusalink'
             });
           }
         });

@@ -38,37 +38,7 @@ async function ensureSettingTable() {
         CREATE UNIQUE INDEX IF NOT EXISTS "Setting_key_key" ON "Setting"("key")
       `);
       
-      // Check if any settings already exist
-      const existingSettings = await prisma.$queryRawUnsafe(`
-        SELECT COUNT(*) as count FROM "Setting"
-      `);
-      
-      const count = (existingSettings as any)[0]?.count || 0;
-      
-      // Only insert default values if no settings exist
-      if (count === 0) {
-        console.log('No existing settings found, inserting defaults...');
-        // Insert default values
-        const defaults = [
-          { id: crypto.randomUUID(), key: 'printFarmTitle', value: 'MCK 3D Print Farm' },
-          { id: crypto.randomUUID(), key: 'organizationName', value: 'McKelvey Engineering' },
-          { id: crypto.randomUUID(), key: 'organizationWebsite', value: 'https://engineering.wustl.edu/' }
-        ];
-        
-        for (const setting of defaults) {
-          await prisma.$executeRawUnsafe(`
-            INSERT OR IGNORE INTO "Setting" ("id", "key", "value", "createdAt", "updatedAt")
-            SELECT '${setting.id}', '${setting.key}', '${setting.value}', datetime('now'), datetime('now')
-            WHERE NOT EXISTS (SELECT 1 FROM "Setting" WHERE key = '${setting.key}')
-          `);
-        }
-        
-        console.log('Default settings inserted successfully');
-      } else {
-        console.log('Settings already exist, skipping default inserts');
-      }
-      
-      console.log('Setting table created successfully');
+      console.log('Setting table created successfully (if it didn\'t exist)');
     }
   } catch (error) {
     console.error('Error ensuring Setting table:', error);
@@ -77,25 +47,54 @@ async function ensureSettingTable() {
 
 // GET /api/settings
 export async function GET() {
+  console.log("GET /api/settings - Request received");
   try {
-    // Ensure table exists before querying
-    await ensureSettingTable();
-    
-    // Use Prisma's raw query with direct SQL
-    const query = 'SELECT * FROM Setting';
-    const settings = await prisma.$queryRawUnsafe(query);
-    
-    // Convert the results to the expected format
-    const formattedSettings = Array.isArray(settings) 
-      ? settings.reduce((acc, setting: any) => {
-          acc[setting.key] = setting.value;
+    const session = await getServerSession(authOptions);
+    if (session?.user?.role !== "ADMIN") {
+      console.log(`GET /api/settings - Unauthorized: Role check failed.`);
+      return NextResponse.json({ error: "Unauthorized. Admin access required." }, { status: 401 });
+    }
+    console.log(`GET /api/settings - Admin access granted for user: ${session?.user?.email}`);
+
+    // Define expected keys and their corresponding env var names + code defaults
+    const settingDefinitions = {
+      printFarmTitle: { env: 'DEFAULT_PRINT_FARM_TITLE', default: 'MCK 3D Print Farm' },
+      organizationName: { env: 'DEFAULT_ORG_NAME', default: 'McKelvey Engineering' },
+      organizationWebsite: { env: 'DEFAULT_ORG_WEBSITE', default: 'https://engineering.wustl.edu/' },
+    };
+    const expectedKeys = Object.keys(settingDefinitions);
+
+    // Fetch existing settings from DB
+    const query = `SELECT key, value FROM Setting WHERE key IN (${expectedKeys.map(k => `'${k}'`).join(', ')})`;
+    console.log("GET /api/settings - Executing query:", query);
+    const dbSettingsRaw = await prisma.$queryRawUnsafe(query);
+    console.log("GET /api/settings - Raw DB result:", dbSettingsRaw);
+
+    // Format DB settings into a map
+    const dbSettingsMap = Array.isArray(dbSettingsRaw) 
+      ? dbSettingsRaw.reduce((acc, setting: any) => {
+          if (setting.key) {
+             acc[setting.key] = setting.value;
+          }
           return acc;
         }, {} as Record<string, string>)
       : {};
+      
+    // Build final settings object, using DB value or Env Var or Code Default
+    const finalSettings: Record<string, string> = {};
+    for (const key of expectedKeys) {
+        if (dbSettingsMap[key] !== undefined) {
+            finalSettings[key] = dbSettingsMap[key];
+        } else {
+            const def = settingDefinitions[key as keyof typeof settingDefinitions];
+            finalSettings[key] = process.env[def.env] || def.default;
+        }
+    }
     
-    return NextResponse.json(formattedSettings);
+    console.log("GET /api/settings - Returning final settings:", finalSettings);
+    return NextResponse.json(finalSettings);
   } catch (error) {
-    console.error('Error fetching settings:', error);
+    console.error('GET /api/settings - Error fetching settings:', error);
     return NextResponse.json(
       { error: 'Failed to fetch settings' },
       { status: 500 }
@@ -108,13 +107,15 @@ export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session?.user?.role || session.user.role !== 'admin') {
+    if (!session?.user?.role || session.user.role !== 'ADMIN') {
+      console.log(`POST /api/settings - Unauthorized: Role check failed. Expected 'ADMIN', got '${session?.user?.role}'`);
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required' },
         { status: 401 }
       );
     }
     
+    console.log(`POST /api/settings - Admin access granted for user: ${session?.user?.email}`);
     // Ensure table exists before inserting/updating
     await ensureSettingTable();
 

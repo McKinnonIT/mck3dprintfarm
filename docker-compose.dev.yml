@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+  mck3dprintfarm:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src:/app/src  # Map the local src directory to the container's src directory
+      - ./uploads:/app/uploads  # Map the local uploads directory to the container's uploads directory
+      - ./prisma:/app/prisma  # Map the local prisma directory
+      - ./public:/app/public  # Map the local public directory
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=file:./prisma/dev.db 

@@ -18,7 +18,7 @@ A web-based application for managing 3D printers at McKinnon Secondary College. 
 - **Backend**: Next.js API routes, Prisma ORM
 - **Database**: SQLite (default), compatible with PostgreSQL
 - **Authentication**: NextAuth.js
-- **3D Printer Integration**: PrusaLinkPy, Moonraker API
+- **3D Printer Integration**: pyprusalink, Moonraker API
 
 ## Deployment Options
 
@@ -71,9 +71,9 @@ docker-compose up -d
    ```bash
    npm install
    ```
-3. Install PrusaLinkPy:
+3. Install pyprusalink:
    ```bash
-   pip install prusaLinkPy
+   pip install pyprusalink
    ```
 4. Generate Prisma client:
    ```bash

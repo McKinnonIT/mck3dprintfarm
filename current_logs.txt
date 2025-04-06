@@ -1,0 +1,96 @@
+Running Prisma generate with local schema...
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v6.5.0) to ./node_modules/@prisma/client in 91ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Curious about the SQL queries Prisma ORM generates? Optimize helps you enhance your visibility: https://pris.ly/tip-2-optimize
+
+Applying Prisma schema (db push)...
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": SQLite database "dev.db" at "file:./dev.db"
+
+🚀  Your database is now in sync with your Prisma schema. Done in 41ms
+
+Checking if initial table setup is needed...
+Checking for marker file: /app/prisma/.initialized
+First run detected. Checking for database file: /app/prisma/./dev.db
+Database file found. Running ./prisma/ensure_tables.sql...
+SQL script executed successfully. Creating marker file /app/prisma/.initialized...
+Marker file created.
+Checking and creating admin user if needed...
+Starting admin user creation process...
+Database URL: file:/app/data/dev.db
+Checking for admin user...
+Using admin email: admin@example.com
+Using admin name: Administrator
+Verifying database connection and schema...
+prisma:info Starting a sqlite pool with 21 connections.
+prisma:query SELECT name FROM sqlite_master WHERE type='table' AND name='User'
+Table check result: [ { name: 'User' } ]
+Database schema verification successful.
+Checking if user admin@example.com already exists...
+prisma:query SELECT `main`.`User`.`id`, `main`.`User`.`email`, `main`.`User`.`name`, `main`.`User`.`password`, `main`.`User`.`role`, `main`.`User`.`createdAt`, `main`.`User`.`updatedAt` FROM `main`.`User` WHERE (`main`.`User`.`email` = ? AND 1=1) LIMIT ? OFFSET ?
+Found user: null
+No user found with email: admin@example.com
+Creating admin user admin@example.com...
+DEBUG: Password variable before hashing: [Admin123!]
+Password hashed successfully.
+DEBUG: Hashing password originating from: Environment Variable
+prisma:query INSERT INTO `main`.`User` (`id`, `email`, `name`, `password`, `role`, `createdAt`, `updatedAt`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`, `email` AS `email`, `name` AS `name`, `password` AS `password`, `role` AS `role`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`
+Admin user created successfully with ID: cm95l37l50000pl3vb9gl8ej9
+Database connection closed.
+Admin user creation process completed.
+Starting application...
+  ▲ Next.js 14.2.26
+  - Local:        http://2de885045dff:3000
+  - Network:      http://192.201.0.2:3000
+
+ ✓ Starting...
+ ✓ Ready in 120ms
+prisma:query SELECT name FROM sqlite_master WHERE type='table' AND name='Setting'
+prisma:query SELECT * FROM Setting
+prisma:query SELECT name FROM sqlite_master WHERE type='table' AND name='Setting'
+prisma:query SELECT * FROM Setting
+Attempting authorization for user: admin@example.com
+prisma:query SELECT `main`.`User`.`id`, `main`.`User`.`email`, `main`.`User`.`name`, `main`.`User`.`password`, `main`.`User`.`role`, `main`.`User`.`createdAt`, `main`.`User`.`updatedAt` FROM `main`.`User` WHERE (`main`.`User`.`email` = ? AND 1=1) LIMIT ? OFFSET ?
+Found user in DB for admin@example.com: {
+  id: 'cm95l37l50000pl3vb9gl8ej9',
+  email: 'admin@example.com',
+  name: 'Administrator',
+  hasPassword: true
+}
+Comparing provided password with hash for user admin@example.com...
+Password validation result for admin@example.com: true
+User authenticated successfully: { id: 'cm95l37l50000pl3vb9gl8ej9', email: 'admin@example.com' }
+JWT token updated: { id: 'cm95l37l50000pl3vb9gl8ej9', role: 'ADMIN' }
+Session updated: { id: 'cm95l37l50000pl3vb9gl8ej9', role: 'ADMIN' }
+Session updated: { id: 'cm95l37l50000pl3vb9gl8ej9', role: 'ADMIN' }
+prisma:query SELECT `main`.`File`.`id`, `main`.`File`.`name`, `main`.`File`.`path`, `main`.`File`.`size`, `main`.`File`.`type`, `main`.`File`.`previewUrl`, `main`.`File`.`uploadedAt`, `main`.`File`.`updatedAt`, `main`.`File`.`uploadedBy`, `main`.`File`.`groupId` FROM `main`.`File` WHERE `main`.`File`.`uploadedBy` = ? ORDER BY `main`.`File`.`uploadedAt` DESC LIMIT ? OFFSET ?
+Session updated: { id: 'cm95l37l50000pl3vb9gl8ej9', role: 'ADMIN' }
+POST /api/settings - Admin access granted for user: admin@example.com
+prisma:query SELECT name FROM sqlite_master WHERE type='table' AND name='Setting'
+prisma:query SELECT * FROM Setting WHERE key = 'printFarmTitle' LIMIT 1
+prisma:query INSERT INTO Setting (id, key, value, createdAt, updatedAt) VALUES ('efb816ab-5d4a-4668-9e6c-b92ccd125cfb', 'printFarmTitle', 'McKinnon 3D Print Farm', datetime('now'), datetime('now'))
+prisma:query SELECT * FROM Setting WHERE key = 'organizationName' LIMIT 1
+prisma:query INSERT INTO Setting (id, key, value, createdAt, updatedAt) VALUES ('9a8e8a32-4078-49d8-b1c2-3ed35d45885c', 'organizationName', 'McKelvey Engineering', datetime('now'), datetime('now'))
+prisma:query SELECT * FROM Setting WHERE key = 'organizationWebsite' LIMIT 1
+prisma:query INSERT INTO Setting (id, key, value, createdAt, updatedAt) VALUES ('d585866d-6972-4ef3-89f1-0b80d3482f16', 'organizationWebsite', 'https://engineering.wustl.edu', datetime('now'), datetime('now'))
+Session updated: { id: 'cm95l37l50000pl3vb9gl8ej9', role: 'ADMIN' }
+POST /api/settings - Admin access granted for user: admin@example.com
+prisma:query SELECT 1
+prisma:query SELECT name FROM sqlite_master WHERE type='table' AND name='Setting'
+prisma:query SELECT * FROM Setting WHERE key = 'printFarmTitle' LIMIT 1
+prisma:query UPDATE Setting SET value = 'McKinnon 3D Print Farm', updatedAt = datetime('now') WHERE key = 'printFarmTitle'
+prisma:query SELECT * FROM Setting WHERE key = 'organizationName' LIMIT 1
+prisma:query UPDATE Setting SET value = 'McKinnon Secondary College', updatedAt = datetime('now') WHERE key = 'organizationName'
+prisma:query SELECT * FROM Setting WHERE key = 'organizationWebsite' LIMIT 1
+prisma:query UPDATE Setting SET value = 'https://engineering.wustl.edu', updatedAt = datetime('now') WHERE key = 'organizationWebsite'
+Session updated: { id: 'cm95l37l50000pl3vb9gl8ej9', role: 'ADMIN' }
+prisma:query SELECT name FROM sqlite_master WHERE type='table' AND name='Setting'
+prisma:query SELECT * FROM Setting
+prisma:query SELECT name FROM sqlite_master WHERE type='table' AND name='Setting'
+prisma:query SELECT * FROM Setting

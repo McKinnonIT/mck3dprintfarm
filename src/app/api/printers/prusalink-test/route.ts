@@ -3,6 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import fetch from 'node-fetch';
+import { createHash } from 'crypto';
+
+// Helper function to create a Digest authentication header
+async function createDigestAuth(username: string, password: string, method: string, uri: string, realm: string, nonce: string) {
+  const ha1 = createHash('md5').update(`${username}:${realm}:${password}`).digest('hex');
+  const ha2 = createHash('md5').update(`${method}:${uri}`).digest('hex');
+  const response = createHash('md5').update(`${ha1}:${nonce}:${ha2}`).digest('hex');
+  
+  return `Digest username="${username}", realm="${realm}", nonce="${nonce}", uri="${uri}", response="${response}"`;
+}
 
 export async function POST(request: Request) {
   try {
@@ -53,9 +63,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create Basic Auth header
-    const basicAuthHeader = 'Basic ' + Buffer.from(`maker:${printer.apiKey}`).toString('base64');
-
     // Test API endpoints
     const apiEndpoints = [
       '/api/version',
@@ -73,10 +80,65 @@ export async function POST(request: Request) {
       console.log(`[DEBUG] Testing PrusaLink endpoint: ${endpointUrl}`);
       
       try {
+        // First make an unauthenticated request to get the auth challenge
+        const initialResponse = await fetch(endpointUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        // We expect a 401 with challenge
+        if (initialResponse.status !== 401) {
+          results.push({
+            endpoint,
+            url: endpointUrl,
+            status: initialResponse.status,
+            statusText: "Unexpected response",
+            success: false,
+            error: `Expected 401 challenge but got ${initialResponse.status}`
+          });
+          continue;
+        }
+        
+        // Get the WWW-Authenticate header
+        const authHeader = initialResponse.headers.get('WWW-Authenticate');
+        if (!authHeader || !authHeader.includes('Digest')) {
+          results.push({
+            endpoint,
+            url: endpointUrl,
+            status: 401,
+            statusText: "Authentication Failed",
+            success: false,
+            error: `Printer does not support Digest authentication: ${authHeader}`
+          });
+          continue;
+        }
+        
+        // Parse the challenge
+        const realm = authHeader.match(/realm="([^"]+)"/)?.[1] || 'Printer API';
+        const nonce = authHeader.match(/nonce="([^"]+)"/)?.[1];
+        
+        if (!nonce) {
+          results.push({
+            endpoint,
+            url: endpointUrl,
+            status: 401,
+            statusText: "Authentication Failed",
+            success: false,
+            error: `Could not parse nonce from challenge: ${authHeader}`
+          });
+          continue;
+        }
+        
+        // Create digest auth header
+        const digestAuth = await createDigestAuth('maker', printer.apiKey, 'GET', endpoint, realm, nonce);
+        
+        // Make authenticated request
         const response = await fetch(endpointUrl, {
           method: 'GET',
           headers: {
-            'Authorization': basicAuthHeader,
+            'Authorization': digestAuth,
             'Accept': 'application/json'
           }
         });

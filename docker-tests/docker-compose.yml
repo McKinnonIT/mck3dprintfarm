@@ -4,80 +4,36 @@ services:
   mck3dprintfarm:
     # Use locally built image with 0.0.3a tag
     image: mck3dprintfarm:0.0.3a
-    # No need to pull from DockerHub since we're using a local image
-    command: |
-      sh -c "
-        echo 'Initializing database...' &&
-        mkdir -p /app/prisma &&
-        
-        # Check if database exists
-        if [ ! -f /app/prisma/dev.db ]; then
-          echo 'Creating new database...' &&
-          touch /app/prisma/dev.db &&
-          
-          # For new database, run full schema push
-          echo 'Generating Prisma client...' &&
-          npx prisma generate &&
-          
-          echo 'Pushing full schema to new database...' &&
-          npx prisma db push --accept-data-loss --skip-generate &&
-          
-          # Only run ensure_tables.sql if it exists
-          if [ -f /app/prisma/ensure_tables.sql ]; then
-            echo 'Running schema consistency check...' &&
-            sqlite3 /app/prisma/dev.db < /app/prisma/ensure_tables.sql
-          else
-            echo 'Skipping schema consistency check (ensure_tables.sql not found)'
-          fi
-        else
-          echo 'Existing database found' &&
-          
-          # For existing database, only generate client
-          echo 'Generating Prisma client...' &&
-          npx prisma generate &&
-          
-          # Only run ensure_tables.sql if it exists
-          if [ -f /app/prisma/ensure_tables.sql ]; then
-            echo 'Running schema consistency check...' &&
-            sqlite3 /app/prisma/dev.db < /app/prisma/ensure_tables.sql
-          else
-            echo 'Skipping schema consistency check (ensure_tables.sql not found)'
-          fi
-        fi &&
-        
-        echo 'Checking and creating admin user if needed...' &&
-        node scripts/create-admin-user.js &&
-        
-        echo 'Starting application...' &&
-        npm start
-      "
+    # The ENTRYPOINT in the Dockerfile now handles the full startup sequence
+    # command: |
+    #   sh -c " ... removed ... "
     ports:
       - "3000:3000"
     volumes:
+      # Map host uploads to container uploads
       - ../uploads:/app/uploads
-      # Keep database persistence with volume mount
-      - mck3dprintfarm_data:/app/prisma
+      # Map host database directory to /app/data in container
+      - ./database:/app/data
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      # Skip HTTPS for Docker deployment
       - NEXTAUTH_URL=http://localhost:3000
-      # NextAuth secret for JWT encryption and session security
       - NEXTAUTH_SECRET=your-super-secret-random-string-here-please-change-this
-      # Database connection - fixed path for Docker
-      - DATABASE_URL=file:/app/prisma/dev.db
-      # Default admin user credentials
+      # Point DATABASE_URL to the new location
+      - DATABASE_URL=file:/app/data/dev.db
+      # Default admin user credentials (used by create-admin-user.js)
       - DEFAULT_ADMIN_EMAIL=admin@example.com
       - DEFAULT_ADMIN_PASSWORD=Admin123!
       - DEFAULT_ADMIN_NAME=Administrator
+      # Default Site Settings (will be used if not set in DB)
+      - DEFAULT_PRINT_FARM_TITLE=My Awesome Farm
+      - DEFAULT_ORG_NAME=My Organization
+      - DEFAULT_ORG_WEBSITE=https://example.com
     networks:
       - printfarm_network
 
-# Named volumes for data persistence
-volumes:
-  mck3dprintfarm_data:
+# Removed named volume definition
 
-# Define custom networks with specific subnet
 networks:
   printfarm_network:
     driver: bridge

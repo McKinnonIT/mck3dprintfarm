@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
+// Re-add auth imports for POST/PUT
+import { getServerSession } from 'next-auth' 
 import { authOptions } from '@/lib/auth'
+// Remove unused auth imports if session check is removed
+// import { getServerSession } from 'next-auth' 
+// import { authOptions } from '@/lib/auth'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Remove session check
+    // const session = await getServerSession(authOptions)
+    // 
+    // if (!session?.user) {
+    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // }
     
     const printers = await prisma.printer.findMany({
       orderBy: {
@@ -26,6 +31,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    // Add session check
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     
     const printer = await prisma.printer.create({
@@ -57,6 +68,12 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    // Add session check
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const printer = await prisma.printer.update({
       where: { id: body.id },

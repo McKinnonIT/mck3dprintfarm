@@ -1,5 +1,5 @@
 # Use Node.js 18 Alpine as the base image for the build stage
-FROM node:18-alpine AS builder
+FROM node:22-alpine3.19 AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -30,7 +30,7 @@ ENV NODE_ENV=production
 RUN npm run build && npm prune --production && npm cache clean --force
 
 # Production image - use a smaller footprint
-FROM node:18-alpine AS runner
+FROM node:22-alpine3.19 AS runner
 
 WORKDIR /app
 

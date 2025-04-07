@@ -2,6 +2,7 @@
 // @ts-ignore 
 import { PrismaClient } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
+// Re-add auth imports needed for POST
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -45,16 +46,17 @@ async function ensureSettingTable() {
   }
 }
 
-// GET /api/settings
+// GET /api/settings - Now Public
 export async function GET() {
-  console.log("GET /api/settings - Request received");
+  console.log("GET /api/settings - Request received (Public Access)");
   try {
-    const session = await getServerSession(authOptions);
-    if (session?.user?.role !== "ADMIN") {
-      console.log(`GET /api/settings - Unauthorized: Role check failed.`);
-      return NextResponse.json({ error: "Unauthorized. Admin access required." }, { status: 401 });
-    }
-    console.log(`GET /api/settings - Admin access granted for user: ${session?.user?.email}`);
+    // Remove session and role check for public access
+    // const session = await getServerSession(authOptions);
+    // if (session?.user?.role !== "ADMIN") {
+    //   console.log(`GET /api/settings - Unauthorized: Role check failed.`);
+    //   return NextResponse.json({ error: "Unauthorized. Admin access required." }, { status: 401 });
+    // }
+    // console.log(`GET /api/settings - Admin access granted for user: ${session?.user?.email}`);
 
     // Define expected keys and their corresponding env var names + code defaults
     const settingDefinitions = {

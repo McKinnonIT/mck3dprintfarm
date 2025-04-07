@@ -12,3 +12,4 @@ alwaysApply: true
 - We have a database versioning. When we add or remove features from the database make sure the version is updated. node scripts/create-migration.js "Add new feature XYZ"
 - Moonraker printers use the moonraker-py API python library. 
 - Prusa printers use the raw HTTP API endpoints.
+

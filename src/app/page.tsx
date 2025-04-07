@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowPathIcon, ClockIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { WebcamModal } from "@/components/webcam-modal";
 import { useSession } from "next-auth/react";
+import { useRouter } from 'next/navigation';
+import { canAccessPage } from "@/lib/rbacUtils";
 
 type Printer = {
   id: string;
@@ -54,8 +56,11 @@ export default function HomePage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [ungroupedPrinters, setUngroupedPrinters] = useState<Printer[]>([]);
   const [isEditingGroups, setIsEditingGroups] = useState(false);
-  const { data: session } = useSession();
-  const isAdmin = session?.user?.role === 'admin';
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const allowedPages = session?.user?.allowedPages;
+  // Check access specifically for '/dashboard' identifier
+  const hasAccess = canAccessPage(allowedPages, '/dashboard'); 
 
   const formatTime = (date: Date) => {
     const hours = date.getHours().toString().padStart(2, '0');
@@ -139,7 +144,7 @@ export default function HomePage() {
 
   // Function to handle saving group order
   const saveGroupOrder = async () => {
-    if (!isAdmin) return;
+    if (!hasAccess) return;
     
     try {
       const updatedGroups = groups.map((group, index) => ({
@@ -201,6 +206,18 @@ export default function HomePage() {
     return () => clearInterval(webcamTimer);
   }, []);
 
+  // Effect to handle redirection
+  useEffect(() => {
+    if (status === 'loading') return; 
+    if (status === 'unauthenticated') {
+      router.replace('/auth/signin');
+    } else if (!hasAccess) {
+      console.log("DashboardPage: Access denied, redirecting to /access-denied...");
+      // Redirect to the new access denied page
+      router.replace('/access-denied'); 
+    }
+  }, [status, hasAccess, router]);
+
   const formatDuration = (seconds: number | undefined) => {
     if (!seconds) return "";
     const hours = Math.floor(seconds / 3600);
@@ -230,6 +247,15 @@ export default function HomePage() {
     
     return `/api/webcam-proxy?url=${encodeURIComponent(snapshotUrl)}&snapshot=true&t=${timestamp}`;
   };
+
+  // Loading state
+  if (status === 'loading' || (status === 'authenticated' && !hasAccess)) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8">
@@ -266,7 +292,7 @@ export default function HomePage() {
             </div>
           </div>
           
-          {isAdmin && (
+          {hasAccess && (
             <div>
               {isEditingGroups ? (
                 <div className="flex gap-2">
@@ -321,7 +347,7 @@ export default function HomePage() {
                 {group.description && (
                   <span className="text-sm text-gray-600">({group.description})</span>
                 )}
-                {isEditingGroups && (
+                {hasAccess && isEditingGroups && (
                   <div className="flex gap-1 ml-2">
                     <button
                       onClick={() => moveGroup(group.id, 'up')}

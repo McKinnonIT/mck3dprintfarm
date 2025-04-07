@@ -9,8 +9,8 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (session?.user?.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -94,6 +94,7 @@ export async function PUT(
     })
     return NextResponse.json(printer)
   } catch (error) {
+    console.error("PUT /api/printers/[id] Error:", error);
     return NextResponse.json({ error: 'Failed to update printer' }, { status: 500 })
   }
 }
@@ -104,8 +105,8 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (session?.user?.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 })
     }
 
     await prisma.printer.delete({
@@ -113,6 +114,7 @@ export async function DELETE(
     })
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error("DELETE /api/printers/[id] Error:", error);
     return NextResponse.json({ error: 'Failed to delete printer' }, { status: 500 })
   }
 }
@@ -149,8 +151,8 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (session?.user?.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 })
     }
 
     const data = await request.json();
@@ -192,7 +194,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedPrinter);
   } catch (error: any) {
-    console.error("Error updating printer:", error);
+    console.error("PATCH /api/printers/[id] Error:", error);
     return NextResponse.json(
       { error: error.message || "Unknown error" },
       { status: 500 }

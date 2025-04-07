@@ -5,141 +5,181 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 
+// GET /api/users/[id] - Fetch a single user (Admin Only)
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden. Admin access required." }, { status: 403 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        role: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Flatten role info
+    const formattedUser = {
+        ...user,
+        roleId: user.role?.id,
+        roleName: user.role?.name ?? 'N/A',
+    };
+
+    return NextResponse.json(formattedUser);
+
+  } catch (error) {
+    console.error(`GET /api/users/${params.id} - Failed:`, error);
+    return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 });
+  }
+}
+
+// PATCH /api/users/[id] - Update a user (Admin Only)
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    console.log(`PATCH /api/users/${params.id} - Session:`, session);
-
     if (session?.user?.role !== "ADMIN") {
-      console.log(`PATCH /api/users/${params.id} - Forbidden: Role check failed. Expected 'ADMIN', got '${session?.user?.role}'`);
-      return NextResponse.json(
-        { error: "Forbidden. Admin access required." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Forbidden. Admin access required." }, { status: 403 });
     }
-    console.log(`PATCH /api/users/${params.id} - Admin access granted.`);
 
     const body = await request.json();
-    const { name, email, role, password } = body;
-    
-    if (Object.keys(body).length === 0) {
-         return NextResponse.json({ error: "Request body is empty" }, { status: 400 });
+    const { email, name, roleId, password, isEnabled } = body;
+    const userId = params.id;
+
+    // --- Data to Update ---
+    const dataToUpdate: Prisma.UserUpdateInput = {};
+
+    if (email) {
+      if (!/\S+@\S+\.\S+/.test(email)) {
+        return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
+      }
+      dataToUpdate.email = email;
+    }
+    if (name !== undefined) { // Allow setting name to null or empty string
+      dataToUpdate.name = name;
+    }
+    if (roleId) {
+      // Validate Role ID
+      const roleExists = await prisma.role.findUnique({ where: { id: roleId } });
+      if (!roleExists) {
+        return NextResponse.json({ error: `Role with ID ${roleId} not found.` }, { status: 400 });
+      }
+      dataToUpdate.role = { connect: { id: roleId } }; // Connect via relation
+    }
+    if (password) {
+       if (password.length < 6) {
+          return NextResponse.json({ error: "Password must be at least 6 characters long" }, { status: 400 });
+       }
+       const salt = await bcrypt.genSalt(10);
+       dataToUpdate.password = await bcrypt.hash(password, salt);
+    }
+    if (isEnabled !== undefined && typeof isEnabled === 'boolean') {
+        dataToUpdate.isEnabled = isEnabled;
     }
 
-    const updateData: Prisma.UserUpdateInput = {};
-    
-    if (name !== undefined) updateData.name = name;
-    if (email !== undefined) {
-        if (!/\S+@\S+\.\S+/.test(email)) {
-            return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
-        }
-        updateData.email = email;
-    }
-    if (role !== undefined) {
-        const validRoles = ["ADMIN", "TEACHER", "STUDENT"];
-        const roleToSave = role.toUpperCase();
-        if (!validRoles.includes(roleToSave)) {
-            return NextResponse.json(
-                { error: `Invalid role specified. Valid roles are: ${validRoles.join(', ')}` },
-                { status: 400 }
-            );
-        }
-        updateData.role = roleToSave;
-    }
-    if (password !== undefined) {
-        if (typeof password !== 'string' || password.length < 6) {
-            return NextResponse.json({ error: "New password must be a string of at least 6 characters" }, { status: 400 });
-        }
-        const salt = await bcrypt.genSalt(10);
-        updateData.password = await bcrypt.hash(password, salt);
-        console.log(`PATCH /api/users/${params.id} - Updating password hash.`);
+    if (Object.keys(dataToUpdate).length === 0) {
+         return NextResponse.json({ error: "No update data provided." }, { status: 400 });
     }
 
-    if (Object.keys(updateData).length === 0) {
-         return NextResponse.json({ error: "No valid fields provided for update" }, { status: 400 });
-    }
-
+    // --- Update User ---
     const updatedUser = await prisma.user.update({
-      where: { id: params.id },
-      data: updateData,
+      where: { id: userId },
+      data: dataToUpdate,
       select: {
         id: true,
         email: true,
         name: true,
-        role: true,
+        isEnabled: true,
         createdAt: true,
         updatedAt: true,
+        role: { select: { id: true, name: true } },
       },
     });
-    console.log(`PATCH /api/users/${params.id} - Updated user:`, updatedUser);
+    
+    // Flatten role info for response
+     const formattedUser = {
+        ...updatedUser,
+        roleId: updatedUser.role?.id,
+        roleName: updatedUser.role?.name ?? 'N/A',
+    };
 
-    return NextResponse.json(updatedUser);
-  } catch (error) {
-    console.error(`PATCH /api/users/${params.id} - Failed to update user:`, error);
-    // Handle potential Prisma unique constraint errors (e.g., duplicate email)
-     // Use optional chaining for body access in error handler
-     const emailFromBody = (request as any)?.body?.email; // Attempt to get email if possible
+    console.log(`PATCH /api/users/${userId} - Updated user:`, { id: formattedUser.id, email: formattedUser.email, roleId: formattedUser.roleId, isEnabled: formattedUser.isEnabled });
+    return NextResponse.json(formattedUser);
+
+  } catch (error: any) {
+     // Check for unique constraint violation (e.g., email)
      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          return NextResponse.json(
-            { error: `Cannot update user: The email '${emailFromBody || "provided"}' may already be in use.` },
-            { status: 409 } 
-          );
+         // Safely check if the target includes 'email'
+         const target = error.meta?.target as string[] | undefined;
+         if (target && target.includes('email')) {
+             return NextResponse.json({ error: `User with this email already exists.` }, { status: 409 });
+         } else {
+             // Handle other unique constraint errors if necessary
+             return NextResponse.json({ error: `Unique constraint violation: ${target?.join(', ')}` }, { status: 409 });
+         }
      }
-    return NextResponse.json(
-      { error: "Failed to update user", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+     // Check for record not found on update
+     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+         return NextResponse.json({ error: "User not found." }, { status: 404 });
+     }
+    console.error(`PATCH /api/users/${params.id} - Failed:`, error);
+    return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
   }
 }
 
+// DELETE /api/users/[id] - Delete a user (Admin Only)
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const session = await getServerSession(authOptions);
-    console.log(`DELETE /api/users/${params.id} - Session:`, session);
-
     if (session?.user?.role !== "ADMIN") {
-      console.log(`DELETE /api/users/${params.id} - Forbidden: Role check failed. Expected 'ADMIN', got '${session?.user?.role}'`);
-      return NextResponse.json(
-        { error: "Forbidden. Admin access required." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Forbidden. Admin access required." }, { status: 403 });
     }
-    console.log(`DELETE /api/users/${params.id} - Admin access granted.`);
 
-    if (params.id === session.user.id) {
-      console.log(`DELETE /api/users/${params.id} - Attempted self-deletion.`);
-      return NextResponse.json(
-        { error: "Cannot delete your own account." },
-        { status: 400 }
-      );
-    }
-    
-    const userToDelete = await prisma.user.findUnique({
-      where: { id: params.id },
-    });
+    const userId = params.id;
 
-    if (!userToDelete) {
-         console.log(`DELETE /api/users/${params.id} - User not found.`);
-         return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    // Optional: Prevent deleting the default admin user?
+    // const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@example.com';
+    // const userToDelete = await prisma.user.findUnique({ where: { id: userId } });
+    // if (userToDelete?.email === adminEmail) {
+    //    return NextResponse.json({ error: "Cannot delete the default admin user." }, { status: 400 });
+    // }
+
+    // Optional: Prevent self-deletion?
+    // if (session.user.id === userId) {
+    //    return NextResponse.json({ error: "Cannot delete your own account." }, { status: 400 });
+    // }
 
     await prisma.user.delete({
-      where: { id: params.id },
+      where: { id: userId },
     });
-    console.log(`DELETE /api/users/${params.id} - User deleted successfully.`);
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error(`DELETE /api/users/${params.id} - Failed to delete user:`, error);
-    return NextResponse.json(
-      { error: "Failed to delete user", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    console.log(`DELETE /api/users/${userId} - Deleted user.`);
+    return NextResponse.json({ success: true, message: "User deleted successfully." });
+
+  } catch (error: any) {
+     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+         return NextResponse.json({ error: "User not found." }, { status: 404 });
+     }
+    console.error(`DELETE /api/users/${params.id} - Failed:`, error);
+    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
   }
 } 

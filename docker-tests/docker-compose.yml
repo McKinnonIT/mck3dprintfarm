@@ -1,7 +1,9 @@
 services:
   mck3dprintfarm:
-    # Use locally built image with 0.0.3a tag
-    image: mck3dprintfarm:0.0.3a
+    # Tell Compose how to build the image (context is relative to compose file)
+    build: .. 
+    # Still specify the image name/tag for the built image
+    image: mck3dprintfarm:v0.0.4a
     # The ENTRYPOINT in the Dockerfile now handles the full startup sequence
     # command: |
     #   sh -c " ... removed ... "
@@ -10,8 +12,8 @@ services:
     volumes:
       # Map host uploads to container uploads
       - ../uploads:/app/uploads
-      # Map host database directory to /app/data in container
-      - ./database:/app/data
+      # Use a named volume for persistent database data
+      - printfarm-data:/app/data
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -30,7 +32,10 @@ services:
     networks:
       - printfarm_network
 
-# Removed named volume definition
+# Define the named volume
+volumes:
+  printfarm-data:
+    # You can add driver options here if needed, but default is usually fine
 
 networks:
   printfarm_network:

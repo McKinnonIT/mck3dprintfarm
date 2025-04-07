@@ -37,8 +37,8 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (session?.user?.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -106,6 +106,7 @@ export async function PUT(
 
     return NextResponse.json(group)
   } catch (error) {
+    console.error("PUT /api/groups/[id] Error:", error);
     return NextResponse.json({ error: 'Failed to update group' }, { status: 500 })
   }
 }
@@ -116,8 +117,8 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (session?.user?.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 })
     }
 
     // First, remove all printers from the group
@@ -132,6 +133,7 @@ export async function DELETE(
     })
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error("DELETE /api/groups/[id] Error:", error);
     return NextResponse.json({ error: 'Failed to delete group' }, { status: 500 })
   }
 } 

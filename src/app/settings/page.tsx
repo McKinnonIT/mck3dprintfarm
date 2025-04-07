@@ -1,58 +1,100 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSession } from "next-auth/react";
-import { PencilIcon, KeyIcon, TrashIcon, PlusIcon, XMarkIcon, CheckIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { useRouter } from 'next/navigation';
+import { PencilIcon, KeyIcon, TrashIcon, PlusIcon, XMarkIcon, CheckIcon, ArrowPathIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import DebugLogViewer from "@/components/settings/debug-log-viewer";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { DialogDescription } from "@/components/ui/dialog";
+import { canAccessPage } from "@/lib/rbacUtils";
 
 interface User {
   id: string;
   email: string;
   name: string | null;
-  role: string;
+  roleId: string | null;
+  roleName: string;
+  isEnabled: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  description: string | null;
+  allowedPages: string[];
+  userCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface RoleDetails extends Role {
+  allowedPages: string[];
+  users: Pick<User, 'id' | 'name' | 'email'>[];
+}
+
+interface RoleFormData {
+  name: string;
+  description: string;
 }
 
 interface UserFormData {
   email: string;
   name: string;
-  role: string;
+  roleId: string | null;
   password?: string;
 }
 
+const AVAILABLE_PAGES = [
+  { id: '/dashboard', label: 'Dashboard' },
+  { id: '/printers', label: 'Printers' },
+  { id: '/groups', label: 'Groups Management' },
+  { id: '/files', label: 'Files' },
+  { id: '/slicer', label: 'Slicer Integration' },
+  { id: '/settings', label: 'Settings (All Tabs)' },
+];
+
 export default function SettingsPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const allowedPages = session?.user?.allowedPages;
+  const hasAccess = canAccessPage(allowedPages, '/settings');
   const isAdmin = session?.user?.role === 'ADMIN';
   
-  // Sample roles data for demonstration
-  const [roles, setRoles] = useState([
-    { id: 1, name: "Administrator", description: "Full access to all features", permissions: ["dashboard", "settings", "users", "files"] },
-    { id: 2, name: "Operator", description: "Can manage printers and jobs", permissions: ["dashboard", "files"] }
-  ]);
-  
-  // State for new role form
-  const [newRoleName, setNewRoleName] = useState("");
-  const [newRoleDescription, setNewRoleDescription] = useState("");
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(true);
+  const [rolesError, setRolesError] = useState<string | null>(null);
+  const [isAddRoleModalOpen, setIsAddRoleModalOpen] = useState(false);
+  const [isEditRoleModalOpen, setIsEditRoleModalOpen] = useState(false);
+  const [isDeleteRoleDialogOpen, setIsDeleteRoleDialogOpen] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<RoleDetails | null>(null);
+  const [roleFormData, setRoleFormData] = useState<RoleFormData>({ name: "", description: "" });
+  const [loadingRoleDetails, setLoadingRoleDetails] = useState(false);
+  const [roleDetailsError, setRoleDetailsError] = useState<string | null>(null);
+  const [roleActionError, setRoleActionError] = useState<string | null>(null);
+  const [isProcessingRole, setIsProcessingRole] = useState(false);
 
-  // States for user management
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState<UserFormData>({
-    email: "",
-    name: "",
-    role: "student",
-    password: "",
-  });
+  const [formData, setFormData] = useState<Partial<User & { password?: string }>>({});
+  const [isProcessingUserAction, setIsProcessingUserAction] = useState(false);
 
-  // States for site settings
   const [siteSettings, setSiteSettings] = useState({
     printFarmTitle: "",
     organizationName: "",
@@ -62,45 +104,79 @@ export default function SettingsPage() {
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
   
-  // State for SSO redirect URIs
   const [redirectURIs, setRedirectURIs] = useState({
     google: "",
     microsoftEntra: ""
   });
 
-  // Fetch data when component mounts
-  useEffect(() => {
-    // Check role inside the effect
-    if (session?.user?.role === "ADMIN") {
-      console.log("Admin user detected, fetching users and settings...");
-      fetchUsers();
-      fetchSettings();
-    } else if (session) {
-      // Log if user is logged in but not admin
-      console.log(`User detected with role '${session.user.role}', skipping admin data fetch.`);
-    }
-    // Empty dependency array ensures this runs once on mount
-  }, [session]); // Keep session as dependency to refetch if user logs in/out
-  
-  // Set redirect URIs safely on the client side
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setRedirectURIs({
-        google: `${window.location.origin}/api/auth/callback/google`,
-        microsoftEntra: `${window.location.origin}/api/auth/callback/azure-ad`
-      });
-    }
-  }, []);
+  const [isProcessingUserToggle, setIsProcessingUserToggle] = useState(false);
 
-  const fetchSettings = async () => {
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [newRoleData, setNewRoleData] = useState({ name: '', description: '', allowedPages: [] as string[] });
+
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
+
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (status === 'unauthenticated') {
+        console.log("SettingsPage: Unauthenticated, redirecting to signin...");
+        router.replace('/auth/signin');
+    } else if (!hasAccess) {
+        console.log("SettingsPage: Access denied, redirecting to /access-denied...");
+        router.replace('/access-denied');
+    }
+  }, [status, hasAccess, router]);
+
+  const fetchUsers = useCallback(async () => {
+    if (!isAdmin) return;
+    console.log("Fetching users...");
+    setLoadingUsers(true);
+    setUsersError(null);
+    try {
+      const response = await fetch("/api/users");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch users");
+      }
+      const data = await response.json();
+      setUsers(data);
+    } catch (err) {
+      console.error("Error in fetchUsers:", err);
+      setUsersError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, [isAdmin]);
+
+  const fetchRoles = useCallback(async () => {
+    if (!isAdmin) return;
+    console.log("Fetching roles...");
+    setLoadingRoles(true);
+    setRolesError(null);
+    try {
+      const response = await fetch("/api/roles");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch roles");
+      }
+      const data: Role[] = await response.json();
+      setRoles(data.map(role => ({ ...role, allowedPages: role.allowedPages || [] })));
+    } catch (err) {
+      console.error("Error fetching roles:", err);
+      setRolesError(err instanceof Error ? err.message : "An error occurred fetching roles");
+    } finally {
+      setLoadingRoles(false);
+    }
+  }, [isAdmin]);
+
+  const fetchSettings = useCallback(async () => {
+    console.log("Fetching settings...");
     try {
       const response = await fetch("/api/settings");
-      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to fetch settings");
       }
-      
       const data = await response.json();
       setSiteSettings({
         printFarmTitle: data.printFarmTitle || "",
@@ -111,11 +187,174 @@ export default function SettingsPage() {
     } catch (err) {
       console.error("Error in fetchSettings:", err);
       setSettingsError(err instanceof Error ? err.message : "An error occurred");
-      setSiteSettings({
-        printFarmTitle: "Error Loading",
-        organizationName: "Error Loading",
-        organizationWebsite: "Error Loading",
+      setSiteSettings({ printFarmTitle: "Error", organizationName: "Error", organizationWebsite: "Error" });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (status === 'authenticated' && hasAccess) {
+        console.log("SettingsPage: Fetching data...");
+        if (isAdmin) {
+            console.log("SettingsPage: Fetching users and roles (isAdmin).");
+            fetchUsers();
+            fetchRoles();
+        }
+        console.log("SettingsPage: Fetching settings.");
+        fetchSettings();
+    }
+  }, [status, hasAccess, isAdmin, fetchUsers, fetchRoles, fetchSettings]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setRedirectURIs({
+        google: `${window.location.origin}/api/auth/callback/google`,
+        microsoftEntra: `${window.location.origin}/api/auth/callback/azure-ad`
       });
+    }
+  }, []);
+
+  const fetchRoleDetails = async (roleId: string): Promise<RoleDetails | null> => {
+    console.log(`Fetching details for role ${roleId}...`);
+    setLoadingRoleDetails(true);
+    setRoleDetailsError(null);
+    try {
+      const response = await fetch(`/api/roles/${roleId}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to fetch details for role ${roleId}`);
+      }
+      const data: RoleDetails = await response.json();
+      return data;
+    } catch (err) {
+      console.error(`Error fetching role details for ${roleId}:`, err);
+      setRoleDetailsError(err instanceof Error ? err.message : `An error occurred fetching details for role ${roleId}`);
+      return null;
+    } finally {
+      setLoadingRoleDetails(false);
+    }
+  };
+
+  const handleRoleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setRoleFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const openAddRoleModal = () => {
+    setNewRoleData({ name: '', description: '', allowedPages: [] });
+    setRolesError(null);
+    setIsAddRoleModalOpen(true);
+  };
+
+  const handleAddRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessingRole(true);
+    setRolesError(null);
+    try {
+      const response = await fetch('/api/roles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRoleData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add role');
+      }
+      const addedRole: Role = await response.json();
+      setRoles(prev => [...prev, { ...addedRole, allowedPages: addedRole.allowedPages || [] }]);
+      closeAddRoleModal();
+    } catch (err) {
+      console.error("Add Role Error:", err);
+      setRolesError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsProcessingRole(false);
+    }
+  };
+
+  const closeAddRoleModal = () => {
+    setIsAddRoleModalOpen(false);
+  };
+
+  const openEditRoleModal = (role: Role) => {
+    setEditingRole({ ...role, allowedPages: role.allowedPages || [] });
+    setRolesError(null);
+    setIsEditRoleModalOpen(true);
+  };
+
+  const closeEditRoleModal = () => {
+    setIsEditRoleModalOpen(false);
+    setEditingRole(null);
+  };
+
+  const handleAllowedPageChange = (pageId: string, checked: boolean | string, isEditing: boolean) => {
+    const currentAllowedPages = isEditing ? (editingRole?.allowedPages || []) : newRoleData.allowedPages;
+    let updatedPages;
+    if (checked) {
+      updatedPages = [...currentAllowedPages, pageId];
+    } else {
+      updatedPages = currentAllowedPages.filter(id => id !== pageId);
+    }
+    
+    if (isEditing) {
+      setEditingRole(prev => prev ? { ...prev, allowedPages: updatedPages } : null);
+    } else {
+      setNewRoleData(prev => ({ ...prev, allowedPages: updatedPages }));
+    }
+  };
+
+  const handleEditRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRole) return;
+    setIsProcessingRole(true);
+    setRolesError(null);
+    try {
+      const response = await fetch(`/api/roles/${editingRole.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editingRole.name,
+          description: editingRole.description,
+          allowedPages: editingRole.allowedPages,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update role');
+      }
+      const updatedRole: Role = await response.json();
+      setRoles(prev => prev.map(r => r.id === updatedRole.id ? { ...updatedRole, allowedPages: updatedRole.allowedPages || [] } : r));
+      closeEditRoleModal();
+    } catch (err) {
+      console.error("Edit Role Error:", err);
+      setRolesError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsProcessingRole(false);
+    }
+  };
+
+  const openDeleteRoleDialog = (role: Role) => {
+    setRoleToDelete(role);
+    setRolesError(null);
+    setIsDeleteRoleDialogOpen(true);
+  };
+
+  const handleDeleteRole = async () => {
+    if (!roleToDelete) return;
+    setIsProcessingRole(true);
+    setRolesError(null);
+    try {
+      const response = await fetch(`/api/roles/${roleToDelete.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete role');
+      }
+      setRoles(prev => prev.filter(r => r.id !== roleToDelete.id));
+      setIsDeleteRoleDialogOpen(false);
+      setRoleToDelete(null);
+    } catch (err) {
+      console.error("Delete Role Error:", err);
+      setRolesError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsProcessingRole(false);
     }
   };
 
@@ -151,9 +390,7 @@ export default function SettingsPage() {
       }
 
       setSettingsSaved(true);
-      // Refetch settings after successful save to update UI immediately
       fetchSettings(); 
-      // Hide the success message after 3 seconds
       setTimeout(() => setSettingsSaved(false), 3000);
     } catch (err) {
       console.error("Error in saveSettings:", err);
@@ -163,84 +400,112 @@ export default function SettingsPage() {
     }
   };
 
-  const fetchUsers = async () => {
+  const handleToggleUserEnabled = async (user: User, checked: boolean) => {
+    console.log(`Toggling user ${user.id} to ${checked}`);
+    setIsProcessingUserToggle(true);
+    setUsersError(null);
+
+    const originalUsers = [...users];
+    setUsers(prevUsers => 
+        prevUsers.map(u => 
+            u.id === user.id ? { ...u, isEnabled: checked } : u
+        )
+    );
+
     try {
-      setLoading(true);
-      const response = await fetch("/api/users");
+        if (session?.user?.id === user.id && !checked) {
+            throw new Error("You cannot disable your own account.");
+        }
+        const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@example.com';
+        if (user.email === adminEmail && !checked) {
+             throw new Error("You cannot disable the default administrator account.");
+        }
+
+        const response = await fetch(`/api/users/${user.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isEnabled: checked }),
+        });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch users");
+            throw new Error(errorData.error || "Failed to update user status");
       }
-      
-      const data = await response.json();
-      setUsers(data);
     } catch (err) {
-      console.error("Error in fetchUsers:", err);
-      setError(err instanceof Error ? err.message : "An error occurred");
+        console.error("Toggle User Status Error:", err);
+        setUsersError(err instanceof Error ? err.message : "An error occurred");
+        setUsers(originalUsers);
     } finally {
-      setLoading(false);
+        setIsProcessingUserToggle(false);
     }
   };
 
   const handleAddUser = async () => {
+    setIsProcessingUserAction(true);
+    setUsersError(null);
     try {
+      if (!formData.roleId) {
+          throw new Error("Please select a role for the new user.");
+      }
       const response = await fetch("/api/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData) 
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to create user");
       }
-
       const newUser = await response.json();
       setUsers([newUser, ...users]);
       setIsAddModalOpen(false);
-      setFormData({ email: "", name: "", role: "student", password: "" });
     } catch (err) {
-      console.error("Error in handleAddUser:", err);
-      setError(err instanceof Error ? err.message : "An error occurred");
+      console.error("Add User Error:", err);
+      setUsersError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsProcessingUserAction(false);
     }
   };
 
   const handleEditUser = async () => {
     if (!selectedUser) return;
-
+    setIsProcessingUserAction(true);
+    setUsersError(null);
     try {
+       if (!formData.roleId) {
+          throw new Error("Please select a role for the user.");
+      }
+      const updateData = {
+          name: formData.name,
+          email: formData.email,
+          roleId: formData.roleId,
+      };
+
       const response = await fetch(`/api/users/${selectedUser.id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updateData)
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to update user");
       }
-
       const updatedUser = await response.json();
       setUsers(users.map(user => 
         user.id === updatedUser.id ? updatedUser : user
       ));
       setIsEditModalOpen(false);
-      setSelectedUser(null);
-      setFormData({ email: "", name: "", role: "student" });
     } catch (err) {
-      console.error("Error in handleEditUser:", err);
-      setError(err instanceof Error ? err.message : "An error occurred");
+      console.error("Edit User Error:", err);
+      setUsersError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsProcessingUserAction(false);
     }
   };
 
   const handleResetPassword = async () => {
     if (!selectedUser || !formData.password) return;
-
+    setIsProcessingUserAction(true);
     try {
       const response = await fetch(`/api/users/${selectedUser.id}`, {
         method: "PATCH",
@@ -249,39 +514,43 @@ export default function SettingsPage() {
         },
         body: JSON.stringify({ password: formData.password }),
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to reset password");
       }
-
       setIsResetPasswordModalOpen(false);
       setSelectedUser(null);
-      setFormData({ email: "", name: "", role: "student" });
+      setFormData({ email: "", name: "", roleId: null, password: "" }); 
     } catch (err) {
       console.error("Error in handleResetPassword:", err);
-      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsProcessingUserAction(false);
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
-
+    if (!window.confirm("Are you sure you want to delete this user?")) {
+      return;
+    }
     try {
       const response = await fetch(`/api/users/${userId}`, {
         method: "DELETE",
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to delete user");
       }
-
       setUsers(users.filter(user => user.id !== userId));
     } catch (err) {
       console.error("Error in handleDeleteUser:", err);
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setUsersError(err instanceof Error ? err.message : "An error occurred");
     }
+  };
+
+  const openAddModal = () => {
+    setSelectedUser(null);
+    setFormData({ email: "", name: "", roleId: null, password: "" }); 
+    setIsAddModalOpen(true);
   };
 
   const openEditModal = (user: User) => {
@@ -289,1028 +558,475 @@ export default function SettingsPage() {
     setFormData({
       email: user.email,
       name: user.name || "",
-      role: user.role,
+      roleId: user.roleId, 
     });
     setIsEditModalOpen(true);
   };
 
   const openResetPasswordModal = (user: User) => {
     setSelectedUser(user);
-    setFormData({ email: "", name: "", role: "student", password: "" });
+    setFormData({ email: user.email, name: user.name || "", roleId: user.roleId, password: "" }); 
     setIsResetPasswordModalOpen(true);
   };
 
+  if (status === 'loading' || (status === 'authenticated' && !hasAccess)) {
+    console.log(`SettingsPage: Rendering loading/redirect state (status: ${status}, hasAccess: ${hasAccess})`);
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
-          <p className="text-muted-foreground">
-            Configure your print farm dashboard
-          </p>
+      <div className="flex justify-center items-center min-h-screen">
+        <p>Loading...</p>
         </div>
-      </div>
+    );
+  }
 
-      <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 mb-8">
+  console.log("SettingsPage: Rendering main content.");
+  return (
+    <div className="flex-1 space-y-4 p-8 pt-6">
+      <div className="flex items-center justify-between space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+        </div>
+      <Tabs defaultValue="general" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="roles">Roles</TabsTrigger>
+          {isAdmin && <TabsTrigger value="users">Users</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
           <TabsTrigger value="sso">SSO</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
           <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
         
-        {/* General Tab - Restructured */}
-        <TabsContent value="general" className="space-y-6">
+        <TabsContent value="general" className="space-y-4">
           <Card>
-            {/* Combined Header (Optional - Or keep separate sections within content) */}
-            {/* 
             <CardHeader>
-              <CardTitle>General Settings</CardTitle>
+              <CardTitle>Site Settings</CardTitle>
             </CardHeader> 
-            */}
-            
-            <CardContent className="pt-6 space-y-6"> {/* Added pt-6 for padding if header is removed */} 
-            
-              {/* Print Farm Information Section */}
-              <div>
-                 <h3 className="text-lg font-medium mb-2">Print Farm Information</h3>
-                 <p className="text-gray-500 mb-4">Configure the basic details displayed throughout the application.</p>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Print Farm Title
-                    </label>
-                    <input 
-                      type="text" 
-                      name="printFarmTitle"
-                      value={siteSettings.printFarmTitle}
-                      onChange={handleSettingsChange}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">This sets the title displayed in the header and potentially other places.</p>
+            <CardContent className="space-y-4">
+              {settingsError && <p className="text-red-600">Error: {settingsError}</p>}
+              <div className="space-y-2">
+                <label htmlFor="printFarmTitle" className="block text-sm font-medium">Print Farm Title</label>
+                <Input id="printFarmTitle" name="printFarmTitle" value={siteSettings.printFarmTitle} onChange={handleSettingsChange} disabled={isSavingSettings} />
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Organization Name
-                    </label>
-                    <input 
-                      type="text" 
-                      name="organizationName"
-                      value={siteSettings.organizationName}
-                      onChange={handleSettingsChange}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Used in the footer and potentially other branding.</p>
+              <div className="space-y-2">
+                <label htmlFor="organizationName" className="block text-sm font-medium">Organization Name</label>
+                <Input id="organizationName" name="organizationName" value={siteSettings.organizationName} onChange={handleSettingsChange} disabled={isSavingSettings} />
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Organization Website
-                    </label>
-                    <input 
-                      type="url" 
-                      name="organizationWebsite"
-                      value={siteSettings.organizationWebsite}
-                      onChange={handleSettingsChange}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">This sets the link to the organization in the about page.</p>
+              <div className="space-y-2">
+                <label htmlFor="organizationWebsite" className="block text-sm font-medium">Organization Website</label>
+                <Input id="organizationWebsite" name="organizationWebsite" value={siteSettings.organizationWebsite} onChange={handleSettingsChange} disabled={isSavingSettings} />
                   </div>
+              <div className="flex justify-end pt-4 border-t">
+                 {settingsSaved && <p className="text-green-600 mr-4 self-center">Settings saved!</p>} 
+                <Button onClick={saveSettings} disabled={isSavingSettings}>
+                  {isSavingSettings ? <><ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : "Save Settings"}
+                </Button>
                 </div>
-              </div>
-              
-              {/* Divider (Optional) */}
-              <hr className="my-6" />
-              
-              {/* Notification Settings Section */}
-              <div>
-                 <h3 className="text-lg font-medium mb-2">Notification Settings</h3>
-                 <p className="text-gray-500 mb-4">Configure how you receive notifications about print jobs and printers.</p>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Notifications
-                    </label>
-                    <select 
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    >
-                      <option value="none">Disabled</option>
-                      <option value="errors">Errors Only</option>
-                      <option value="completed">Completed Jobs</option>
-                      <option value="all">All Events</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Notification Email Address
-                    </label>
-                    <input 
-                      type="email" 
-                      placeholder="Leave blank to use your account email" 
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              {/* Save Button Area */}
-              <div className="pt-4 border-t mt-6"> {/* Added padding and border */} 
-                {settingsError && (
-                  <div className="mb-2 text-sm text-red-600">
-                    {settingsError}
-                  </div>
-                )}
-
-                {settingsSaved && (
-                  <div className="mb-2 text-sm text-green-600">
-                    Settings saved successfully!
-                  </div>
-                )}
-
-                <button 
-                  onClick={saveSettings}
-                  disabled={isSavingSettings}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSavingSettings ? 'Saving...' : 'Save General Settings'} {/* Changed button text */} 
-                </button>
-              </div>
-              
             </CardContent>
           </Card>
         </TabsContent>
         
-        {/* Users Tab */}
-        <TabsContent value="users" className="space-y-6">
+        {isAdmin && (
+          <TabsContent value="users" className="space-y-4">
           <Card>
-            <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>User Management</CardTitle>
+                <Button onClick={openAddModal}><PlusIcon className="h-4 w-4 mr-2" /> Add User</Button>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-500 mb-4">Manage user accounts and permissions.</p>
-              
-              <div className="flex justify-end mb-4">
-                <button
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <PlusIcon className="h-4 w-4 mr-1" />
-                  Add User
-                </button>
-              </div>
-              
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                </div>
-              ) : error ? (
-                <div className="text-red-600 py-4">
-                  <p>{error}</p>
-                  <button
-                    onClick={fetchUsers}
-                    className="mt-2 inline-flex items-center px-3 py-2 text-sm font-medium text-blue-700"
-                  >
-                    <ArrowPathIcon className="h-4 w-4 mr-1" />
-                    Retry
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-8">
-                  {/* Local Print Farm Users */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4 flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                      </svg>
-                      Local Print Farm Users
-                    </h3>
-                    
-                    <div className="bg-gray-50 p-4 rounded-lg mb-2">
-                      <p className="text-sm text-gray-600">
-                        These users are created directly in the Print Farm system and authenticate with username and password.
-                      </p>
-                    </div>
-                    
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Name
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Email
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Role
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {users
-                            .filter(user => !user.email.includes('@gmail.com') && !user.email.includes('@outlook.com') && !user.email.includes('@microsoft.com'))
-                            .map((user) => (
-                              <tr key={user.id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {user.name || "N/A"}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900">{user.email}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900 capitalize">{user.role}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                  <div className="flex items-center space-x-2">
-                                    <button
-                                      onClick={() => openEditModal(user)}
-                                      className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                      title="Edit User"
-                                    >
-                                      <PencilIcon className="h-4 w-4 mr-1" />
-                                      Edit
-                                    </button>
-                                    <button
-                                      onClick={() => openResetPasswordModal(user)}
-                                      className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                                      title="Reset Password"
-                                    >
-                                      <KeyIcon className="h-4 w-4 mr-1" />
-                                      Reset
-                                    </button>
-                                    <button
+                {loadingUsers && <p>Loading users...</p>}
+                {usersError && <p className="text-red-600">Error: {usersError}</p>}
+                {!loadingUsers && !usersError && (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Role</TableHead> 
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users.map((user) => (
+                        <TableRow key={user.id} className={!user.isEnabled ? "opacity-50" : ""}>
+                          <TableCell>
+                            <Switch
+                              checked={user.isEnabled}
+                              onCheckedChange={(checked) => handleToggleUserEnabled(user, checked)}
+                              disabled={isProcessingUserToggle || session?.user?.id === user.id || user.email === (process.env.DEFAULT_ADMIN_EMAIL || 'admin@example.com')}
+                              aria-label={user.isEnabled ? "Disable user" : "Enable user"}
+                            />
+                          </TableCell>
+                          <TableCell>{user.name || "N/A"}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.roleName}</TableCell> 
+                          <TableCell className="space-x-2">
+                            <Button variant="outline" size="sm" onClick={() => openEditModal(user)} title="Edit User">
+                              <PencilIcon className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => openResetPasswordModal(user)} title="Reset Password">
+                              <KeyIcon className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700" 
+                              size="sm" 
                                       onClick={() => handleDeleteUser(user.id)}
-                                      className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                      title="Delete User"
-                                    >
-                                      <TrashIcon className="h-4 w-4 mr-1" />
-                                      Delete
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                            {users.filter(user => !user.email.includes('@gmail.com') && !user.email.includes('@outlook.com') && !user.email.includes('@microsoft.com')).length === 0 && (
-                              <tr>
-                                <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                                  No local users found
-                                </td>
-                              </tr>
-                            )}
-                        </tbody>
-                      </table>
+                              title="Delete User">
+                              <TrashIcon className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="roles" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-lg font-medium">Roles</CardTitle>
+                <Button onClick={openAddRoleModal}>
+                    <PlusIcon className="mr-2 h-4 w-4" /> Add Role
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {rolesError && (
+                    <div className="mb-4 text-sm text-red-600 bg-red-100 border border-red-300 rounded p-3">
+                        Error: {rolesError}
                     </div>
-                  </div>
-                  
-                  {/* Google SSO Users */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4 flex items-center">
-                      <svg viewBox="0 0 24 24" width="20" height="20" className="mr-2" xmlns="http://www.w3.org/2000/svg">
-                        <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
-                          <path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z"/>
-                          <path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z"/>
-                          <path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.724 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z"/>
-                          <path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z"/>
-                        </g>
-                      </svg>
-                      Google SSO Users
-                    </h3>
-                    
-                    <div className="bg-gray-50 p-4 rounded-lg mb-2">
-                      <p className="text-sm text-gray-600">
-                        These users authenticate through Google Single Sign-On. Their account details are managed by Google.
-                      </p>
-                    </div>
-                    
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Name
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Email
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Role
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {users
-                            .filter(user => user.email.includes('@gmail.com'))
-                            .map((user) => (
-                              <tr key={user.id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {user.name || "N/A"}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900">{user.email}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900 capitalize">{user.role}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                  <div className="flex items-center space-x-2">
-                                    <button
-                                      onClick={() => openEditModal(user)}
-                                      className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                      title="Edit User"
-                                    >
-                                      <PencilIcon className="h-4 w-4 mr-1" />
-                                      Edit Role
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteUser(user.id)}
-                                      className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                      title="Delete User"
-                                    >
-                                      <TrashIcon className="h-4 w-4 mr-1" />
-                                      Remove
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                            {users.filter(user => user.email.includes('@gmail.com')).length === 0 && (
-                              <tr>
-                                <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                                  No Google SSO users found
-                                </td>
-                              </tr>
-                            )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                  
-                  {/* Microsoft Entra ID Users */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4 flex items-center">
-                      <svg width="20" height="20" viewBox="0 0 24 24" className="mr-2" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M11.4 24H0V12.6H11.4V24Z" fill="#F25022"/>
-                        <path d="M24 24H12.6V12.6H24V24Z" fill="#00A4EF"/>
-                        <path d="M11.4 11.4H0V0H11.4V11.4Z" fill="#7FBA00"/>
-                        <path d="M24 11.4H12.6V0H24V11.4Z" fill="#FFB900"/>
-                      </svg>
-                      Microsoft Entra ID Users
-                    </h3>
-                    
-                    <div className="bg-gray-50 p-4 rounded-lg mb-2">
-                      <p className="text-sm text-gray-600">
-                        These users authenticate through Microsoft Entra ID. Their account details are managed by Microsoft.
-                      </p>
-                    </div>
-                    
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Name
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Email
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Role
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {users
-                            .filter(user => user.email.includes('@outlook.com') || user.email.includes('@microsoft.com'))
-                            .map((user) => (
-                              <tr key={user.id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {user.name || "N/A"}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900">{user.email}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900 capitalize">{user.role}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                  <div className="flex items-center space-x-2">
-                                    <button
-                                      onClick={() => openEditModal(user)}
-                                      className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                      title="Edit User"
-                                    >
-                                      <PencilIcon className="h-4 w-4 mr-1" />
-                                      Edit Role
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteUser(user.id)}
-                                      className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                      title="Delete User"
-                                    >
-                                      <TrashIcon className="h-4 w-4 mr-1" />
-                                      Remove
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                            {users.filter(user => user.email.includes('@outlook.com') || user.email.includes('@microsoft.com')).length === 0 && (
-                              <tr>
-                                <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                                  No Microsoft Entra ID users found
-                                </td>
-                              </tr>
-                            )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
+                )}
+                {!loadingRoles && roles.length > 0 && (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>User Count</TableHead>
+                        <TableHead>Allowed Pages</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {roles.map((role) => (
+                        <TableRow key={role.id}>
+                          <TableCell className="font-medium">{role.name}</TableCell>
+                          <TableCell>{role.description || '-'}</TableCell>
+                          <TableCell>{role.userCount ?? 'N/A'}</TableCell>
+                          <TableCell>
+                            {role.allowedPages?.length > 0 
+                              ? role.allowedPages.join(', ') 
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => openEditRoleModal(role)}
+                              disabled={role.name === 'ADMIN'}
+                            >
+                              Edit
+                            </Button>
+                            <Button 
+                              variant="destructive" 
+                              size="sm" 
+                              className="ml-2" 
+                              onClick={() => openDeleteRoleDialog(role)}
+                              disabled={role.name === 'ADMIN' || (role.userCount ?? 0) > 0 || isProcessingRole}
+                              title={role.name === 'ADMIN' ? 'Cannot delete ADMIN role' : (role.userCount ?? 0) > 0 ? `Cannot delete: ${role.userCount} users assigned` : 'Delete Role'}
+                            >
+                              Delete
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
               )}
             </CardContent>
           </Card>
-          
-          {/* Modals for user management */}
-          {/* Add User Modal */}
-          {isAddModalOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-6 rounded-lg w-96">
-                <h2 className="text-xl font-bold mb-4">Add New User</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Name</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Role</label>
-                    <select
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="teacher">Teacher</option>
-                      <option value="student">Student</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Password</label>
-                    <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    onClick={() => setIsAddModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 hover:text-gray-900"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddUser}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Add User
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          </TabsContent>
+        )}
 
-          {/* Edit User Modal */}
-          {isEditModalOpen && selectedUser && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-6 rounded-lg w-96">
-                <h2 className="text-xl font-bold mb-4">Edit User</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                      required
-                    />
+        {isAdmin && (
+          <TabsContent value="sso" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Single Sign-On (SSO) & Integrations</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">Configure providers for single sign-on.</p>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Google Workspace</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Enable sign-in with Google.</p>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Client ID</label>
+                      <Input placeholder="Enter Google Client ID" defaultValue={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""} />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Name</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
+                     <div className="space-y-1">
+                      <label className="text-xs font-medium">Client Secret</label>
+                      <Input type="password" placeholder="Enter Google Client Secret" defaultValue={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_SECRET || ""}/>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Role</label>
-                    <select
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="teacher">Teacher</option>
-                      <option value="student">Student</option>
-                    </select>
+                     <div className="space-y-1">
+                      <label className="text-xs font-medium">Authorized Redirect URI</label>
+                      <Input readOnly value={redirectURIs.google} />
+                      <p className="text-xs text-muted-foreground">Copy this URI into your Google Cloud Console OAuth 2.0 Client configuration.</p>
                   </div>
+                    <div className="flex justify-end pt-2">
+                        <Button disabled={true /* TODO: Implement save */}>Save Google Configuration</Button> 
                 </div>
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    onClick={() => setIsEditModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 hover:text-gray-900"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleEditUser}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Reset Password Modal */}
-          {isResetPasswordModalOpen && selectedUser && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-6 rounded-lg w-96">
-                <h2 className="text-xl font-bold mb-4">Reset Password</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">New Password</label>
-                    <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    onClick={() => setIsResetPasswordModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 hover:text-gray-900"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleResetPassword}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Reset Password
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </TabsContent>
-        
-        {/* Roles Tab */}
-        <TabsContent value="roles" className="space-y-6">
+                  </CardContent>
+                </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Role Management</CardTitle>
+                    <CardTitle className="text-base">Microsoft Entra ID</CardTitle>
+            </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Enable sign-in with Microsoft Entra ID (Azure AD).</p>
+                     <div className="space-y-1">
+                      <label className="text-xs font-medium">Tenant ID</label>
+                      <Input placeholder="Enter Microsoft Entra Tenant ID" defaultValue={process.env.NEXT_PUBLIC_AZURE_AD_TENANT_ID || ""}/>
+                        </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Client ID</label>
+                      <Input placeholder="Enter Microsoft Entra Client ID" defaultValue={process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_ID || ""}/>
+                      </div>
+                     <div className="space-y-1">
+                      <label className="text-xs font-medium">Client Secret</label>
+                      <Input type="password" placeholder="Enter Microsoft Entra Client Secret" defaultValue={process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_SECRET || ""}/>
+                        </div>
+                     <div className="space-y-1">
+                      <label className="text-xs font-medium">Redirect URI</label>
+                      <Input readOnly value={redirectURIs.microsoftEntra} />
+                      <p className="text-xs text-muted-foreground">Copy this URI into your Microsoft Entra ID App Registration configuration.</p>
+                      </div>
+                     <div className="flex justify-end pt-2">
+                        <Button disabled={true /* TODO: Implement save */}>Save Entra ID Configuration</Button> 
+              </div>
+                  </CardContent>
+                </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        )}
+        
+        {isAdmin && (
+          <TabsContent value="debug" className="space-y-4">
+          <Card>
+            <CardHeader>
+                <CardTitle>Debug Log Viewer</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-500 mb-4">Create and manage user roles with specific access permissions.</p>
-              
-              {/* Existing Roles */}
-              <div className="mb-8">
-                <h3 className="text-md font-medium mb-3">Existing Roles</h3>
-                <div className="space-y-4">
-                  {roles.map(role => (
-                    <div key={role.id} className="border rounded-md p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h4 className="font-medium">{role.name}</h4>
-                          <p className="text-sm text-gray-500">{role.description}</p>
-                        </div>
-                        <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                          Edit
-                        </button>
-                      </div>
-                      <div>
-                        <h5 className="text-sm font-medium mb-1">Page Access:</h5>
-                        <div className="flex flex-wrap gap-2">
-                          {role.permissions.map(perm => (
-                            <span key={perm} className="px-2 py-1 bg-gray-100 text-xs rounded-full">
-                              {perm}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                <DebugLogViewer />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
+
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {usersError && <p className="text-red-600">Error: {usersError}</p>}
+            <Input name="name" placeholder="Name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+            <Input name="email" type="email" placeholder="Email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+            <Input name="password" type="password" placeholder="Password" value={formData.password || ""} onChange={(e) => setFormData({...formData, password: e.target.value})} />
+            <select name="roleId" value={formData.roleId ?? ''} onChange={(e) => setFormData({...formData, roleId: e.target.value || null})} className="w-full p-2 border rounded">
+                <option value="">-- Select Role --</option>
+                {roles.map(role => (
+                    <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
+             </select>
                     </div>
+          <DialogFooter>
+             <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
+             <Button onClick={handleAddUser} disabled={isProcessingUserAction || !formData.roleId}>
+               {isProcessingUserAction ? "Adding..." : "Add User"}
+             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User: {selectedUser?.name || selectedUser?.email}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {usersError && <p className="text-red-600">Error: {usersError}</p>}
+            <Input name="name" placeholder="Name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+            <Input name="email" type="email" placeholder="Email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+             <select name="roleId" value={formData.roleId ?? ''} onChange={(e) => setFormData({...formData, roleId: e.target.value || null})} className="w-full p-2 border rounded">
+                 <option value="">-- Select Role --</option>
+                 {roles.map(role => (
+                    <option key={role.id} value={role.id}>{role.name}</option>
+                 ))}
+             </select>
+                    </div>
+          <DialogFooter>
+             <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+             <Button onClick={handleEditUser} disabled={isProcessingUserAction || !formData.roleId}>
+               {isProcessingUserAction ? "Saving..." : "Save Changes"}
+             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isResetPasswordModalOpen} onOpenChange={setIsResetPasswordModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reset Password for {selectedUser?.name || selectedUser?.email}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {usersError && <p className="text-red-600">Error: {usersError}</p>}
+              <Input name="password" type="password" placeholder="New Password" value={formData.password || ""} onChange={(e) => setFormData({...formData, password: e.target.value})} />
+                  </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsResetPasswordModalOpen(false)}>Cancel</Button>
+              <Button onClick={handleResetPassword} disabled={isProcessingUserAction || !formData.password}>
+                {isProcessingUserAction ? "Resetting..." : "Reset Password"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+      {isAddRoleModalOpen && (
+        <Dialog open={isAddRoleModalOpen} onOpenChange={setIsAddRoleModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Role</DialogTitle>
+            </DialogHeader>
+             {rolesError && <p className="text-sm text-red-600">{rolesError}</p>}
+            <form onSubmit={handleAddRole} className="space-y-4">
+                  <div>
+                <Label htmlFor="new-role-name">Role Name</Label>
+                <Input 
+                  id="new-role-name" 
+                  value={newRoleData.name}
+                  onChange={(e) => setNewRoleData({ ...newRoleData, name: e.target.value })}
+                  required 
+                    />
+                  </div>
+                  <div>
+                <Label htmlFor="new-role-desc">Description (Optional)</Label>
+                <Input 
+                  id="new-role-desc"
+                  value={newRoleData.description}
+                  onChange={(e) => setNewRoleData({ ...newRoleData, description: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                <Label>Allowed Pages</Label>
+                <div className="space-y-2 mt-2">
+                  {AVAILABLE_PAGES.map((page) => (
+                    <div key={page.id} className="flex items-center space-x-2">
+                       <Checkbox 
+                          id={`add-${page.id}`}
+                          checked={newRoleData.allowedPages.includes(page.id)}
+                          onCheckedChange={(checked) => handleAllowedPageChange(page.id, checked, false)}
+                       />
+                       <Label htmlFor={`add-${page.id}`} className="font-normal">
+                         {page.label}
+                       </Label>
+                  </div>
                   ))}
                 </div>
               </div>
-              
-              {/* Create New Role */}
-              <div>
-                <h3 className="text-md font-medium mb-3">Create New Role</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Role Name
-                    </label>
-                    <input 
-                      type="text"
-                      value={newRoleName}
-                      onChange={(e) => setNewRoleName(e.target.value)}
-                      placeholder="Enter role name"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Description
-                    </label>
-                    <input 
-                      type="text"
-                      value={newRoleDescription}
-                      onChange={(e) => setNewRoleDescription(e.target.value)}
-                      placeholder="Brief description of this role"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Page Access Permissions
-                    </label>
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <input 
-                          type="checkbox"
-                          id="perm-dashboard"
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <label htmlFor="perm-dashboard" className="ml-2 text-sm text-gray-700">
-                          Dashboard
-                        </label>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <input 
-                          type="checkbox"
-                          id="perm-printers"
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <label htmlFor="perm-printers" className="ml-2 text-sm text-gray-700">
-                          Printer Management
-                        </label>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <input 
-                          type="checkbox"
-                          id="perm-files"
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <label htmlFor="perm-files" className="ml-2 text-sm text-gray-700">
-                          File Management
-                        </label>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <input 
-                          type="checkbox"
-                          id="perm-stats"
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <label htmlFor="perm-stats" className="ml-2 text-sm text-gray-700">
-                          Statistics
-                        </label>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <input 
-                          type="checkbox"
-                          id="perm-settings"
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <label htmlFor="perm-settings" className="ml-2 text-sm text-gray-700">
-                          Settings
-                        </label>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <input 
-                          type="checkbox"
-                          id="perm-users"
-                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <label htmlFor="perm-users" className="ml-2 text-sm text-gray-700">
-                          User Management
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4">
-                    <button 
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    >
-                      Create Role
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* SSO Tab */}
-        <TabsContent value="sso" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Single Sign-On Configuration</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 mb-6">Configure external authentication providers for single sign-on capabilities.</p>
-              
-              {/* Google SSO */}
-              <div className="mb-8 border-b pb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-white border flex items-center justify-center mr-3">
-                      <svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
-                        <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
-                          <path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z"/>
-                          <path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z"/>
-                          <path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.724 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z"/>
-                          <path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z"/>
-                        </g>
-                      </svg>
-                    </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeAddRoleModal} disabled={isProcessingRole}>Cancel</Button>
+                <Button type="submit" disabled={isProcessingRole}>
+                    {isProcessingRole ? <><ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" /> Adding...</> : 'Add Role'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {isEditRoleModalOpen && editingRole && (
+        <Dialog open={isEditRoleModalOpen} onOpenChange={setIsEditRoleModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Role: {editingRole.name}</DialogTitle>
+            </DialogHeader>
+            {rolesError && <p className="text-sm text-red-600">{rolesError}</p>}
+            <form onSubmit={handleEditRole} className="space-y-4">
                     <div>
-                      <h3 className="font-medium">Google SSO</h3>
-                      <p className="text-sm text-gray-500">Allow users to sign in with their Google account</p>
-                    </div>
+                <Label htmlFor="edit-role-name">Role Name</Label>
+                <Input 
+                  id="edit-role-name" 
+                  value={editingRole.name}
+                  onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })}
+                  required 
+                  disabled={editingRole.name === 'ADMIN'}
+                />
+                 {editingRole.name === 'ADMIN' && <p className="text-xs text-muted-foreground mt-1">The default ADMIN role name cannot be changed.</p>}
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-                
-                <div className="space-y-4 pl-12">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Client ID
-                    </label>
-                    <input 
-                      type="text" 
-                      placeholder="Your Google OAuth Client ID"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                <Label htmlFor="edit-role-desc">Description (Optional)</Label>
+                <Input 
+                  id="edit-role-desc"
+                  value={editingRole.description || ''}
+                  onChange={(e) => setEditingRole({ ...editingRole, description: e.target.value })}
                     />
                   </div>
-                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Client Secret
-                    </label>
-                    <input 
-                      type="password" 
-                      placeholder="Your Google OAuth Client Secret"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
+                 <Label>Allowed Pages</Label>
+                 <div className="space-y-2 mt-2">
+                   {AVAILABLE_PAGES.map((page) => (
+                     <div key={page.id} className="flex items-center space-x-2">
+                        <Checkbox 
+                           id={`edit-${page.id}`}
+                           checked={editingRole.allowedPages.includes(page.id)}
+                           onCheckedChange={(checked) => handleAllowedPageChange(page.id, checked, true)}
+                           disabled={editingRole.name === 'ADMIN'}
+                        />
+                        <Label htmlFor={`edit-${page.id}`} className="font-normal">
+                          {page.label}
+                        </Label>
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Redirect URI
-                    </label>
-                    <input 
-                      type="text" 
-                      value={redirectURIs.google}
-                      readOnly
-                      className="mt-1 block w-full rounded-md bg-gray-50 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Use this URL in your Google OAuth configuration</p>
+                   ))}
                   </div>
+                  {editingRole.name === 'ADMIN' && <p className="text-xs text-muted-foreground mt-1">The default ADMIN role always has access to all pages.</p>}
                 </div>
-              </div>
-              
-              {/* Microsoft Entra ID SSO */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 rounded-full bg-white border flex items-center justify-center mr-3">
-                      <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M11.4 24H0V12.6H11.4V24Z" fill="#F25022"/>
-                        <path d="M24 24H12.6V12.6H24V24Z" fill="#00A4EF"/>
-                        <path d="M11.4 11.4H0V0H11.4V11.4Z" fill="#7FBA00"/>
-                        <path d="M24 11.4H12.6V0H24V11.4Z" fill="#FFB900"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Microsoft Entra ID</h3>
-                      <p className="text-sm text-gray-500">Allow users to sign in with their Microsoft account</p>
-                    </div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-                
-                <div className="space-y-4 pl-12">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tenant ID
-                    </label>
-                    <input 
-                      type="text" 
-                      placeholder="Your Microsoft Azure Tenant ID"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Client ID
-                    </label>
-                    <input 
-                      type="text" 
-                      placeholder="Your Microsoft Azure Application ID"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Client Secret
-                    </label>
-                    <input 
-                      type="password" 
-                      placeholder="Your Microsoft Azure Client Secret"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Redirect URI
-                    </label>
-                    <input 
-                      type="text" 
-                      value={redirectURIs.microsoftEntra}
-                      readOnly
-                      className="mt-1 block w-full rounded-md bg-gray-50 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Use this URL in your Microsoft Azure portal configuration</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6">
-                <button 
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Save SSO Configuration
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Advanced Tab */}
-        <TabsContent value="advanced" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Configuration</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 mb-4">Advanced system settings.</p>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Upload Directory
-                  </label>
-                  <input 
-                    type="text" 
-                    defaultValue="/app/uploads"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Log Level
-                  </label>
-                  <select 
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
-                  >
-                    <option value="info">Info</option>
-                    <option value="warn">Warning</option>
-                    <option value="error">Error</option>
-                    <option value="debug">Debug</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Database Options
-                  </label>
-                  <div className="flex items-center mt-2">
-                    <button 
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 mr-4"
-                    >
-                      Backup Database
-                    </button>
-                    
-                    <button 
-                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                    >
-                      Reset Database
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Danger Zone</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 mb-4">These actions are destructive and cannot be undone.</p>
-              
-              <div className="border border-red-300 rounded-md p-4 bg-red-50">
-                <h3 className="text-red-800 font-medium mb-2">Reset All Settings</h3>
-                <p className="text-red-600 mb-3 text-sm">This will reset all settings to their default values.</p>
-                <button 
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                >
-                  Reset All Settings
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Debug Tab */}
-        <TabsContent value="debug" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Container Logs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isAdmin ? (
-                 <DebugLogViewer />
-              ) : (
-                 <p className="text-red-600">Admin access required to view debug logs.</p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeEditRoleModal} disabled={isProcessingRole}>Cancel</Button>
+                <Button type="submit" disabled={isProcessingRole || editingRole.name === 'ADMIN'}>
+                    {isProcessingRole ? <><ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {isDeleteRoleDialogOpen && roleToDelete && (
+          <Dialog open={isDeleteRoleDialogOpen} onOpenChange={setIsDeleteRoleDialogOpen}>
+              <DialogContent>
+                  <DialogHeader>
+                      <DialogTitle>Delete Role: {roleToDelete.name}?</DialogTitle>
+                      <DialogDescription>
+                          This action cannot be undone. Are you sure you want to permanently delete this role?
+                      </DialogDescription>
+                  </DialogHeader>
+                  {rolesError && <p className="text-sm text-red-600">{rolesError}</p>}
+                  <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsDeleteRoleDialogOpen(false)} disabled={isProcessingRole}>Cancel</Button>
+                      <Button variant="destructive" onClick={handleDeleteRole} disabled={isProcessingRole}>
+                          {isProcessingRole ? <><ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : 'Delete Role'}
+                      </Button>
+                  </DialogFooter>
+              </DialogContent>
+          </Dialog>
+       )}
     </div>
   );
 } 

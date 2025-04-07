@@ -31,10 +31,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    // Add session check
+    // Add session AND role check
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (session?.user?.role !== 'ADMIN') { // Check for ADMIN role
+      return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -62,19 +62,30 @@ export async function POST(request: Request) {
     })
     return NextResponse.json(printer)
   } catch (error) {
+    console.error("POST /api/printers Error:", error);
     return NextResponse.json({ error: 'Failed to create printer' }, { status: 500 })
   }
 }
 
 export async function PUT(request: Request) {
   try {
-    // Add session check
+    // Add session AND role check
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+     if (session?.user?.role !== 'ADMIN') { // Check for ADMIN role
+       return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 })
     }
 
     const body = await request.json()
+    // This PUT seems intended for bulk updates? Usually PUT is on /api/printers/[id]
+    // Assuming it should require admin regardless.
+    // If it's meant for something else, the logic might need adjustment.
+    // For now, just adding the admin check.
+    
+    // Example: Assuming it updates based on ID in body (adjust if needed)
+    if (!body.id) {
+        return NextResponse.json({ error: 'Printer ID required for update.' }, { status: 400 });
+    }
+    
     const printer = await prisma.printer.update({
       where: { id: body.id },
       data: {
@@ -94,6 +105,7 @@ export async function PUT(request: Request) {
     })
     return NextResponse.json(printer)
   } catch (error) {
+     console.error("PUT /api/printers Error:", error);
     return NextResponse.json({ error: 'Failed to update printer' }, { status: 500 })
   }
 } 

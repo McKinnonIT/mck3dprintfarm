@@ -1,48 +1,78 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { AddGroupForm } from "@/components/add-group-form";
 import { EditGroupForm } from "@/components/edit-group-form";
 import { DeleteGroupDialog } from "@/components/delete-group-dialog";
 import { PlusIcon, PencilIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { useSession } from "next-auth/react";
+import { useRouter } from 'next/navigation';
+import { canAccessPage } from "@/lib/rbacUtils";
 
 type Printer = {
   id: string;
   name: string;
   type: string;
+  apiUrl: string;
+  apiKey?: string;
   status: string;
   operationalStatus: string;
+  lastSeen: Date;
+  groupId?: string;
 };
 
 type Group = {
   id: string;
   name: string;
   description?: string;
-  createdAt: Date;
-  updatedAt: Date;
   printers: Printer[];
 };
 
 export default function GroupsPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const allowedPages = session?.user?.allowedPages;
+  const hasAccess = canAccessPage(allowedPages, '/groups');
+
   const [groups, setGroups] = useState<Group[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<Group | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchGroups = async () => {
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (status === 'unauthenticated') {
+      console.log("GroupsPage: Unauthenticated, redirecting...");
+      router.replace('/auth/signin');
+    } else if (!hasAccess) {
+      console.log("GroupsPage: Access denied, redirecting to /access-denied...");
+      router.replace('/access-denied');
+    }
+  }, [status, hasAccess, router]);
+
+  const fetchGroups = useCallback(async () => {
+    if (status !== 'authenticated' || !hasAccess) return;
+    console.log("GroupsPage: Fetching groups (access granted).");
+    setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/groups');
       if (!response.ok) throw new Error('Failed to fetch groups');
-      const data = await response.json();
+      const data: Group[] = await response.json();
       setGroups(data);
-    } catch (error) {
-      console.error('Failed to fetch groups:', error);
+    } catch (err) {
+      console.error('Failed to fetch groups:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [status, hasAccess]);
 
   useEffect(() => {
     fetchGroups();
-  }, []);
+  }, [fetchGroups]);
 
   const handleAddGroup = async (newGroup: { name: string; description?: string; printerIds?: string[] }) => {
     try {
@@ -98,6 +128,14 @@ export default function GroupsPage() {
     }
   };
 
+  if (status === 'loading' || (status === 'authenticated' && !hasAccess)) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto py-8">
       <div className="mb-8 flex items-center justify-between">
@@ -127,13 +165,17 @@ export default function GroupsPage() {
         </div>
       )}
       
+      {loading && <p>Loading groups...</p>}
+      {error && <p className="text-red-600">Error: {error}</p>}
+
+      {!loading && !error && (
+        <div className="space-y-4">
       {groups.length === 0 ? (
         <div className="rounded-lg border bg-white p-6 shadow-sm">
           <p className="text-gray-600">No groups found. Add a group to get started.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {groups.map((group) => (
+            groups.map((group) => (
             <div
               key={group.id}
               className="rounded-lg border bg-white p-6 shadow-sm"
@@ -223,7 +265,8 @@ export default function GroupsPage() {
                 </>
               )}
             </div>
-          ))}
+            ))
+          )}
         </div>
       )}
     </div>

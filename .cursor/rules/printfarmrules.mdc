@@ -13,3 +13,6 @@ alwaysApply: true
 - Moonraker printers use the moonraker-py API python library. 
 - Prusa printers use the raw HTTP API endpoints.
 
+- Goals for v0.0.4a is to have functional role based access with users.
+- Goals for v0.0.5a is to add database backup functionallity to the UI and make an upgrade script that preserves the current database and updates it with any changes required.
+- Goals for v0.0.6a is to have single sign on with Google and Entra ID working and using RBAC.

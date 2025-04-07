@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { UploadFileForm } from "@/components/upload-file-form";
@@ -9,6 +9,7 @@ import { FileInfoDialog } from "@/components/file-info-dialog";
 import { PrintFileDialog } from "@/components/print-file-dialog";
 import { PlusIcon, XMarkIcon, InformationCircleIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import { GcodePreview } from "@/components/gcode-preview";
+import { canAccessPage } from "@/lib/rbacUtils";
 
 type File = {
   id: string;
@@ -39,35 +40,50 @@ type File = {
 export default function FilesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const allowedPages = session?.user?.allowedPages;
+  const hasAccess = canAccessPage(allowedPages, '/files');
+
   const [files, setFiles] = useState<File[]>([]);
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [deletingFile, setDeletingFile] = useState<File | null>(null);
   const [viewingFileInfo, setViewingFileInfo] = useState<File | null>(null);
   const [printingFile, setPrintingFile] = useState<File | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin");
+    if (status === 'loading') return; 
+    if (status === 'unauthenticated') {
+      console.log("FilesPage: Unauthenticated, redirecting...");
+      router.replace('/auth/signin');
+    } else if (!hasAccess) {
+      console.log("FilesPage: Access denied, redirecting to /access-denied...");
+      router.replace('/access-denied'); // Redirect to access denied page
     }
-  }, [status, router]);
+  }, [status, hasAccess, router]);
 
-  const fetchFiles = async () => {
+  const fetchFiles = useCallback(async () => {
+    if (status !== 'authenticated' || !hasAccess) return; // Guard fetch
+    console.log("FilesPage: Fetching files (access granted).");
+    setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/files');
       if (!response.ok) throw new Error('Failed to fetch files');
       const data = await response.json();
       setFiles(data);
-    } catch (error) {
-      console.error('Failed to fetch files:', error);
+    } catch (err) {
+      console.error('Failed to fetch files:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [status, hasAccess]);
 
   useEffect(() => {
-    if (status === "authenticated") {
-      fetchFiles();
-    }
-  }, [status]);
+    fetchFiles();
+  }, [fetchFiles]);
 
   const handleUploadFile = async (file: File) => {
     setFiles(prev => [file, ...prev]);
@@ -102,16 +118,10 @@ export default function FilesPage() {
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (status === "loading") {
+  if (status === "loading" || (status === "authenticated" && !hasAccess)) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex items-center space-x-2">
-          <svg className="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span>Loading...</span>
-        </div>
+      <div className="flex justify-center items-center min-h-screen">
+        <p>Loading...</p>
       </div>
     );
   }

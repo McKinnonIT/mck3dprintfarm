@@ -1,16 +1,67 @@
 import React from "react";
 import Link from "next/link";
 
+// Helper to get today's date
+const getTodaysDate = () => {
+  const today = new Date();
+  const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+  return today.toLocaleDateString('en-US', options);
+};
+
 export default function ChangelogPage() {
+  const releaseDate = getTodaysDate(); // Get today's date
+  
   return (
     <div className="container mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-6">Changelog</h1>
       
       <div className="space-y-8">
+        {/* START: v0.0.4a Entry */}
+        <section className="border-b pb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-2xl font-semibold" id="v0.0.4a">Version 0.0.4a</h2>
+            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">Released: {releaseDate}</p>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Implemented Role-Based Access Control (RBAC) for page-level access.</li>
+            <li>Added Roles management tab in Settings (Admin only).</li>
+            <li>Added Users management tab in Settings (Admin only).</li>
+            <li>Added ability to assign Roles to Users.</li>
+            <li>Added ability to define allowed pages per Role.</li>
+            <li>Added ability to enable/disable user accounts.</li>
+            <li>Added dedicated Access Denied page.</li>
+          </ul>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">Improvements</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Refactored Settings page UI using Card components for consistency.</li>
+            <li>Secured API endpoints for Users, Roles, Settings, Printers, Files, and Groups to enforce appropriate permissions (Admin or User-specific).</li>
+            <li>Fixed Docker data persistence issues for development testing.</li>
+            <li>Refactored Docker test scripts for clearer separation of clean builds vs. persistent data runs (`start-clean.sh`, `start-persistent.sh`).</li>
+            <li>Updated Dockerfile entrypoint to use `prisma migrate deploy` for safer database migrations on persistent volumes.</li>
+            <li>Fixed marker file location for `run-ensure-tables.sh` to ensure it respects persistent volumes.</li>
+            <li>Updated Docker Compose file to correctly use named volumes and build context.</li>
+             <li>Ensured newly added users have the UI toggle correctly showing 'enabled' status.</li>
+          </ul>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">Under the Hood</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Extended NextAuth session to include user role and allowed pages.</li>
+            <li>Added `allowedPages` field to Role model in database schema.</li>
+            <li>Added `isEnabled` field to User model in database schema.</li>
+            <li>Created shared `canAccessPage` RBAC utility function.</li>
+            <li>Added Shadcn UI components: Switch, Checkbox, Label, Select.</li>
+          </ul>
+        </section>
+        {/* END: v0.0.4a Entry */}
+
+        {/* --- Existing Entries --- */} 
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.0.3a">Version 0.0.3a</h2>
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
           </div>
           <p className="text-sm text-gray-500 mb-4">Released: May 14, 2024</p>
           

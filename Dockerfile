@@ -18,7 +18,7 @@ COPY . .
 RUN npx prisma generate
 
 # Remove the potentially populated database file before copying
-RUN rm -f /app/prisma/dev.db || true
+# RUN rm -f /app/prisma/dev.db || true
 
 # Create a special .env file for the build process
 RUN echo "NEXT_PUBLIC_BUILD_ENV=production" > .env
@@ -85,8 +85,9 @@ RUN echo '#!/bin/sh' > /app/docker-entrypoint.sh && \
     echo 'set -e' >> /app/docker-entrypoint.sh && \
     echo 'echo "Running Prisma generate with local schema..."' >> /app/docker-entrypoint.sh && \
     echo 'cd /app && npx prisma generate' >> /app/docker-entrypoint.sh && \
-    echo 'echo "Applying Prisma schema (db push)..."' >> /app/docker-entrypoint.sh && \
-    echo 'cd /app && npx prisma db push --accept-data-loss --skip-generate' >> /app/docker-entrypoint.sh && \
+    # Use migrate deploy to apply migrations safely
+    echo 'echo "Applying Prisma migrations..."' >> /app/docker-entrypoint.sh && \
+    echo 'cd /app && npx prisma migrate deploy' >> /app/docker-entrypoint.sh && \
     echo 'echo "Checking if initial table setup is needed..."' >> /app/docker-entrypoint.sh && \
     echo 'cd /app && sh /app/prisma/run-ensure-tables.sh' >> /app/docker-entrypoint.sh && \
     echo 'echo "Checking and creating admin user if needed..."' >> /app/docker-entrypoint.sh && \

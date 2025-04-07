@@ -4,6 +4,6 @@
 cd "$(dirname "$0")"
 
 echo "Stopping Docker containers..."
-docker-compose down
+docker compose down
 
 echo "Containers stopped." 

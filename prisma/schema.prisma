@@ -10,7 +10,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = "file:/app/data/dev.db"
 }
 
 model User {
@@ -18,69 +18,73 @@ model User {
   email     String     @unique
   name      String?
   password  String?
-  role      String     @default("user")
   files     File[]
   printJobs PrintJob[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+
+  isEnabled Boolean @default(true)
+
+  roleId String?
+  role   Role?   @relation(fields: [roleId], references: [id])
 }
 
 model Printer {
-  id                String   @id @default(cuid())
-  name              String
-  type              String
-  apiUrl            String
-  apiKey            String?
-  serialNumber      String?
-  status            String   @default("active")
-  operationalStatus String   @default("idle")
-  lastSeen          DateTime @default(now())
-  printStartTime    DateTime?
-  printTimeElapsed  Float?
+  id                 String     @id @default(cuid())
+  name               String
+  type               String
+  apiUrl             String
+  apiKey             String?
+  serialNumber       String?
+  status             String     @default("active")
+  operationalStatus  String     @default("idle")
+  lastSeen           DateTime   @default(now())
+  printStartTime     DateTime?
+  printTimeElapsed   Float?
   printTimeRemaining Float?
-  webcamUrl         String?
-  printImageUrl     String?
-  printJobName      String?
-  bedTemp           Float?
-  toolTemp          Float?
-  printJobs         PrintJob[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  groupId           String?
-  group             Group?   @relation(fields: [groupId], references: [id])
+  webcamUrl          String?
+  printImageUrl      String?
+  printJobName       String?
+  bedTemp            Float?
+  toolTemp           Float?
+  printJobs          PrintJob[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  groupId            String?
+  group              Group?     @relation(fields: [groupId], references: [id])
 }
 
 model PrintJob {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  status      String   // pending, printing, completed, failed
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      String // pending, printing, completed, failed
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   fileId      String
-  file        File     @relation(fields: [fileId], references: [id])
+  file        File      @relation(fields: [fileId], references: [id])
   printerId   String
-  printer     Printer  @relation(fields: [printerId], references: [id])
+  printer     Printer   @relation(fields: [printerId], references: [id])
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
   startedAt   DateTime?
   completedAt DateTime?
   error       String?
 }
 
 model File {
-  id          String   @id @default(cuid())
-  name        String
-  path        String
-  size        Int
-  type        String
-  previewUrl  String?
-  uploadedAt  DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  uploadedBy  String
-  user        User     @relation(fields: [uploadedBy], references: [id])
-  groupId     String?
-  group       Group?   @relation(fields: [groupId], references: [id])
-  printJobs   PrintJob[]
+  id         String     @id @default(cuid())
+  name       String
+  path       String
+  size       Int
+  type       String
+  previewUrl String?
+  uploadedAt DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  uploadedBy String
+  user       User       @relation(fields: [uploadedBy], references: [id])
+  groupId    String?
+  group      Group?     @relation(fields: [groupId], references: [id])
+  printJobs  PrintJob[]
 }
 
 model Group {
@@ -94,10 +98,20 @@ model Group {
   files       File[]
 }
 
+model Role {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  description  String?
+  allowedPages String   @default("[]") // JSON array of allowed page identifiers
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  users        User[] // Relation to User model
+}
+
 model Setting {
-  id                String   @id @default(cuid())
-  key               String   @unique
-  value             String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -39,31 +39,49 @@ async function createAdminUser() {
       throw schemaError;
     }
     
-    // Check if admin user already exists
-    console.log(`Checking if user ${adminEmail} already exists...`);
-    
-    let existingAdmin;
-    try {
-      existingAdmin = await prisma.user.findUnique({
-        where: {
-          email: adminEmail,
+    // Ensure Administrator Role Exists
+    const adminRoleName = 'ADMIN';
+    let adminRole = await prisma.role.findUnique({
+      where: { name: adminRoleName },
+    });
+
+    if (!adminRole) {
+      console.log(`Role '${adminRoleName}' not found, creating it...`);
+      adminRole = await prisma.role.create({
+        data: {
+          name: adminRoleName,
+          description: 'Full access to all system features.',
+          // Define default allowed pages for Admin - TBD based on actual page structure
+          // For now, let's use a wildcard or a placeholder
+          allowedPages: JSON.stringify(['*']), // Store as JSON string
         },
       });
-    } catch (findError) {
-      console.error('Error finding existing user:', findError);
-      throw findError;
+      console.log(`Role '${adminRoleName}' created with ID: ${adminRole.id}`);
+    } else {
+      console.log(`Role '${adminRoleName}' already exists with ID: ${adminRole.id}`);
     }
-    
-    console.log('Found user:', existingAdmin);
-    
+
+    // Ensure Admin User Exists and is Assigned the Role
+    console.log(`Checking if user ${adminEmail} already exists...`);
+    let existingAdmin = await prisma.user.findUnique({
+      where: { email: adminEmail },
+    });
+
     if (existingAdmin) {
-      console.log(`Admin user ${adminEmail} already exists, skipping creation.`);
-      return;
+      console.log(`Admin user ${adminEmail} already exists.`);
+      // Check if existing admin has the correct role assigned
+      if (existingAdmin.roleId !== adminRole.id) {
+        console.log(`Updating user ${adminEmail} to have role '${adminRoleName}'...`);
+        await prisma.user.update({
+          where: { id: existingAdmin.id },
+          data: { roleId: adminRole.id },
+        });
+        console.log(`User ${adminEmail} role updated.`);
+      }
+      return; // Skip creation if user exists
     }
-    
-    console.log(`No user found with email: ${adminEmail}`);
+
     console.log(`Creating admin user ${adminEmail}...`);
-    
     // Hash the password
     const salt = await bcrypt.genSalt(10);
     // ADDED: Log the actual password variable before hashing
@@ -75,22 +93,17 @@ async function createAdminUser() {
     // ADDED: Log the password source for debugging
     console.log(`DEBUG: Hashing password originating from: ${process.env.DEFAULT_ADMIN_PASSWORD ? 'Environment Variable' : 'Fallback Default'}`);
 
-    // Create the user with admin role
-    try {
-      const user = await prisma.user.create({
-        data: {
-          email: adminEmail,
-          name: adminName,
-          password: hashedPassword,
-          role: 'ADMIN',
-        },
-      });
-      
-      console.log(`Admin user created successfully with ID: ${user.id}`);
-    } catch (createError) {
-      console.error('Error creating admin user:', createError);
-      throw createError;
-    }
+    // Create the user and assign the Administrator role
+    const user = await prisma.user.create({
+      data: {
+        email: adminEmail,
+        name: adminName,
+        password: hashedPassword,
+        roleId: adminRole.id, // Assign by relation
+      },
+    });
+
+    console.log(`Admin user created successfully with ID: ${user.id} and assigned role '${adminRoleName}'`);
   } catch (error) {
     console.error('Error in admin user creation process:', error);
     throw error;

@@ -28,11 +28,11 @@ mkdir -p ../uploads
 # If any containers are running from the test compose file, stop them
 # AND remove associated volumes
 echo "Stopping any existing containers and removing associated volumes..."
-docker-compose down --remove-orphans --volumes
+docker compose down --remove-orphans --volumes
 
 # Start the containers with the local image, force rebuild and recreate
 echo "Starting containers, forcing image build and container recreation..."
-docker-compose up -d --build --force-recreate
+docker compose up -d --build --force-recreate
 
 echo "Containers started. You can access the application at http://localhost:3000"
 echo "View logs with: docker-compose logs -f" 

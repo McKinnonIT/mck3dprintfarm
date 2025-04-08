@@ -42,6 +42,16 @@ export default function AboutPage() {
         <div className="mt-4 inline-block bg-blue-100 px-3 py-1 rounded-full text-blue-800">
           Version {packageInfo.version}
         </div>
+        <div className="mt-2">
+          <a 
+            href="https://github.com/McKinnonIT/mck3dprintfarm" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            View Project on GitHub
+          </a>
+        </div>
       </div>
       
       <div className="grid md:grid-cols-2 gap-8 mb-12">

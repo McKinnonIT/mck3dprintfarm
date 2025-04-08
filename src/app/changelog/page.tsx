@@ -16,6 +16,42 @@ export default function ChangelogPage() {
       <h1 className="text-3xl font-bold mb-6">Changelog</h1>
       
       <div className="space-y-8">
+        {/* START: v0.0.5a Entry */}
+        <section className="border-b pb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-2xl font-semibold" id="v0.0.5a">Version 0.0.5a</h2>
+            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">Released: {releaseDate}</p>
+          
+          <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>
+          <ul className="list-disc pl-6 space-y-2">
+            <li>Added "Database" tab to Settings page (Admin only).</li>
+            <li>Implemented Database Statistics section (DB size, row counts, last backup).</li>
+            <li>Implemented functionality to create manual database backups.</li>
+            <li>Backup filenames use format `[printfarmtitle]-[timestamp].db`.</li>
+            <li>Added section to list existing backup files.</li>
+            <li>Implemented download functionality for existing backup files.</li>
+            <li>Implemented delete functionality for existing backup files with confirmation.</li>
+            <li>Added API endpoints for backup, listing, stats, download, and delete.</li>
+            <li>Configured Docker volume mapping for persistent backup storage.</li>
+            <li>Added `date-fns` dependency.</li>
+            <li>Added Shadcn UI `AlertDialog` component.</li>
+          </ul>
+
+          <h3 className="text-lg font-medium mt-4 mb-2">Fixes</h3>
+           <ul className="list-disc pl-6 space-y-2">
+            <li>Resolved infinite loop issue in Settings page related to `useSession` hook.</li>
+           </ul>
+
+          <h3 className="text-lg font-medium mt-4 mb-2">Documentation</h3>
+           <ul className="list-disc pl-6 space-y-2">
+            <li>Added GitHub repository link to CHANGELOG.md and About page.</li>
+           </ul>
+
+        </section>
+        {/* END: v0.0.5a Entry */}
+
         {/* START: v0.0.4a Entry */}
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">

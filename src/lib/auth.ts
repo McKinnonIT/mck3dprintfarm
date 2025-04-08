@@ -126,7 +126,7 @@ export const authOptions: NextAuthOptions = {
         token.allowedPages = user.allowedPages; // Add allowedPages to token
         console.log("JWT populated on sign-in:", { id: token.id, role: token.role, allowedPages: token.allowedPages });
       }
-       // Handle session updates if needed (e.g., user role changes externally)
+       // Re-enable session update trigger handling
        if (trigger === "update" && session?.role) {
          token.role = session.role;
          // Potentially refetch allowedPages if role changes
@@ -136,6 +136,7 @@ export const authOptions: NextAuthOptions = {
          // const updatedRoleData = await prisma.role.findUnique(...);
          // token.allowedPages = JSON.parse(updatedRoleData?.allowedPages || '[]');
        }
+      // --- End re-enable ---
       return token;
     },
     async session({ session, token }) {
@@ -155,4 +156,6 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
+  // Remove debug mode
+  // debug: true, // REMOVED
 }; 

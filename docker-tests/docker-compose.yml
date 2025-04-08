@@ -14,6 +14,8 @@ services:
       - ../uploads:/app/uploads
       # Use a named volume for persistent database data
       - printfarm-data:/app/data
+      # Map host backup directory to container backup directory
+      - ./backups:/app/backups
     restart: unless-stopped
     environment:
       - NODE_ENV=production

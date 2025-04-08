@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Re-enable Strict Mode (default)
+  // reactStrictMode: false,
+
   // Enable standalone output for Docker
   output: 'standalone',
   

@@ -1,22 +1,28 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSession } from "next-auth/react";
 import { useRouter } from 'next/navigation';
-import { PencilIcon, KeyIcon, TrashIcon, PlusIcon, XMarkIcon, CheckIcon, ArrowPathIcon, UserGroupIcon } from "@heroicons/react/24/outline";
+import { PencilIcon, KeyIcon, TrashIcon, PlusIcon, XMarkIcon, CheckIcon, ArrowPathIcon, UserGroupIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import DebugLogViewer from "@/components/settings/debug-log-viewer";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { DialogDescription } from "@/components/ui/dialog";
 import { canAccessPage } from "@/lib/rbacUtils";
+import { format, formatDistanceToNow } from 'date-fns';
+import { 
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, 
+    AlertDialogTrigger 
+} from "@/components/ui/alert-dialog";
 
 interface User {
   id: string;
@@ -56,6 +62,31 @@ interface UserFormData {
   password?: string;
 }
 
+interface BackupFile {
+  filename: string;
+  size: number;
+  modifiedTime: string; // ISO string
+  modifiedTimeFormatted: string; // User-friendly string
+}
+
+interface DatabaseStats {
+    dbSize: number;
+    userCount: number;
+    roleCount: number;
+    printerCount: number;
+    lastBackupDate: string | null; // ISO string
+    lastBackupFilename: string | null;
+}
+
+function formatBytes(bytes: number, decimals = 2): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 const AVAILABLE_PAGES = [
   { id: '/dashboard', label: 'Dashboard' },
   { id: '/printers', label: 'Printers' },
@@ -68,9 +99,23 @@ const AVAILABLE_PAGES = [
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const allowedPages = session?.user?.allowedPages;
-  const hasAccess = canAccessPage(allowedPages, '/settings');
-  const isAdmin = session?.user?.role === 'ADMIN';
+
+  // Extract primitive/stable values for useMemo dependencies
+  const userRole = session?.user?.role;
+  const userAllowedPagesString = useMemo(() => JSON.stringify(session?.user?.allowedPages || []), [session?.user?.allowedPages]);
+
+  // Stabilize isAdmin and hasAccess using useMemo with primitive/stable dependencies
+  const isAdmin = useMemo(() => userRole === 'ADMIN', [userRole]);
+  
+  const hasAccess = useMemo(() => {
+      try {
+          const allowedPagesArray = JSON.parse(userAllowedPagesString);
+          return canAccessPage(allowedPagesArray, '/settings');
+      } catch (e) {
+          console.error("Failed to parse allowed pages string:", e);
+          return false;
+      }
+  }, [userAllowedPagesString]);
   
   const [roles, setRoles] = useState<Role[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(true);
@@ -116,17 +161,41 @@ export default function SettingsPage() {
 
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
 
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [backupStatusMessage, setBackupStatusMessage] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+
+  const [backupFiles, setBackupFiles] = useState<BackupFile[]>([]);
+  const [isLoadingBackups, setIsLoadingBackups] = useState(false);
+  const [backupsError, setBackupsError] = useState<string | null>(null);
+
+  const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
+  // Add state for conditional rendering
+  const [isReady, setIsReady] = useState(false);
+
+  // --- Ref for Run-Once Logic ---
+  const hasFetchedData = useRef(false);
+
+  // --- useEffects for Auth/Access Check (Redirecting) ---
   useEffect(() => {
-    if (status === 'loading') return;
+    if (status === 'loading') return; // Don't do anything while loading
     if (status === 'unauthenticated') {
         console.log("SettingsPage: Unauthenticated, redirecting to signin...");
+        if (!isReady) setIsReady(true); // Set ready before redirecting
         router.replace('/auth/signin');
-    } else if (!hasAccess) {
+    } else if (status === 'authenticated' && !hasAccess) {
         console.log("SettingsPage: Access denied, redirecting to /access-denied...");
+        if (!isReady) setIsReady(true); // Set ready before redirecting
         router.replace('/access-denied');
     }
-  }, [status, hasAccess, router]);
+    // If authenticated and has access, this effect does nothing, 
+    // the other effect handles setting ready after fetch.
+  }, [status, hasAccess, router, isReady]); // Add isReady to dependencies
 
+  // --- Fetching Functions (Memoized with useCallback) ---
   const fetchUsers = useCallback(async () => {
     if (!isAdmin) return;
     console.log("Fetching users...");
@@ -191,18 +260,90 @@ export default function SettingsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (status === 'authenticated' && hasAccess) {
-        console.log("SettingsPage: Fetching data...");
-        if (isAdmin) {
-            console.log("SettingsPage: Fetching users and roles (isAdmin).");
-            fetchUsers();
-            fetchRoles();
-        }
-        console.log("SettingsPage: Fetching settings.");
-        fetchSettings();
+  const fetchBackups = useCallback(async () => {
+    if (!isAdmin) return;
+    console.log("Fetching database backups...");
+    setIsLoadingBackups(true);
+    setBackupsError(null);
+    try {
+      const response = await fetch('/api/database/backups');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `API Error: ${response.status}`);
+      }
+      const data = await response.json();
+      setBackupFiles(data.backups || []);
+      console.log("Fetched backups:", data.backups);
+    } catch (err: any) {
+      console.error("Failed to fetch backups:", err);
+      setBackupsError(err.message || 'Could not load backups.');
+      setBackupFiles([]);
+    } finally {
+      setIsLoadingBackups(false);
     }
-  }, [status, hasAccess, isAdmin, fetchUsers, fetchRoles, fetchSettings]);
+  }, [isAdmin]);
+
+  const fetchDbStats = useCallback(async () => {
+    if (!isAdmin) return;
+    console.log("Fetching database stats...");
+    setIsLoadingStats(true);
+    setStatsError(null);
+    try {
+      const response = await fetch('/api/database/stats');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `API Error: ${response.status}`);
+      }
+      const data: DatabaseStats = await response.json();
+      setDbStats(data);
+      console.log("Fetched DB stats:", data);
+    } catch (err: any) {
+      console.error("Failed to fetch DB stats:", err);
+      setStatsError(err.message || 'Could not load database statistics.');
+      setDbStats(null);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, [isAdmin]);
+
+  // --- useEffect for Initial Data Fetching (Using useRef Flag, minimal deps) ---
+  useEffect(() => {
+    if (status === 'authenticated') {
+        if (!hasFetchedData.current) {
+            console.log(`SettingsPage: Authenticated & first run check. Evaluating access...`);
+            const currentAllowedPages = session?.user?.allowedPages;
+            const currentHasAccess = canAccessPage(currentAllowedPages, '/settings');
+            const currentIsAdmin = session?.user?.role === 'ADMIN';
+            console.log(`Current Access: ${currentHasAccess}, Current Admin: ${currentIsAdmin}`);
+
+            if (currentHasAccess) {
+                console.log("SettingsPage: Access confirmed. Performing initial data fetch...");
+                fetchSettings(); 
+                if (currentIsAdmin) {
+                    console.log("SettingsPage: User is Admin. Fetching admin-specific data...");
+                    fetchUsers();
+                    fetchRoles();
+                    fetchBackups();
+                    fetchDbStats();
+                }
+                hasFetchedData.current = true; 
+                if (!isReady) setIsReady(true); // Set ready after fetch completes
+                console.log("SettingsPage: Initial fetch marked as complete, isReady=true.");
+            } else {
+                 console.log("SettingsPage: Authenticated but access denied. Skipping initial fetch.");
+                 hasFetchedData.current = true;
+                 if (!isReady) setIsReady(true); // Set ready even if denied access
+                 console.log("SettingsPage: Initial fetch attempt marked as complete (access denied), isReady=true.");
+            }
+        } else {
+             console.log("SettingsPage: Authenticated, but initial fetch already completed.");
+             if (!isReady) setIsReady(true); 
+        }
+    } else if (status === 'unauthenticated') {
+        if (!isReady) setIsReady(true); 
+         console.log("SettingsPage: Status changed to unauthenticated, ensuring isReady=true for redirect.");
+    }
+  }, [status, isReady]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -569,27 +710,110 @@ export default function SettingsPage() {
     setIsResetPasswordModalOpen(true);
   };
 
-  if (status === 'loading' || (status === 'authenticated' && !hasAccess)) {
-    console.log(`SettingsPage: Rendering loading/redirect state (status: ${status}, hasAccess: ${hasAccess})`);
+  const handleCreateBackup = async () => {
+    setIsCreatingBackup(true);
+    setBackupStatusMessage(null);
+    setBackupError(null);
+    console.log("Initiating database backup...");
+    
+    try {
+        const response = await fetch('/api/database/backup', {
+            method: 'POST',
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || `API Error: ${response.status}`);
+        }
+        
+        console.log("Backup successful:", result.message);
+        setBackupStatusMessage(result.message || 'Backup created successfully.');
+        fetchBackups();
+        
+    } catch (err: any) {
+        console.error("Backup failed:", err);
+        setBackupError(err.message || 'An unexpected error occurred during backup.');
+        setBackupStatusMessage(null);
+    } finally {
+        setIsCreatingBackup(false);
+        setTimeout(() => {
+           setBackupStatusMessage(null);
+           setBackupError(null);
+        }, 5000); 
+    }
+  };
+
+  // State for Delete Confirmation
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [backupToDelete, setBackupToDelete] = useState<string | null>(null);
+  const [isDeletingBackup, setIsDeletingBackup] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Function to open delete confirmation dialog
+  const openDeleteDialog = (filename: string) => {
+    setBackupToDelete(filename);
+    setDeleteError(null); // Clear previous errors
+    setIsDeleteDialogOpen(true);
+  };
+
+  // Function to handle the actual deletion
+  const handleDeleteBackup = async () => {
+    if (!backupToDelete) return;
+    
+    console.log(`Attempting to delete backup: ${backupToDelete}`);
+    setIsDeletingBackup(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetch(`/api/database/backups/${encodeURIComponent(backupToDelete)}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to delete backup (Status: ${response.status})`);
+      }
+
+      // Remove deleted backup from state
+      setBackupFiles(prev => prev.filter(b => b.filename !== backupToDelete));
+      console.log(`Backup ${backupToDelete} deleted successfully.`);
+      setIsDeleteDialogOpen(false); // Close dialog on success
+      setBackupToDelete(null);
+
+    } catch (err: any) {
+      console.error("Delete Backup Error:", err);
+      setDeleteError(err.message || "An unexpected error occurred.");
+      // Keep dialog open on error to show message?
+      // setIsDeleteDialogOpen(false); 
+      // setBackupToDelete(null);
+    } finally {
+      setIsDeletingBackup(false);
+    }
+  };
+
+  // --- Conditional Rendering Logic --- 
+  if (!isReady) {
+     console.log("SettingsPage: Rendering loading state (isReady=false).");
   return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p>Loading...</p>
-        </div>
-    );
+        <div className="flex justify-center items-center min-h-screen">
+          <p>Loading Settings...</p> {/* Or a more sophisticated spinner */}
+              </div>
+      );
   }
 
-  console.log("SettingsPage: Rendering main content.");
+  // --- Main Component Return (Only when isReady is true) ---
+  console.log("SettingsPage: Rendering main content (isReady=true).");
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-        </div>
+      <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-6' : 'grid-cols-3'}`}>
           <TabsTrigger value="general">General</TabsTrigger>
           {isAdmin && <TabsTrigger value="users">Users</TabsTrigger>}
           {isAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
           <TabsTrigger value="sso">SSO</TabsTrigger>
+          {isAdmin && <TabsTrigger value="database">Database</TabsTrigger>}
           <TabsTrigger value="debug">Debug</TabsTrigger>
         </TabsList>
         
@@ -597,27 +821,27 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Site Settings</CardTitle>
-            </CardHeader> 
+            </CardHeader>
             <CardContent className="space-y-4">
               {settingsError && <p className="text-red-600">Error: {settingsError}</p>}
               <div className="space-y-2">
                 <label htmlFor="printFarmTitle" className="block text-sm font-medium">Print Farm Title</label>
                 <Input id="printFarmTitle" name="printFarmTitle" value={siteSettings.printFarmTitle} onChange={handleSettingsChange} disabled={isSavingSettings} />
-                  </div>
+              </div>
               <div className="space-y-2">
                 <label htmlFor="organizationName" className="block text-sm font-medium">Organization Name</label>
                 <Input id="organizationName" name="organizationName" value={siteSettings.organizationName} onChange={handleSettingsChange} disabled={isSavingSettings} />
-                  </div>
+                </div>
               <div className="space-y-2">
                 <label htmlFor="organizationWebsite" className="block text-sm font-medium">Organization Website</label>
                 <Input id="organizationWebsite" name="organizationWebsite" value={siteSettings.organizationWebsite} onChange={handleSettingsChange} disabled={isSavingSettings} />
-                  </div>
+                </div>
               <div className="flex justify-end pt-4 border-t">
                  {settingsSaved && <p className="text-green-600 mr-4 self-center">Settings saved!</p>} 
                 <Button onClick={saveSettings} disabled={isSavingSettings}>
                   {isSavingSettings ? <><ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : "Save Settings"}
                 </Button>
-                </div>
+                    </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -791,25 +1015,148 @@ export default function SettingsPage() {
                      <div className="space-y-1">
                       <label className="text-xs font-medium">Tenant ID</label>
                       <Input placeholder="Enter Microsoft Entra Tenant ID" defaultValue={process.env.NEXT_PUBLIC_AZURE_AD_TENANT_ID || ""}/>
-                        </div>
+                </div>
                     <div className="space-y-1">
                       <label className="text-xs font-medium">Client ID</label>
                       <Input placeholder="Enter Microsoft Entra Client ID" defaultValue={process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_ID || ""}/>
-                      </div>
+              </div>
                      <div className="space-y-1">
                       <label className="text-xs font-medium">Client Secret</label>
                       <Input type="password" placeholder="Enter Microsoft Entra Client Secret" defaultValue={process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_SECRET || ""}/>
-                        </div>
+            </div>
                      <div className="space-y-1">
                       <label className="text-xs font-medium">Redirect URI</label>
                       <Input readOnly value={redirectURIs.microsoftEntra} />
                       <p className="text-xs text-muted-foreground">Copy this URI into your Microsoft Entra ID App Registration configuration.</p>
-                      </div>
+                  </div>
                      <div className="flex justify-end pt-2">
                         <Button disabled={true /* TODO: Implement save */}>Save Entra ID Configuration</Button> 
-              </div>
+                </div>
                   </CardContent>
                 </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        )}
+        
+        {isAdmin && (
+          <TabsContent value="database" className="space-y-4">
+          <Card>
+            <CardHeader>
+                        <CardTitle>Database Management</CardTitle>
+                        <CardDescription>
+                           View statistics, create backups, and manage existing backups.
+                        </CardDescription>
+            </CardHeader>
+                    <CardContent className="space-y-6">
+
+                        {/* Section 1: Database Statistics */}
+                        <div className="space-y-3 border-b pb-4">
+                            <h3 className="text-lg font-medium">Database Statistics</h3>
+                            {isLoadingStats && <p>Loading statistics...</p>}
+                            {statsError && <p className="text-sm text-red-600">Error: {statsError}</p>}
+                            {dbStats && !isLoadingStats && !statsError && (
+                                <ul className="text-sm space-y-1 text-muted-foreground list-disc pl-5">
+                                    <li>Database Size: {formatBytes(dbStats.dbSize)}</li>
+                                    <li>Users: {dbStats.userCount}</li>
+                                    <li>Roles: {dbStats.roleCount}</li>
+                                    <li>Printers: {dbStats.printerCount}</li>
+                                    <li>
+                                        Last Backup: {dbStats.lastBackupDate
+                                            ? `${format(new Date(dbStats.lastBackupDate), 'yyyy-MM-dd HH:mm:ss')} (${formatDistanceToNow(new Date(dbStats.lastBackupDate), { addSuffix: true })}) - ${dbStats.lastBackupFilename}`
+                                            : 'Never'}
+                                    </li>
+                                    {/* Add more stats here if needed */}
+                                </ul>
+                            )}
+                            {!dbStats && !isLoadingStats && !statsError && (
+                                <p className="text-sm text-muted-foreground">Could not load statistics.</p>
+                            )}
+              </div>
+              
+                        {/* Section 2: Create Backup */}
+                        <div className="space-y-3 border-b pb-4">
+                            <h3 className="text-lg font-medium">Create Backup</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Create a manual backup of the current application database (dev.db).
+                                Backups are stored in the mapped backup volume.
+                                Filename format: <code>printfarmname-YYYYMMDD-HHMMSS.db</code>
+                            </p>
+                            <Button
+                                onClick={handleCreateBackup}
+                                disabled={isCreatingBackup}
+                            >
+                               {isCreatingBackup ? <ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" /> : null} 
+                               Create Database Backup
+                            </Button>
+                            {isCreatingBackup && <p className="text-sm text-muted-foreground">Creating backup...</p>}
+                            {backupStatusMessage && <p className="text-sm text-green-600">{backupStatusMessage}</p>}
+                            {backupError && <p className="text-sm text-red-600">Error: {backupError}</p>}
+                  </div>
+                  
+                        {/* Section 3: Existing Backups */}
+                        <div className="space-y-3">
+                            <h3 className="text-lg font-medium">Existing Backups</h3>
+                             <p className="text-sm text-gray-600"> 
+                                Manage your existing database backups. You can download or restore from these files (Restore function coming soon).
+                             </p>
+                             {isLoadingBackups && <p>Loading backups...</p>}
+                             {backupsError && <p className="text-sm text-red-600">Error: {backupsError}</p>}
+                             {!isLoadingBackups && !backupsError && (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Filename</TableHead>
+                                            <TableHead className="text-right">Size</TableHead>
+                                            <TableHead className="text-right">Date Modified</TableHead>
+                                            <TableHead className="text-right">Download</TableHead>
+                                            <TableHead className="text-right">Delete</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {backupFiles.map((backup) => (
+                                            <TableRow key={backup.filename}>
+                                                <TableCell className="font-medium">{backup.filename}</TableCell>
+                                                <TableCell className="text-right">{formatBytes(backup.size)}</TableCell>
+                                                <TableCell className="text-right">{backup.modifiedTimeFormatted}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button 
+                                                        asChild
+                                                        variant="outline" 
+                                                        size="sm" 
+                                                        title="Download Backup"
+                                                    >
+                                                        <a href={`/api/database/backups/${encodeURIComponent(backup.filename)}`} download>
+                                                            <ArrowDownTrayIcon className="h-4 w-4" />
+                                                        </a>
+                                                    </Button>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button 
+                                                        variant="destructive" 
+                                                        size="sm" 
+                                                        title="Delete Backup"
+                                                        onClick={() => openDeleteDialog(backup.filename)}
+                                                        disabled={isDeletingBackup && backupToDelete === backup.filename}
+                                                    >
+                                                        {isDeletingBackup && backupToDelete === backup.filename ? 
+                                                            <ArrowPathIcon className="h-4 w-4 animate-spin" /> : 
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        }
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {backupFiles.length === 0 && (
+                                          <TableRow>
+                                            <TableCell colSpan={5} className="text-center text-muted-foreground">No backups available.</TableCell>
+                                          </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                             )}
+                  </div>
+                  
             </CardContent>
           </Card>
         </TabsContent>
@@ -943,7 +1290,7 @@ export default function SettingsPage() {
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeAddRoleModal} disabled={isProcessingRole}>Cancel</Button>
                 <Button type="submit" disabled={isProcessingRole}>
-                    {isProcessingRole ? <><ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" /> Adding...</> : 'Add Role'}
+                    {isProcessingRole ? <><ArrowPathIcon className="mr-2 h-4 animate-spin" /> Adding...</> : 'Add Role'}
                 </Button>
               </DialogFooter>
             </form>
@@ -1027,6 +1374,32 @@ export default function SettingsPage() {
               </DialogContent>
           </Dialog>
        )}
+
+      {/* Delete Backup Confirmation Dialog */} 
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the backup file 
+                  <code className="mx-1 font-mono bg-muted px-1 rounded">{backupToDelete}</code>.
+              </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deleteError && (
+                  <p className="text-sm text-red-600">Error: {deleteError}</p>
+              )}
+              <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeletingBackup}>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                  onClick={handleDeleteBackup} 
+                  disabled={isDeletingBackup}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                   {isDeletingBackup ? <><ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" /> Deleting...</> : 'Delete Backup'}
+              </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

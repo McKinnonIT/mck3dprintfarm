@@ -11,7 +11,6 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { useSession } from "next-auth/react";
 import { useRouter } from 'next/navigation';
 import { PencilIcon, KeyIcon, TrashIcon, PlusIcon, XMarkIcon, CheckIcon, ArrowPathIcon, UserGroupIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
-import DebugLogViewer from "@/components/settings/debug-log-viewer";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -814,7 +813,7 @@ export default function SettingsPage() {
           {isAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
           <TabsTrigger value="sso">SSO</TabsTrigger>
           {isAdmin && <TabsTrigger value="database">Database</TabsTrigger>}
-          <TabsTrigger value="debug">Debug</TabsTrigger>
+          <TabsTrigger value="updates">Updates</TabsTrigger>
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
@@ -1163,16 +1162,18 @@ export default function SettingsPage() {
         )}
         
         {isAdmin && (
-          <TabsContent value="debug" className="space-y-4">
+          <TabsContent value="updates" className="space-y-4">
           <Card>
             <CardHeader>
-                <CardTitle>Debug Log Viewer</CardTitle>
+                <CardTitle>Application Updates</CardTitle>
+                <CardDescription>Check for new versions and release notes from GitHub.</CardDescription>
             </CardHeader>
             <CardContent>
-                <DebugLogViewer />
-              </CardContent>
-            </Card>
-          </TabsContent>
+                <p>Future home for checking GitHub releases...</p>
+                {/* TODO: Implement GitHub release checking component */}
+            </CardContent>
+          </Card>
+        </TabsContent>
         )}
       </Tabs>
 

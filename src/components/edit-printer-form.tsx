@@ -15,7 +15,7 @@ type Printer = {
   serialNumber?: string;
   status: string;
   operationalStatus: string;
-  lastSeen: Date;
+  lastSeen?: Date;
   printStartTime?: Date;
   printTimeElapsed?: number;
   printTimeRemaining?: number;
@@ -37,9 +37,10 @@ type EditPrinterFormProps = {
   onDelete: () => void;
   showJobHistory?: boolean;
   onToggleJobHistory?: () => void;
+  isSubmitting: boolean;
 };
 
-export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHistory, onToggleJobHistory }: EditPrinterFormProps) {
+export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHistory, onToggleJobHistory, isSubmitting }: EditPrinterFormProps) {
   const [name, setName] = useState(printer.name);
   const [type, setType] = useState(printer.type);
   const [apiUrl, setApiUrl] = useState(printer.apiUrl);
@@ -51,6 +52,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
   const [groups, setGroups] = useState<Group[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSerialNumber, setShowSerialNumber] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     setName(printer.name);
@@ -96,20 +98,6 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-            Name
-          </label>
-          <input
-            type="text"
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            required
-          />
-        </div>
-
-        <div>
           <label htmlFor="type" className="block text-sm font-medium text-gray-700">
             Type
           </label>
@@ -124,6 +112,19 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
             <option value="prusalink">PrusaLink</option>
             <option value="bambulab">Bambu Lab</option>
           </select>
+        </div>
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+            Name
+          </label>
+          <input
+            type="text"
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            required
+          />
         </div>
 
         <div>
@@ -258,53 +259,45 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
         </div>
 
         <div className="flex justify-between">
-          <button
-            type="button"
-            onClick={onDelete}
-            className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-          >
+          <Button type="button" variant="destructive" onClick={() => setShowDeleteConfirm(true)} disabled={isSubmitting} className="w-full sm:w-auto">
             <TrashIcon className="h-4 w-4 mr-1" />
             Delete Printer
-          </button>
+          </Button>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
+            <Button type="button" onClick={onCancel} disabled={isSubmitting} className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
               <XMarkIcon className="h-4 w-4 mr-1" />
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <CheckIcon className="h-4 w-4 mr-1" />
-              Save Changes
-            </button>
+            </Button>
+            <Button type="submit" className="inline-flex items-center" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : (
+                <>
+                  <CheckIcon className="h-4 w-4 mr-1" />
+                  Save Changes
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </form>
 
       {onToggleJobHistory && (
-        <div className="mt-6">
-          <button
-            onClick={onToggleJobHistory}
-            className="text-sm text-blue-600 hover:text-blue-800"
-          >
-            {showJobHistory ? "Hide Job History" : "Show Job History"}
-          </button>
-          {showJobHistory && (
-            <div className="mt-4">
-              <PrintJobHistory
-                printerId={printer.id}
-                printerType={printer.type}
-                apiUrl={printer.apiUrl}
-                apiKey={printer.apiKey}
-              />
-            </div>
-          )}
+        <div className="pt-6 border-t border-gray-200">
+          <Button type="button" variant="link" onClick={onToggleJobHistory} className="text-blue-600">
+            {showJobHistory ? "Hide" : "Show"} Job History
+          </Button>
         </div>
+      )}
+
+      {showDeleteConfirm && (
+        <DeletePrinterDialog
+          printerName={printer.name}
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={() => {
+            setShowDeleteConfirm(false);
+            onDelete();
+          }}
+          isSubmitting={isSubmitting}
+        />
       )}
     </div>
   );

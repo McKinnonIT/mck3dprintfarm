@@ -8,9 +8,10 @@ type DeletePrinterDialogProps = {
   printerName: string;
   onConfirm: () => void;
   onCancel: () => void;
+  isSubmitting: boolean;
 };
 
-export function DeletePrinterDialog({ printerName, onConfirm, onCancel }: DeletePrinterDialogProps) {
+export function DeletePrinterDialog({ printerName, onConfirm, onCancel, isSubmitting }: DeletePrinterDialogProps) {
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
 
@@ -53,16 +54,17 @@ export function DeletePrinterDialog({ printerName, onConfirm, onCancel }: Delete
           <Button
             type="submit"
             className="flex-1 bg-red-600 hover:bg-red-700 inline-flex items-center"
-            disabled={confirmation !== "DELETE"}
+            disabled={confirmation !== "DELETE" || isSubmitting}
           >
             <TrashIcon className="h-4 w-4 mr-1" />
-            Delete Printer
+            {isSubmitting ? "Deleting..." : "Delete Printer"}
           </Button>
           <Button 
             type="button" 
             variant="outline" 
             className="flex-1 inline-flex items-center"
             onClick={onCancel}
+            disabled={isSubmitting}
           >
             <XMarkIcon className="h-4 w-4 mr-1" />
             Cancel

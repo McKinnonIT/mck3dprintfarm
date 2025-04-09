@@ -16,9 +16,11 @@ type Printer = {
 
 type AddPrinterFormProps = {
   onAdd: (printer: Printer) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
 };
 
-export function AddPrinterForm({ onAdd }: AddPrinterFormProps) {
+export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterFormProps) {
   const [name, setName] = useState("");
   const [type, setType] = useState("moonraker");
   const [apiUrl, setApiUrl] = useState("");
@@ -61,20 +63,6 @@ export function AddPrinterForm({ onAdd }: AddPrinterFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-          Name
-        </label>
-        <input
-          type="text"
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          required
-        />
-      </div>
-
-      <div>
         <label htmlFor="type" className="block text-sm font-medium text-gray-700">
           Type
         </label>
@@ -89,6 +77,20 @@ export function AddPrinterForm({ onAdd }: AddPrinterFormProps) {
           <option value="prusalink">PrusaLink</option>
           <option value="bambulab">Bambu Lab</option>
         </select>
+      </div>
+
+      <div>
+        <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+          Name
+        </label>
+        <input
+          type="text"
+          id="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          required
+        />
       </div>
 
       <div>
@@ -187,9 +189,16 @@ export function AddPrinterForm({ onAdd }: AddPrinterFormProps) {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <Button type="submit" className="w-full inline-flex items-center justify-center">
-        <PlusIcon className="h-4 w-4 mr-1" />
-        Add Printer
+      <Button type="submit" className="w-full inline-flex items-center justify-center" disabled={isSubmitting}>
+        {isSubmitting ? "Adding..." : (
+          <>
+            <PlusIcon className="h-4 w-4 mr-1" />
+            Add Printer
+          </>
+        )}
+      </Button>
+      <Button type="button" variant="outline" onClick={onCancel} className="w-full" disabled={isSubmitting}>
+         Cancel
       </Button>
     </form>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import Link from "next/link";
 import { ChevronRight, RefreshCw, PencilIcon } from "lucide-react";
 import { LoadingScreen } from "@/components/loading-screen";
@@ -22,6 +22,45 @@ type Group = {
 const formatTemperature = (temp) => {
   if (temp === null || temp === undefined) return 'N/A';
   return `${temp}°C`;
+};
+
+// Helper to determine background color based on status
+const getBgColor = (status) => {
+  switch (status) {
+    case 'printing': return 'bg-green-100';
+    case 'idle': return 'bg-blue-100';
+    case 'offline': return 'bg-red-100';
+    case 'disabled': return 'bg-gray-100'; // Handle disabled status
+    default: return 'bg-yellow-100'; // Fallback for other statuses like 'error'
+  }
+};
+
+// Helper to determine text color based on status
+const getTextColor = (status) => {
+  switch (status) {
+    case 'printing': return 'text-green-800';
+    case 'idle': return 'text-blue-800';
+    case 'offline': return 'text-red-800';
+    case 'disabled': return 'text-gray-800'; // Handle disabled status
+    default: return 'text-yellow-800'; // Fallback for other statuses
+  }
+};
+
+// Function to calculate progress
+const calculateProgress = (elapsed, remaining) => {
+  if (!elapsed && !remaining) return 0;
+  const total = (elapsed || 0) + (remaining || 0);
+  if (total === 0) return 0;
+  return (elapsed || 0) / total * 100;
+};
+
+// Function to format duration
+const formatDuration = (seconds) => {
+  if (!seconds) return "N/A";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return `${hours}h ${minutes}m ${remainingSeconds}s`;
 };
 
 export default function DashboardPage() {
@@ -251,16 +290,16 @@ export default function DashboardPage() {
                       onClick={() => moveGroup(group.id, 'up')}
                       size="sm"
                       variant="outline"
-                      className="h-8 w-8 p-0"
+                      className="p-1"
                       title="Move group up"
                     >
                       ↑
                     </Button>
                     <Button
                       onClick={() => moveGroup(group.id, 'down')}
-                      size="sm" 
+                      size="sm"
                       variant="outline"
-                      className="h-8 w-8 p-0"
+                      className="p-1"
                       title="Move group down"
                     >
                       ↓
@@ -269,279 +308,122 @@ export default function DashboardPage() {
                 )}
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {printers
-                  .filter(printer => printer.groupId === group.id)
-                  .map(printer => (
-                    <Card key={printer.id} className="overflow-hidden h-full flex flex-col">
-                      <CardHeader className="pb-2">
+              {group.printers.length > 0 ? (
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {group.printers.map((printer) => (
+                    <Card key={printer.id} className="w-full">
+                      <CardHeader>
                         <CardTitle className="flex justify-between items-center">
-                          <span>{printer.name}</span>
-                          <span className={`text-sm px-2 py-0.5 rounded ${
-                            printer.operationalStatus === 'idle' 
-                              ? 'bg-green-100 text-green-800' 
-                              : printer.operationalStatus === 'printing'
-                              ? 'bg-blue-100 text-blue-800'
-                              : printer.operationalStatus === 'error'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
+                          <span className="text-lg">{printer.name}</span>
+                          <span 
+                            className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getBgColor(printer.operationalStatus)} ${getTextColor(printer.operationalStatus)}`}
+                          >
                             {printer.operationalStatus}
                           </span>
                         </CardTitle>
-                        <div className="text-sm text-gray-500">Type: {printer.type}</div>
-                        {/* Only show filename for printing printers */}
-                        {(printer.operationalStatus === 'printing' && printer.printJobName) ? (
-                          <div className="text-sm text-gray-700 mt-1 font-medium truncate" title={printer.printJobName}>
-                            File: {printer.printJobName}
-                          </div>
-                        ) : null}
+                        <p className="text-sm text-muted-foreground">Type: {printer.type}</p>
                       </CardHeader>
-                      <CardContent className="flex-grow flex flex-col">
-                        {/* Preview Area - Always present */}
-                        <div className="mb-4 bg-gray-100 rounded-lg aspect-video w-full flex items-center justify-center overflow-hidden">
-                          {printer.printImageUrl ? (
-                            <img 
-                              src={printer.printImageUrl} 
-                              alt={`Preview for ${printer.name}`} 
-                              className="w-full h-full object-contain"
-                            />
-                          ) : (
-                            <div className="text-gray-400 text-center">
-                              {printer.operationalStatus === 'printing' ? 'Print in progress' : 'Ready to print'}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Printer Details - Always present */}
-                        <div className="space-y-3 flex-grow">
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Bed:</span>
-                            <span className="font-medium">{formatTemperature(printer.bedTemp)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Tool:</span>
-                            <span className="font-medium">{formatTemperature(printer.toolTemp)}</span>
-                          </div>
-                          
-                          {/* Job Information Section */}
-                          {printer.operationalStatus === 'printing' && (
-                            <div className="mt-4 pt-3 border-t border-gray-200">
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Elapsed:</span>
-                                <span>{printer.printTimeElapsed ? formatTime(printer.printTimeElapsed) : 'N/A'}</span>
-                              </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Remaining:</span>
-                                <span>{printer.printTimeRemaining ? formatTime(printer.printTimeRemaining) : 'N/A'}</span>
-                              </div>
-                              
-                              {/* Progress Bar */}
-                              <div className="mt-2">
-                                <div className="flex justify-between text-xs mb-1">
-                                  <span>Progress</span>
-                                  <span>
-                                    {calculateProgress(printer.printTimeElapsed, printer.printTimeRemaining)}%
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                  <div 
-                                    className="bg-blue-600 h-2.5 rounded-full" 
-                                    style={{ width: `${calculateProgress(printer.printTimeElapsed, printer.printTimeRemaining)}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Empty Space for Idle Printers to maintain height */}
-                          {printer.operationalStatus !== 'printing' && (
-                            <div className="mt-4 pt-3 border-t border-gray-200 min-h-[120px] flex items-center justify-center">
-                              <div className="text-gray-400 text-center">
-                                {printer.operationalStatus === 'error'
-                                  ? 'Error state'
-                                  : 'Ready to print'}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Footer with details link - Always present */}
-                        <div className="mt-4 pt-2 border-t border-gray-200 flex justify-end">
-                          <Link 
-                            href={`/dashboard/printers/${printer.id}`}
-                            className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
-                          >
-                            Details <ChevronRight className="h-4 w-4 ml-1" />
-                          </Link>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-10">
-          <p className="text-lg text-gray-500 mb-4">
-            No active printers available.
-          </p>
-          <p className="text-sm text-gray-400">
-            All printers are either offline or disabled. Check your printer settings.
-          </p>
-        </div>
-      )}
-      
-      {/* Ungrouped Printers Section */}
-      {groups.length > 0 && (
-        <div className="space-y-4 mt-10">
-          <h2 className="text-xl font-bold">Ungrouped Printers</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {printers
-              .filter(printer => !printer.groupId || printer.groupId === '')
-              .map(printer => (
-                <Card key={printer.id} className="overflow-hidden h-full flex flex-col">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex justify-between items-center">
-                      <span>{printer.name}</span>
-                      <span className={`text-sm px-2 py-0.5 rounded ${
-                        printer.operationalStatus === 'idle' 
-                          ? 'bg-green-100 text-green-800' 
-                          : printer.operationalStatus === 'printing'
-                          ? 'bg-blue-100 text-blue-800'
-                          : printer.operationalStatus === 'error'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {printer.operationalStatus}
-                      </span>
-                    </CardTitle>
-                    <div className="text-sm text-gray-500">Type: {printer.type}</div>
-                    {/* Only show filename for printing printers */}
-                    {(printer.operationalStatus === 'printing' && printer.printJobName) ? (
-                      <div className="text-sm text-gray-700 mt-1 font-medium truncate" title={printer.printJobName}>
-                        File: {printer.printJobName}
-                      </div>
-                    ) : null}
-                  </CardHeader>
-                  <CardContent className="flex-grow flex flex-col">
-                    {/* Preview Area - Always present */}
-                    <div className="mb-4 bg-gray-100 rounded-lg aspect-video w-full flex items-center justify-center overflow-hidden">
-                      {printer.printImageUrl ? (
-                        <img 
-                          src={printer.printImageUrl} 
-                          alt={`Preview for ${printer.name}`} 
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <div className="text-gray-400 text-center">
-                          {printer.operationalStatus === 'printing' ? 'Print in progress' : 'Ready to print'}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Printer Details - Always present */}
-                    <div className="space-y-3 flex-grow">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Bed:</span>
-                        <span className="font-medium">{formatTemperature(printer.bedTemp)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Tool:</span>
-                        <span className="font-medium">{formatTemperature(printer.toolTemp)}</span>
-                      </div>
-                      
-                      {/* Job Information Section */}
-                      {printer.operationalStatus === 'printing' && (
-                        <div className="mt-4 pt-3 border-t border-gray-200">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Elapsed:</span>
-                            <span>{printer.printTimeElapsed ? formatTime(printer.printTimeElapsed) : 'N/A'}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Remaining:</span>
-                            <span>{printer.printTimeRemaining ? formatTime(printer.printTimeRemaining) : 'N/A'}</span>
-                          </div>
-                          
-                          {/* Progress Bar */}
-                          <div className="mt-2">
-                            <div className="flex justify-between text-xs mb-1">
-                              <span>Progress</span>
-                              <span>
-                                {calculateProgress(printer.printTimeElapsed, printer.printTimeRemaining)}%
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <CardContent>
+                        {printer.operationalStatus === 'printing' && (
+                          <>
+                            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
                               <div 
-                                className="bg-blue-600 h-2.5 rounded-full" 
+                                className="h-2.5 rounded-full transition-all duration-500 bg-green-600"
                                 style={{ width: `${calculateProgress(printer.printTimeElapsed, printer.printTimeRemaining)}%` }}
                               ></div>
                             </div>
-                          </div>
+                            <div className="flex justify-between text-sm text-muted-foreground">
+                              <span>Elapsed: {formatDuration(printer.printTimeElapsed)}</span>
+                              <span>Remaining: {formatDuration(printer.printTimeRemaining)}</span>
+                            </div>
+                          </>
+                        )}
+                        <div className="flex justify-between text-sm mt-2">
+                          <span>Bed: {formatTemperature(printer.bedTemp)}</span>
+                          <span>Tool: {formatTemperature(printer.toolTemp)}</span>
                         </div>
-                      )}
-                      
-                      {/* Empty Space for Idle Printers to maintain height */}
-                      {printer.operationalStatus !== 'printing' && (
-                        <div className="mt-4 pt-3 border-t border-gray-200 min-h-[120px] flex items-center justify-center">
-                          <div className="text-gray-400 text-center">
-                            {printer.operationalStatus === 'error'
-                              ? 'Error state'
-                              : 'Ready to print'}
+                      </CardContent>
+                      <CardFooter className="flex justify-between">
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/printers/${printer.id}`}>Details</Link>
+                        </Button>
+                        {printer.webcamUrl && (
+                          <Button variant="outline" size="sm">Webcam</Button>
+                        )}
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No printers in this group</p>
+              )}
+            </div>
+          ))}
+          
+          {/* Ungrouped printers - display only if groups exist */}
+          {groups.length > 0 && (
+            <>
+              {printers.filter(p => !p.groupId).length > 0 && (
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold">Ungrouped Printers</h2>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {printers.filter(p => !p.groupId).map((printer) => (
+                      <Card key={printer.id} className="w-full">
+                        <CardHeader>
+                          <CardTitle className="flex justify-between items-center">
+                            <span className="text-lg">{printer.name}</span>
+                            <span 
+                              className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getBgColor(printer.operationalStatus)} ${getTextColor(printer.operationalStatus)}`}
+                            >
+                              {printer.operationalStatus}
+                            </span>
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground">Type: {printer.type}</p>
+                        </CardHeader>
+                        <CardContent>
+                          {printer.operationalStatus === 'printing' && (
+                            <>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                                <div 
+                                  className="h-2.5 rounded-full transition-all duration-500 bg-green-600"
+                                  style={{ width: `${calculateProgress(printer.printTimeElapsed, printer.printTimeRemaining)}%` }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>Elapsed: {formatDuration(printer.printTimeElapsed)}</span>
+                                <span>Remaining: {formatDuration(printer.printTimeRemaining)}</span>
+                              </div>
+                            </>
+                          )}
+                          <div className="flex justify-between text-sm mt-2">
+                            <span>Bed: {formatTemperature(printer.bedTemp)}</span>
+                            <span>Tool: {formatTemperature(printer.toolTemp)}</span>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Footer with details link - Always present */}
-                    <div className="mt-4 pt-2 border-t border-gray-200 flex justify-end">
-                      <Link 
-                        href={`/dashboard/printers/${printer.id}`}
-                        className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
-                      >
-                        Details <ChevronRight className="h-4 w-4 ml-1" />
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-          </div>
+                        </CardContent>
+                        <CardFooter className="flex justify-between">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/printers/${printer.id}`}>Details</Link>
+                          </Button>
+                          {printer.webcamUrl && (
+                            <Button variant="outline" size="sm">Webcam</Button>
+                          )}
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : (
+        // Display if no groups and no ungrouped printers
+        <div className="text-center py-10">
+          <p className="text-muted-foreground mb-4">
+            No active printers found. <Link href="/printers/new" className="text-blue-600 hover:underline">Add a printer?</Link>
+          </p>
         </div>
       )}
     </div>
   );
-}
-
-function formatTime(seconds) {
-  console.log('formatTime input:', seconds, typeof seconds);
-  if (seconds === null || seconds === undefined || isNaN(seconds)) return 'N/A';
-  
-  // Ensure we're working with a number
-  seconds = Number(seconds);
-  
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  
-  console.log('formatTime calculated:', { hours, minutes });
-  
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  } else {
-    return `${minutes}m`;
-  }
-}
-
-function calculateProgress(elapsed, remaining) {
-  console.log('calculateProgress input:', { elapsed, remaining });
-  if (elapsed === null || elapsed === undefined || remaining === null || remaining === undefined) return 0;
-  
-  // Ensure we're working with numbers
-  elapsed = Number(elapsed);
-  remaining = Number(remaining);
-  
-  if (isNaN(elapsed) || isNaN(remaining)) return 0;
-  
-  const total = elapsed + remaining;
-  return Math.round((elapsed / total) * 100);
 } 

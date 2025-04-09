@@ -43,7 +43,7 @@ export default async function PrusaLinkDiagnosticPage({ params }: PageProps) {
         </div>
         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-4">
           <p>This diagnostic tool is only for PrusaLink printers. {printer.name} is a {printer.type} printer.</p>
-          <Link href="/dashboard/printers" className="text-amber-600 font-medium hover:text-amber-800 mt-2 inline-block">
+          <Link href="/printers" className="text-amber-600 font-medium hover:text-amber-800 mt-2 inline-block">
             Go back to printers
           </Link>
         </div>

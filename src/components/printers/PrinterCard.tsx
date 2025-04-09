@@ -13,6 +13,7 @@ type PrinterCardProps = {
   operationalStatus: string;
   lastSeen?: Date;
   webcamUrl?: string;
+  onEdit: () => void;
 };
 
 export function PrinterCard({
@@ -22,7 +23,8 @@ export function PrinterCard({
   status,
   operationalStatus,
   lastSeen,
-  webcamUrl
+  webcamUrl,
+  onEdit
 }: PrinterCardProps) {
   // Determine if the printer is disabled
   const isDisabled = status === "disabled";
@@ -68,15 +70,15 @@ export function PrinterCard({
           )}
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between">
-        <Link href={`/dashboard/printers/${id}`}>
-          <Button variant="outline">Details</Button>
+      <CardFooter className="flex justify-between items-center pt-4 border-t">
+        <Link href={`/printers/${id}`}>
+          <Button variant="outline" size="sm">Details</Button>
         </Link>
-        {webcamUrl && !isDisabled && (
-          <Link href={`/dashboard/printers/${id}/webcam`}>
-            <Button variant="outline">Webcam</Button>
-          </Link>
-        )}
+        <Button variant="secondary" size="sm" onClick={onEdit} disabled={isDisabled}>
+          Edit
+        </Button>
+        {/* TODO: Potentially add webcam link here or within details page */}
+        {/* {webcamUrl && !isDisabled && ( ... )} */}
       </CardFooter>
     </Card>
   );

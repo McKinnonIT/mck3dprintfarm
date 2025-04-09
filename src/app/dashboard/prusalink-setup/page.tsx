@@ -54,10 +54,10 @@ export default async function PrusaLinkSetupPage() {
                     <h3 className="font-medium mb-1">{printer.name}</h3>
                     <p className="text-sm text-muted-foreground mb-3">{printer.apiUrl}</p>
                     <Link 
-                      href={`/dashboard/printers/${printer.id}/prusalink-diagnostic`}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      href={`/printers/${printer.id}/prusalink-diagnostic`}
+                      className="text-blue-600 hover:text-blue-700 text-sm font-medium"
                     >
-                      Run API Diagnostic →
+                      Run Diagnostic
                     </Link>
                   </div>
                 ))}

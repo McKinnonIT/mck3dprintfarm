@@ -61,7 +61,7 @@ const mapMoonrakerState = (state: string): string => {
 
 // Add mapping for PrusaLink states
 const mapPrusaLinkState = (state: string): string => {
-  switch (state.toLowerCase()) {
+  switch (state?.toLowerCase()) {
     case 'printing':
       return 'printing';
     case 'operational':
@@ -77,6 +77,7 @@ const mapPrusaLinkState = (state: string): string => {
     case 'busy':
       return 'busy';
     default:
+      console.log(`Unknown PrusaLink state "${state}", mapping to idle.`);
       return 'idle';
   }
 };
@@ -283,22 +284,98 @@ export async function GET() {
                   const data = await response.json();
                   
                   if (data) {
-                    // Mark as online first, then check specific state
+                    // Mark as online first, assume idle unless job/flags say otherwise
                     operationalStatus = "idle";
-                    
-                    // Check if printer is printing
-                    if (data.state && data.state.flags) {
+
+                    // --- Check /api/job status FIRST --- 
+                    let jobStateDetermined = false;
+                    try {
+                      console.log(`Fetching job data directly for ${printer.name}`);
+                      const jobResponse = await fetch(`${printer.apiUrl}/api/job`, { 
+                        headers: { 'X-Api-Key': printer.apiKey || '', 'Accept': 'application/json' },
+                        signal: (new AbortController()).signal,
+                        cache: 'no-store' 
+                      });
+                      if (jobResponse.ok) {
+                        operationalStatus = "idle"; // Re-affirm idle if job fetch succeeds but no printing/paused state found below
+                        const jobData = await jobResponse.json();
+                        console.log(`Job data for ${printer.name}:`, JSON.stringify(jobData));
+                        
+                        if (jobData.state) {
+                          operationalStatus = mapPrusaLinkState(jobData.state);
+                          console.log(`Operational status from /api/job for ${printer.name}: ${jobData.state} -> ${operationalStatus}`);
+                          jobStateDetermined = true; 
+                        }
+
+                        // Extract time/filename/etc. from jobData (existing logic can stay here)
+                        if (jobData.time_printing !== undefined) {
+                          printTimeElapsed = jobData.time_printing;
+                          console.log(`Print time elapsed (snake_case) for ${printer.name}: ${printTimeElapsed}s`);
+                        }
+                        
+                        if (jobData.time_remaining !== undefined) {
+                          printTimeRemaining = jobData.time_remaining;
+                          console.log(`Print time remaining (snake_case) for ${printer.name}: ${printTimeRemaining}s`);
+                        }
+                        
+                        if (jobData.progress) {
+                          if (printTimeElapsed === undefined && jobData.progress.printTime !== undefined) {
+                            printTimeElapsed = Number(jobData.progress.printTime);
+                            console.log(`Print time elapsed from progress for ${printer.name}: ${printTimeElapsed}s`);
+                          }
+                          
+                          if (printTimeRemaining === undefined && jobData.progress.printTimeLeft !== undefined) {
+                            printTimeRemaining = Number(jobData.progress.printTimeLeft);
+                            console.log(`Print time remaining from progress for ${printer.name}: ${printTimeRemaining}s`);
+                          }
+                        }
+                        
+                        if (jobData.file) {
+                          if (jobData.file.display_name) {
+                            printJobName = jobData.file.display_name;
+                          } else if (jobData.file.name) {
+                            printJobName = jobData.file.name;
+                          } else if (jobData.file.display) {
+                            printJobName = jobData.file.display;
+                          }
+                          console.log(`Print job name for ${printer.name}: ${printJobName}`);
+                        }
+                        
+                        if (jobData.job && typeof jobData.job === 'object') {
+                          if (jobData.job.start_time) {
+                            printStartTime = new Date(jobData.job.start_time);
+                            console.log(`Print start time from job endpoint for ${printer.name}: ${printStartTime}`);
+                          }
+                          
+                          if (jobData.job.thumbnail_url) {
+                            printImageUrl = jobData.job.thumbnail_url;
+                          }
+                        }
+                      } else {
+                        console.log(`Failed to get job data for ${printer.name}: ${jobResponse.status}`);
+                      }
+                    } catch (jobError) {
+                      console.error(`Error fetching job data for ${printer.name}:`, jobError);
+                    }
+                    // --- End /api/job check ---
+
+                    // --- Fallback to /api/printer flags if job state wasn't definitive ---
+                    if (!jobStateDetermined && data.state && data.state.flags) {
+                      console.log(`Falling back to /api/printer flags for ${printer.name} status.`);
                       if (data.state.flags.printing) {
                         operationalStatus = "printing";
                       } else if (data.state.flags.paused) {
                         operationalStatus = "paused";
                       } else if (data.state.flags.error) {
                         operationalStatus = "error";
+                      } else if (data.state.flags.operational) {
+                         operationalStatus = "idle"; // Explicitly idle if operational flag is true
                       }
-                      console.log(`Operational status (new format) for ${printer.name}: ${data.state.text} → ${operationalStatus}`);
+                      console.log(`Operational status (fallback from flags) for ${printer.name}: ${data.state.text} -> ${operationalStatus}`);
                     }
+                    // --- End Fallback ---
                     
-                    // Get temperature data, first check newer PrusaLink data format
+                    // Get temperature data (existing logic can stay here)
                     if (data.temperature && data.temperature.bed && data.temperature.bed.actual !== undefined) {
                       bedTemp = Number(data.temperature.bed.actual);
                       console.log(`Bed temperature (new format) for ${printer.name}: ${bedTemp}°C`);
@@ -317,85 +394,6 @@ export async function GET() {
                   } else {
                     console.log(`Invalid data structure from PrusaLink for ${printer.name}`);
                     operationalStatus = "error";
-                  }
-
-                  // Always fetch job data directly from the job endpoint
-                  try {
-                    console.log(`Fetching job data directly for ${printer.name}`);
-                    const jobResponse = await fetch(`${printer.apiUrl}/api/job`, {
-                      headers: {
-                        'X-Api-Key': printer.apiKey || '',
-                        'Accept': 'application/json'
-                      },
-                      // Use a shorter timeout
-                      signal: (new AbortController()).signal,
-                      cache: 'no-store'
-                    });
-                    if (jobResponse.ok) {
-                      // Mark as online if we get job data - the printer is responding
-                      operationalStatus = operationalStatus === "offline" ? "idle" : operationalStatus;
-                      
-                      const jobData = await jobResponse.json();
-                      console.log(`Job data for ${printer.name}:`, JSON.stringify(jobData));
-                      
-                      // Check job state first to see if the printer is printing
-                      if (jobData.state === "PRINTING" || jobData.state === "Printing") {
-                        operationalStatus = "printing";
-                        console.log(`Setting printer ${printer.name} to PRINTING status based on job state`);
-                      }
-                      
-                      // Check for snake_case time fields at top level (PrusaLink)
-                      if (jobData.time_printing !== undefined) {
-                        printTimeElapsed = jobData.time_printing;
-                        console.log(`Print time elapsed (snake_case) for ${printer.name}: ${printTimeElapsed}s`);
-                      }
-                      
-                      if (jobData.time_remaining !== undefined) {
-                        printTimeRemaining = jobData.time_remaining;
-                        console.log(`Print time remaining (snake_case) for ${printer.name}: ${printTimeRemaining}s`);
-                      }
-                      
-                      // Extract time from progress object if present (most common in PrusaLink responses)
-                      if (jobData.progress) {
-                        if (printTimeElapsed === undefined && jobData.progress.printTime !== undefined) {
-                          printTimeElapsed = Number(jobData.progress.printTime);
-                          console.log(`Print time elapsed from progress for ${printer.name}: ${printTimeElapsed}s`);
-                        }
-                        
-                        if (printTimeRemaining === undefined && jobData.progress.printTimeLeft !== undefined) {
-                          printTimeRemaining = Number(jobData.progress.printTimeLeft);
-                          console.log(`Print time remaining from progress for ${printer.name}: ${printTimeRemaining}s`);
-                        }
-                      }
-                      
-                      // Get the job name from the file object (PrusaLink)
-                      if (jobData.file) {
-                        if (jobData.file.display_name) {
-                          printJobName = jobData.file.display_name;
-                        } else if (jobData.file.name) {
-                          printJobName = jobData.file.name;
-                        } else if (jobData.file.display) {
-                          printJobName = jobData.file.display;
-                        }
-                        console.log(`Print job name for ${printer.name}: ${printJobName}`);
-                      }
-                      
-                      // Also check job object for start time and thumbnail
-                      if (jobData.job && typeof jobData.job === 'object') {
-                        if (jobData.job.start_time) {
-                          printStartTime = new Date(jobData.job.start_time);
-                          console.log(`Print start time from job endpoint for ${printer.name}: ${printStartTime}`);
-                        }
-                        
-                        if (jobData.job.thumbnail_url) {
-                          printImageUrl = jobData.job.thumbnail_url;
-                        }
-                      }
-                    } else {
-                      console.log(`Failed to get job data for ${printer.name}: ${jobResponse.status}`);
-                    }
-                  } catch (jobError) {
-                    console.error(`Error fetching job data for ${printer.name}:`, jobError);
                   }
                 } else {
                   console.error(`HTTP error from PrusaLink for ${printer.name}: ${response.status}`);

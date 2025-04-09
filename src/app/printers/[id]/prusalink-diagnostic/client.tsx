@@ -6,7 +6,7 @@ import Link from "next/link";
 
 export function BackLink() {
   return (
-    <Link href="/dashboard/printers" className="flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
+    <Link href="/printers" className="flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
       <ArrowLeft className="mr-1 h-4 w-4" />
       Back to printers
     </Link>

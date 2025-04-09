@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PlusIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, MagnifyingGlassIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import { canAccessPage } from "@/lib/rbacUtils";
 import { UploadFileForm } from "@/components/upload-file-form";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { GcodeThumbnailPreview } from "@/components/gcode-thumbnail-preview";
+import { PrintFileModal } from "@/components/print-file-modal";
 
 // Define File type (adjust as needed)
 type File = {
@@ -25,6 +26,14 @@ type File = {
   size: number;
   type: string;
   uploadedAt: Date;
+};
+
+// Define Printer type for state
+type Printer = {
+  id: string;
+  name: string;
+  type: string;
+  operationalStatus: string;
 };
 
 export default function FilesPage() {
@@ -43,6 +52,9 @@ export default function FilesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [previewingFile, setPreviewingFile] = useState<File | null>(null);
+  const [printers, setPrinters] = useState<Printer[]>([]);
+  const [showPrintModalForFile, setShowPrintModalForFile] = useState<File | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
 
   // Access control check
   useEffect(() => {
@@ -54,39 +66,49 @@ export default function FilesPage() {
     }
   }, [status, hasAccess, router]);
 
-  // Fetch settings and files
+  // Fetch settings, files, and printers
   const fetchData = useCallback(async () => {
     if (status !== 'authenticated' || !hasAccess) {
-        setLoading(false);
-        return;
+      setLoading(false);
+      return;
     }
     setLoading(true);
     setError(null);
+    setPrintError(null);
     try {
-      // Fetch settings first
+      // Fetch settings
       const settingsResponse = await fetch("/api/settings");
       if (!settingsResponse.ok) throw new Error('Failed to fetch settings');
       const settingsData = await settingsResponse.json();
       setAllowedUploadTypes(Array.isArray(settingsData.allowedUploadTypes) ? settingsData.allowedUploadTypes : []);
 
-      // Fetch files for the logged-in user
+      // Fetch files
       const filesResponse = await fetch('/api/files');
       if (!filesResponse.ok) throw new Error('Failed to fetch files');
       const filesData = await filesResponse.json();
       setFiles(filesData);
 
+      // Fetch printers
+      const printersResponse = await fetch('/api/printers/status');
+      if (!printersResponse.ok) throw new Error('Failed to fetch printers');
+      const printersData = await printersResponse.json();
+      setPrinters(printersData);
+
     } catch (err) {
       console.error('Failed to fetch initial data:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      setFiles([]); // Ensure files is empty on error
+      setFiles([]);
+      setPrinters([]);
     } finally {
       setLoading(false);
     }
   }, [status, hasAccess]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (status === 'authenticated' && hasAccess) {
+      fetchData();
+    }
+  }, [status, hasAccess]);
 
   const handleUploadSuccess = (uploadedFile: File) => {
       toast.success(`File "${uploadedFile.name}" uploaded successfully!`);
@@ -146,6 +168,46 @@ export default function FilesPage() {
     }
   };
 
+  // --- Print Modal Logic ---
+  const openPrintModal = (file: File) => {
+      setPrintError(null);
+      setShowPrintModalForFile(file);
+  };
+
+  const handleConfirmPrint = async (printerId: string) => {
+      if (!showPrintModalForFile) return;
+
+      setIsSubmitting(true);
+      setPrintError(null);
+      const fileToPrint = showPrintModalForFile;
+
+      console.log(`Attempting to print file ${fileToPrint.id} (${fileToPrint.name}) on printer ${printerId}`);
+      toast.loading(`Sending file "${fileToPrint.name}" to printer...`);
+
+      try {
+          const response = await fetch(`/api/files/${fileToPrint.id}/print`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ printerId }),
+          });
+          const result = await response.json();
+          if (!response.ok) {
+              throw new Error(result.message || 'Failed to start print job.');
+          }
+
+          toast.dismiss();
+          toast.success(`Print job started for "${fileToPrint.name}"!`);
+          setShowPrintModalForFile(null);
+      } catch (err) {
+          toast.dismiss();
+          console.error("Start print job error:", err);
+          const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+          setPrintError(errorMessage);
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
   // Handle loading state for the whole page
   if (status === 'loading' || (status === 'authenticated' && !hasAccess && loading)) {
       return <div className="p-6">Loading...</div>;
@@ -197,10 +259,11 @@ export default function FilesPage() {
          <div className="space-y-4">
             {filteredFiles.map((file) => {
               const lowerCaseFileName = file.name.toLowerCase();
+              const fileExtension = lowerCaseFileName.substring(lowerCaseFileName.lastIndexOf('.'));
               const printableExtensions = ['.gcode', '.bgcode', '.gx'];
               const previewableExtensions = ['.gcode', '.bgcode'];
-              const isPrintable = printableExtensions.some(ext => lowerCaseFileName.endsWith(ext));
-              const isPreviewable = previewableExtensions.some(ext => lowerCaseFileName.endsWith(ext));
+              const isPrintable = printableExtensions.includes(fileExtension);
+              const isPreviewable = previewableExtensions.includes(fileExtension);
 
               return (
                <Card key={file.id} className="p-4">
@@ -228,7 +291,15 @@ export default function FilesPage() {
                         
                         {/* Conditional Print/Slice Button */}
                         {isPrintable ? (
-                          <Button variant="outline" size="sm" disabled>Print</Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openPrintModal(file)}
+                            disabled={isSubmitting}
+                            className="bg-green-100 text-green-800 hover:bg-green-200"
+                          >
+                             <PrinterIcon className="h-4 w-4 mr-1" /> Print
+                          </Button>
                         ) : (
                           <Button variant="outline" size="sm" disabled>Slice</Button>
                         )}
@@ -305,6 +376,19 @@ export default function FilesPage() {
         fileName={previewingFile?.name ?? null}
         isOpen={!!previewingFile}
         onClose={() => setPreviewingFile(null)}
+      />
+
+      {/* Print File Modal */}
+      <PrintFileModal
+          isOpen={!!showPrintModalForFile}
+          onClose={() => setShowPrintModalForFile(null)}
+          fileId={showPrintModalForFile?.id ?? null}
+          fileName={showPrintModalForFile?.name ?? null}
+          fileType={showPrintModalForFile ? showPrintModalForFile.name.substring(showPrintModalForFile.name.lastIndexOf('.')).toLowerCase() : null}
+          printers={printers}
+          onConfirmPrint={handleConfirmPrint}
+          isSubmitting={isSubmitting}
+          error={printError}
       />
 
     </div>

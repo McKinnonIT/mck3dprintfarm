@@ -58,11 +58,15 @@ export async function GET() {
     // }
     // console.log(`GET /api/settings - Admin access granted for user: ${session?.user?.email}`);
 
-    // Define expected keys and their corresponding env var names + code defaults
+    // Define expected keys, env vars, and defaults
+    const defaultAllowedTypes = JSON.stringify([
+      ".stl", ".3mf", ".obj", ".gcode", ".bgcode", ".gx"
+    ]);
     const settingDefinitions = {
       printFarmTitle: { env: 'DEFAULT_PRINT_FARM_TITLE', default: 'MCK 3D Print Farm' },
       organizationName: { env: 'DEFAULT_ORG_NAME', default: 'McKelvey Engineering' },
       organizationWebsite: { env: 'DEFAULT_ORG_WEBSITE', default: 'https://engineering.wustl.edu/' },
+      allowedUploadTypes: { env: 'DEFAULT_ALLOWED_UPLOAD_TYPES', default: defaultAllowedTypes } // Add new setting
     };
     const expectedKeys = Object.keys(settingDefinitions);
 
@@ -72,8 +76,7 @@ export async function GET() {
     const dbSettingsRaw = await prisma.$queryRawUnsafe(query);
     console.log("GET /api/settings - Raw DB result:", dbSettingsRaw);
 
-    // Format DB settings into a map
-    const dbSettingsMap = Array.isArray(dbSettingsRaw) 
+    const dbSettingsMap = Array.isArray(dbSettingsRaw)
       ? dbSettingsRaw.reduce((acc, setting: any) => {
           if (setting.key) {
              acc[setting.key] = setting.value;
@@ -81,18 +84,40 @@ export async function GET() {
           return acc;
         }, {} as Record<string, string>)
       : {};
-      
-    // Build final settings object, using DB value or Env Var or Code Default
-    const finalSettings: Record<string, string> = {};
+
+    // Build final settings object
+    const finalSettings: Record<string, string | string[]> = {}; // Adjust type for allowedUploadTypes
     for (const key of expectedKeys) {
         if (dbSettingsMap[key] !== undefined) {
-            finalSettings[key] = dbSettingsMap[key];
+            if (key === 'allowedUploadTypes') {
+                try {
+                  // Attempt to parse the stored JSON string
+                  finalSettings[key] = JSON.parse(dbSettingsMap[key]);
+                } catch (parseError) {
+                  console.error(`GET /api/settings - Failed to parse allowedUploadTypes from DB: ${dbSettingsMap[key]}, using default.`, parseError);
+                  // Fallback to default if parsing fails
+                  finalSettings[key] = JSON.parse(settingDefinitions[key].default);
+                }
+            } else {
+                finalSettings[key] = dbSettingsMap[key];
+            }
         } else {
             const def = settingDefinitions[key as keyof typeof settingDefinitions];
-            finalSettings[key] = process.env[def.env] || def.default;
+            const defaultValue = process.env[def.env] || def.default;
+            if (key === 'allowedUploadTypes') {
+                 try {
+                    // Parse the default value (should always be valid JSON)
+                    finalSettings[key] = JSON.parse(defaultValue);
+                 } catch (e) {
+                     console.error("Error parsing default allowedUploadTypes", e);
+                     finalSettings[key] = []; // Fallback to empty array on error
+                 }
+            } else {
+                 finalSettings[key] = defaultValue;
+            }
         }
     }
-    
+
     console.log("GET /api/settings - Returning final settings:", finalSettings);
     return NextResponse.json(finalSettings);
   } catch (error) {
@@ -130,20 +155,34 @@ export async function POST(request: Request) {
       );
     }
 
-    // Process each key-value pair with raw SQL queries
     for (const [key, value] of Object.entries(data)) {
-      // Check if setting exists first
+      let valueToSave: string;
+      // If the key is allowedUploadTypes, stringify the array before saving
+      if (key === 'allowedUploadTypes') {
+        if (!Array.isArray(value)) {
+            console.warn(`POST /api/settings - Invalid data type for allowedUploadTypes, expected array, got ${typeof value}`);
+            // Skip saving this key or handle error appropriately
+            continue; 
+        }
+        valueToSave = JSON.stringify(value);
+      } else {
+        valueToSave = String(value);
+      }
+
+      // Escape single quotes in the value to prevent SQL injection issues with raw queries
+      const escapedValue = valueToSave.replace(/'/g, "''");
+
       const checkQuery = `SELECT * FROM Setting WHERE key = '${key}' LIMIT 1`;
       const existing = await prisma.$queryRawUnsafe(checkQuery);
-      
+
       if (Array.isArray(existing) && existing.length > 0) {
         // Update existing setting
-        const updateQuery = `UPDATE Setting SET value = '${String(value)}', updatedAt = datetime('now') WHERE key = '${key}'`;
+        const updateQuery = `UPDATE Setting SET value = '${escapedValue}', updatedAt = datetime('now') WHERE key = '${key}'`;
         await prisma.$executeRawUnsafe(updateQuery);
       } else {
         // Create new setting
-        const id = crypto.randomUUID();
-        const insertQuery = `INSERT INTO Setting (id, key, value, createdAt, updatedAt) VALUES ('${id}', '${key}', '${String(value)}', datetime('now'), datetime('now'))`;
+        const id = crypto.randomUUID(); // Assuming crypto is available (standard in Node >= 15)
+        const insertQuery = `INSERT INTO Setting (id, key, value, createdAt, updatedAt) VALUES ('${id}', '${key}', '${escapedValue}', datetime('now'), datetime('now'))`;
         await prisma.$executeRawUnsafe(insertQuery);
       }
     }

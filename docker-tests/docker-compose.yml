@@ -3,15 +3,15 @@ services:
     # Tell Compose how to build the image (context is relative to compose file)
     build: .. 
     # Still specify the image name/tag for the built image
-    image: mck3dprintfarm:v0.0.4a
+    image: mck3dprintfarm:v0.0.6a
     # The ENTRYPOINT in the Dockerfile now handles the full startup sequence
     # command: |
     #   sh -c " ... removed ... "
     ports:
       - "3000:3000"
     volumes:
-      # Map host uploads to container uploads
-      - ../uploads:/app/uploads
+      # Map host uploads to container uploads (relative to docker-compose.yml)
+      - ./uploads:/app/uploads
       # Use a named volume for persistent database data
       - printfarm-data:/app/data
       # Map host backup directory to container backup directory

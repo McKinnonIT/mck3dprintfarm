@@ -2,40 +2,59 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { writeFile } from "fs/promises";
-import { join } from "path";
+import { writeFile, mkdir } from "fs/promises";
+import { join, dirname } from "path";
 
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
+    const userId = session?.user?.id;
+    const userEmail = session?.user?.email;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    if (!userId || !userEmail) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Extract username from email
+    const username = userEmail.split('@')[0];
+    if (!username) {
+       console.error(`Failed to extract username from email: ${userEmail}`);
+       return NextResponse.json({ error: "Invalid user email format" }, { status: 400 });
+    }
+    // Basic sanitization (replace non-alphanumeric with underscore)
+    const sanitizedUsername = username.replace(/[^a-zA-Z0-9]/g, '_');
+
     const formData = await request.formData();
-    const file = formData.get("file") as File;
+    const file = formData.get("file") as File | null;
     const groupId = formData.get("groupId") as string | null;
 
     if (!file) {
-      return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Create a unique filename
+    // Define user-specific upload directory relative to the mapped volume root
+    const userUploadDir = join("uploads", sanitizedUsername);
+    const absoluteUploadDir = join(process.cwd(), userUploadDir); 
+    
+    // Ensure the directory exists
+    try {
+        await mkdir(absoluteUploadDir, { recursive: true });
+    } catch (mkdirError) {
+        console.error(`Failed to create upload directory ${absoluteUploadDir}:`, mkdirError);
+        return NextResponse.json({ error: "Failed to create upload directory" }, { status: 500 });
+    }
+
+    // Create a unique filename (timestamp prefix is still good practice)
     const timestamp = Date.now();
     const uniqueFilename = `${timestamp}-${file.name}`;
-    const filePath = join(process.cwd(), "uploads", uniqueFilename);
+    const absoluteFilePath = join(absoluteUploadDir, uniqueFilename);
+    // Store the path relative to the base uploads directory for the DB
+    const relativeFilePath = join(sanitizedUsername, uniqueFilename); 
 
     // Save the file locally
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
+    await writeFile(absoluteFilePath, buffer);
 
     // Check if file is an STL file
     const isStlFile = file.name.toLowerCase().endsWith('.stl');
@@ -51,11 +70,11 @@ export async function POST(request: Request) {
     const fileRecord = await prisma.file.create({
       data: {
         name: file.name,
-        path: filePath,
+        path: relativeFilePath,
         size: file.size,
         type: file.type,
         previewUrl: previewUrl,
-        uploadedBy: session.user.id,
+        uploadedBy: userId,
         groupId: groupId || null,
       },
       include: {

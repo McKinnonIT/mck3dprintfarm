@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { unlink } from "fs/promises";
+import { join } from "path";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
@@ -21,8 +22,13 @@ export async function DELETE(
       select: { id: true, path: true, uploadedBy: true }, // Select necessary fields
     });
 
-    if (!file) {
-      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    if (!file || !file.path) {
+      if (!file) {
+        return NextResponse.json({ error: "File not found in database" }, { status: 404 });
+      }
+      console.error(`File record ${file.id} is missing the path. Cannot delete from filesystem.`);
+      await prisma.file.delete({ where: { id: params.id } });
+      return NextResponse.json({ success: true, message: "File record deleted, but file path was missing." });
     }
 
     // 3. Check authorization: Admin or Uploader
@@ -34,17 +40,20 @@ export async function DELETE(
         return NextResponse.json({ error: "Forbidden: You do not have permission to delete this file." }, { status: 403 });
     }
 
+    // Construct the absolute path
+    const absoluteFilePath = join(process.cwd(), "uploads", file.path);
+
     // 4. Delete the file from the filesystem (if authorized)
     try {
-      console.log(`Attempting to delete file from filesystem: ${file.path}`);
-      await unlink(file.path);
-      console.log(`Successfully deleted file from filesystem: ${file.path}`);
+      console.log(`Attempting to delete file from filesystem: ${absoluteFilePath}`);
+      await unlink(absoluteFilePath);
+      console.log(`Successfully deleted file from filesystem: ${absoluteFilePath}`);
     } catch (error: any) {
        // Log error but continue to DB deletion if file system delete fails (e.g., file already gone)
        if (error.code !== 'ENOENT') { // ENOENT = Error NO ENTry (file not found)
-           console.error(`Failed to delete file from filesystem (Path: ${file.path}):`, error);
+           console.error(`Failed to delete file from filesystem (Path: ${absoluteFilePath}):`, error);
        } else {
-           console.warn(`File not found on filesystem during delete attempt (Path: ${file.path}). Proceeding with DB deletion.`);
+           console.warn(`File not found on filesystem during delete attempt (Path: ${absoluteFilePath}). Proceeding with DB deletion.`);
        }
     }
 

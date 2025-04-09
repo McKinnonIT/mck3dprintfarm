@@ -95,6 +95,8 @@ const AVAILABLE_PAGES = [
   { id: '/settings', label: 'Settings (All Tabs)' },
 ];
 
+const FILE_TYPES = [".stl", ".3mf", ".obj", ".gcode", ".bgcode", ".gx"];
+
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -143,6 +145,7 @@ export default function SettingsPage() {
     printFarmTitle: "",
     organizationName: "",
     organizationWebsite: "",
+    allowedUploadTypes: [] as string[],
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -250,12 +253,13 @@ export default function SettingsPage() {
         printFarmTitle: data.printFarmTitle || "",
         organizationName: data.organizationName || "",
         organizationWebsite: data.organizationWebsite || "",
+        allowedUploadTypes: Array.isArray(data.allowedUploadTypes) ? data.allowedUploadTypes : [],
       });
       setSettingsError(null);
     } catch (err) {
       console.error("Error in fetchSettings:", err);
       setSettingsError(err instanceof Error ? err.message : "An error occurred");
-      setSiteSettings({ printFarmTitle: "Error", organizationName: "Error", organizationWebsite: "Error" });
+      setSiteSettings(prev => ({ ...prev, allowedUploadTypes: [] }));
     }
   }, []);
 
@@ -506,6 +510,21 @@ export default function SettingsPage() {
     }));
   };
 
+  const handleAllowedTypeChange = (fileType: string, checked: boolean | string) => {
+    setSiteSettings(prev => {
+        const currentTypes = prev.allowedUploadTypes;
+        let updatedTypes;
+        if (checked) {
+            updatedTypes = [...currentTypes, fileType];
+        } else {
+            updatedTypes = currentTypes.filter(type => type !== fileType);
+        }
+        // Ensure uniqueness and sort for consistency (optional)
+        updatedTypes = Array.from(new Set(updatedTypes)).sort();
+        return { ...prev, allowedUploadTypes: updatedTypes };
+    });
+  };
+
   const saveSettings = async () => {
     try {
       setIsSavingSettings(true);
@@ -521,6 +540,7 @@ export default function SettingsPage() {
           printFarmTitle: siteSettings.printFarmTitle,
           organizationName: siteSettings.organizationName,
           organizationWebsite: siteSettings.organizationWebsite,
+          allowedUploadTypes: siteSettings.allowedUploadTypes,
         }),
       });
 
@@ -835,6 +855,27 @@ export default function SettingsPage() {
                 <label htmlFor="organizationWebsite" className="block text-sm font-medium">Organization Website</label>
                 <Input id="organizationWebsite" name="organizationWebsite" value={siteSettings.organizationWebsite} onChange={handleSettingsChange} disabled={isSavingSettings} />
                 </div>
+              <div className="space-y-2 border-t pt-4">
+                <Label>Allowed Upload File Types</Label>
+                <p className="text-sm text-muted-foreground">
+                  Select which file extensions users are allowed to upload via the Files page.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pt-2">
+                  {FILE_TYPES.map((fileType) => (
+                    <div key={fileType} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`type-${fileType}`}
+                        checked={siteSettings.allowedUploadTypes.includes(fileType)}
+                        onCheckedChange={(checked) => handleAllowedTypeChange(fileType, checked)}
+                        disabled={isSavingSettings}
+                      />
+                      <Label htmlFor={`type-${fileType}`} className="font-mono font-normal">
+                        {fileType}
+                      </Label>
+                    </div>
+                  ))}
+                    </div>
+                  </div>
               <div className="flex justify-end pt-4 border-t">
                  {settingsSaved && <p className="text-green-600 mr-4 self-center">Settings saved!</p>} 
                 <Button onClick={saveSettings} disabled={isSavingSettings}>

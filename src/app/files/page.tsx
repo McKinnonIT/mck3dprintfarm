@@ -1,40 +1,30 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { UploadFileForm } from "@/components/upload-file-form";
-import { DeleteFileDialog } from "@/components/delete-file-dialog";
-import { FileInfoDialog } from "@/components/file-info-dialog";
-import { PrintFileDialog } from "@/components/print-file-dialog";
-import { PlusIcon, XMarkIcon, InformationCircleIcon, PrinterIcon } from "@heroicons/react/24/outline";
-import { GcodePreview } from "@/components/gcode-preview";
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PlusIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { canAccessPage } from "@/lib/rbacUtils";
+import { UploadFileForm } from "@/components/upload-file-form";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Card } from "@/components/ui/card";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import { GcodeThumbnailPreview } from "@/components/gcode-thumbnail-preview";
 
+// Define File type (adjust as needed)
 type File = {
   id: string;
   name: string;
-  path: string;
   size: number;
   type: string;
-  previewUrl: string | null;
   uploadedAt: Date;
-  updatedAt: Date;
-  uploadedBy: string;
-  groupId: string | null;
-  group: {
-    id: string;
-    name: string;
-  } | null;
-  printJobs: {
-    id: string;
-    status: string;
-    createdAt: Date;
-    printer: {
-      id: string;
-      name: string;
-    };
-  }[];
 };
 
 export default function FilesPage() {
@@ -44,68 +34,74 @@ export default function FilesPage() {
   const hasAccess = canAccessPage(allowedPages, '/files');
 
   const [files, setFiles] = useState<File[]>([]);
-  const [showUploadForm, setShowUploadForm] = useState(false);
-  const [deletingFile, setDeletingFile] = useState<File | null>(null);
-  const [viewingFileInfo, setViewingFileInfo] = useState<File | null>(null);
-  const [printingFile, setPrintingFile] = useState<File | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [allowedUploadTypes, setAllowedUploadTypes] = useState<string[]>([]);
+  const [deletingFile, setDeletingFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [previewingFile, setPreviewingFile] = useState<File | null>(null);
 
+  // Access control check
   useEffect(() => {
-    if (status === 'loading') return; 
+    if (status === 'loading') return;
     if (status === 'unauthenticated') {
-      console.log("FilesPage: Unauthenticated, redirecting...");
       router.replace('/auth/signin');
     } else if (!hasAccess) {
-      console.log("FilesPage: Access denied, redirecting to /access-denied...");
-      router.replace('/access-denied'); // Redirect to access denied page
+      router.replace('/access-denied');
     }
   }, [status, hasAccess, router]);
 
-  const fetchFiles = useCallback(async () => {
-    if (status !== 'authenticated' || !hasAccess) return; // Guard fetch
-    console.log("FilesPage: Fetching files (access granted).");
+  // Fetch settings and files
+  const fetchData = useCallback(async () => {
+    if (status !== 'authenticated' || !hasAccess) {
+        setLoading(false);
+        return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/files');
-      if (!response.ok) throw new Error('Failed to fetch files');
-      const data = await response.json();
-      setFiles(data);
+      // Fetch settings first
+      const settingsResponse = await fetch("/api/settings");
+      if (!settingsResponse.ok) throw new Error('Failed to fetch settings');
+      const settingsData = await settingsResponse.json();
+      setAllowedUploadTypes(Array.isArray(settingsData.allowedUploadTypes) ? settingsData.allowedUploadTypes : []);
+
+      // Fetch files for the logged-in user
+      const filesResponse = await fetch('/api/files');
+      if (!filesResponse.ok) throw new Error('Failed to fetch files');
+      const filesData = await filesResponse.json();
+      setFiles(filesData);
+
     } catch (err) {
-      console.error('Failed to fetch files:', err);
+      console.error('Failed to fetch initial data:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      setFiles([]); // Ensure files is empty on error
     } finally {
       setLoading(false);
     }
   }, [status, hasAccess]);
 
   useEffect(() => {
-    fetchFiles();
-  }, [fetchFiles]);
+    fetchData();
+  }, [fetchData]);
 
-  const handleUploadFile = async (file: File) => {
-    setFiles(prev => [file, ...prev]);
-    setShowUploadForm(false);
+  const handleUploadSuccess = (uploadedFile: File) => {
+      toast.success(`File "${uploadedFile.name}" uploaded successfully!`);
+      // Refetch files list (or add optimistically)
+      // fetchData(); 
+      setFiles(prev => [uploadedFile, ...prev]); // Optimistic update example
+      setShowUploadForm(false);
   };
 
-  const handleDeleteFile = async (fileId: string) => {
-    try {
-      const response = await fetch(`/api/files/${fileId}`, {
-        method: 'DELETE',
-      });
+  // Determine the title based on session status and user name
+  const pageTitle = status === 'authenticated' && session?.user?.name
+    ? `${session.user.name} - Manage Files`
+    : "Manage Files";
 
-      if (!response.ok) throw new Error('Failed to delete file');
-      
-      setFiles(prev => prev.filter(f => f.id !== fileId));
-      setDeletingFile(null);
-      setViewingFileInfo(null);
-    } catch (error) {
-      console.error('Failed to delete file:', error);
-    }
-  };
-
+  // Helper function to format file size
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -114,220 +110,203 @@ export default function FilesPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Filtered Files
   const filteredFiles = files.filter(file =>
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (status === "loading" || (status === "authenticated" && !hasAccess)) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <p>Loading...</p>
-      </div>
-    );
+  // Handler for Delete Confirmation
+  const handleDeleteFileConfirm = async () => {
+    if (!deletingFile) return;
+    
+    setIsSubmitting(true);
+    setDeleteError(null);
+    console.log(`Attempting to delete file: ${deletingFile.id} (${deletingFile.name})`);
+    
+    try {
+      const response = await fetch(`/api/files/${deletingFile.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Delete failed. Invalid response from server." }));
+        throw new Error(errorData.error || "Failed to delete file");
+      }
+
+      toast.success(`File "${deletingFile.name}" deleted successfully!`);
+      setDeletingFile(null);
+      fetchData();
+      
+    } catch (err) {
+      console.error("Delete file error:", err);
+      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during deletion";
+      setDeleteError(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle loading state for the whole page
+  if (status === 'loading' || (status === 'authenticated' && !hasAccess && loading)) {
+      return <div className="p-6">Loading...</div>;
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold">My Files</h1>
-        <button
-          onClick={() => setShowUploadForm(true)}
-          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <PlusIcon className="h-4 w-4 mr-1" />
-          Upload G/BGcode
-        </button>
+    <div className="p-6">
+      {/* Header: Title + Upload Button */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold">{pageTitle}</h1>
+        <Button onClick={() => setShowUploadForm(true)} disabled={loading}>
+          <PlusIcon className="h-5 w-5 mr-2" />
+          Upload File
+        </Button>
       </div>
 
+      {/* Search Bar */}
       <div className="mb-6">
         <div className="relative">
-          <input
+          <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <Input
             type="text"
             placeholder="Search files by name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-4 py-2 pl-10 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full pl-10"
           />
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
-          </div>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {filteredFiles.map((file) => (
-          <div
-            key={file.id}
-            className="rounded-lg border bg-white p-6 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <div>
-                  <h3 className="text-lg font-semibold">{file.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    {formatFileSize(file.size)} • {file.type}
-                  </p>
-                </div>
-                
-                {file.group && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Group:</span>
-                    <span className="text-sm text-gray-700">{file.group.name}</span>
+      {/* Error Display Area */}
+      {error && (
+         <div className="mb-4 rounded-md border border-red-400 bg-red-100 p-4 text-red-700">
+           <p><strong>Error:</strong> {error}</p>
+         </div>
+       )}
+
+      {/* Content Area: Loading / No Files / Files List */}
+      {loading ? (
+         <div className="flex justify-center items-center p-10">
+           {/* Consider using a spinner component */}
+           <p>Loading files...</p> 
+         </div>
+       ) : !error && filteredFiles.length === 0 ? (
+         <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 text-center text-muted-foreground">
+           {searchQuery ? "No files found matching your search." : "No files uploaded yet."}
+         </div>
+       ) : !error && filteredFiles.length > 0 ? (
+         <div className="space-y-4">
+            {filteredFiles.map((file) => {
+              const lowerCaseFileName = file.name.toLowerCase();
+              const printableExtensions = ['.gcode', '.bgcode', '.gx'];
+              const previewableExtensions = ['.gcode', '.bgcode'];
+              const isPrintable = printableExtensions.some(ext => lowerCaseFileName.endsWith(ext));
+              const isPreviewable = previewableExtensions.some(ext => lowerCaseFileName.endsWith(ext));
+
+              return (
+               <Card key={file.id} className="p-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                     {/* File Info (Left) */}
+                     <div className="flex-grow flex items-center gap-4">
+                       <div>
+                           <h3 className="text-lg font-semibold">{file.name}</h3>
+                           <p className="text-sm text-muted-foreground">
+                               {formatFileSize(file.size)} • {file.type}
+                               {' • '} Uploaded: {new Date(file.uploadedAt).toLocaleDateString()}
+                           </p>
+                       </div>
+                     </div>
+                     {/* Actions (Right) */}
+                     <div className="flex flex-shrink-0 gap-2 pt-2 md:pt-0">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => isPreviewable && setPreviewingFile(file)}
+                          disabled={!isPreviewable || isSubmitting}
+                        >
+                          Preview
+                        </Button>
+                        
+                        {/* Conditional Print/Slice Button */}
+                        {isPrintable ? (
+                          <Button variant="outline" size="sm" disabled>Print</Button>
+                        ) : (
+                          <Button variant="outline" size="sm" disabled>Slice</Button>
+                        )}
+
+                        {/* Conditional Multi-Print Button */}
+                        {isPrintable && (
+                          <Button variant="outline" size="sm" disabled>Multi-Print</Button>
+                        )}
+                        
+                        <Button variant="outline" size="sm" disabled>Info</Button>
+                        <Button 
+                           variant="destructive" 
+                           size="sm" 
+                           onClick={() => {
+                             setDeleteError(null);
+                             setDeletingFile(file);
+                           }}
+                           disabled={isSubmitting}
+                        >
+                           Delete
+                        </Button>
+                     </div>
                   </div>
-                )}
-              </div>
+               </Card>
+              );
+            })}
+         </div>
+        ) : null}
+      
+      {/* Upload Modal - Using Shadcn Dialog */}
+      <Dialog open={showUploadForm} onOpenChange={setShowUploadForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload New File</DialogTitle>
+          </DialogHeader>
+          {/* Render form inside DialogContent */} 
+          <UploadFileForm
+            onUploadSuccess={handleUploadSuccess}
+            allowedFileTypes={allowedUploadTypes} 
+            onClose={() => setShowUploadForm(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">Uploaded:</span>
-                  <span className="text-xs text-gray-600">
-                    {new Date(file.uploadedAt).toLocaleString()}
-                  </span>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  {/* Show 3D viewer for both STL files with previewUrl and any GCODE/BGCODE files */}
-                  {((file.name.toLowerCase().endsWith('.stl') && file.previewUrl) || 
-                    file.name.toLowerCase().endsWith('.gcode') ||
-                    file.name.toLowerCase().endsWith('.bgcode')) && (
-                    <GcodePreview 
-                      gcodeUrl={
-                        // For GCODE/BGCODE files, go through our GCODE API that handles auth and CORS
-                        file.name.toLowerCase().endsWith('.gcode') || file.name.toLowerCase().endsWith('.bgcode')
-                          ? `/api/files/gcode/${encodeURIComponent(file.id)}`
-                          : (file.previewUrl || `/api/files/${file.id}/preview`)
-                      } 
-                      fileName={file.name}
-                      fileId={file.id} 
-                    />
-                  )}
-                  
-                  {(file.name.toLowerCase().endsWith('.gcode') || file.name.toLowerCase().endsWith('.bgcode')) && (
-                    <button
-                      onClick={() => setPrintingFile(file)}
-                      className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                    >
-                      <PrinterIcon className="h-4 w-4 mr-1" />
-                      Print
-                    </button>
-                  )}
+      {/* Delete Confirmation Dialog - Using AlertDialog */}
+      <AlertDialog open={!!deletingFile} onOpenChange={(open) => !open && setDeletingFile(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the file{' '}
+                <code className="mx-1 font-mono bg-muted px-1 rounded">{deletingFile?.name}</code>.
+            </AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteError && (
+                <p className="text-sm text-red-600">Error: {deleteError}</p>
+            )}
+            <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting} onClick={() => setDeletingFile(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+                onClick={handleDeleteFileConfirm} 
+                disabled={isSubmitting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+                 {isSubmitting ? <><ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" /> Deleting...</> : 'Delete File'}
+            </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-                  {file.name.toLowerCase().endsWith('.bgcode') && (
-                    <div className="flex items-center text-xs space-x-1">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">PrusaLink compatible</span>
-                    </div>
-                  )}
+      {/* Gcode Thumbnail Preview Modal */}
+      <GcodeThumbnailPreview
+        fileId={previewingFile?.id ?? null}
+        fileName={previewingFile?.name ?? null}
+        isOpen={!!previewingFile}
+        onClose={() => setPreviewingFile(null)}
+      />
 
-                  {file.name.toLowerCase().endsWith('.gcode') && (
-                    <div className="flex items-center text-xs space-x-1">
-                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded">Moonraker compatible</span>
-                    </div>
-                  )}
-                  
-                  <button
-                    onClick={() => setViewingFileInfo(file)}
-                    className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                  >
-                    <InformationCircleIcon className="h-4 w-4 mr-1" />
-                    Info
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {filteredFiles.length === 0 && (
-          <div className="rounded-lg border bg-white p-6 text-center text-gray-500">
-            {searchQuery ? "No files found matching your search." : "No files found."}
-          </div>
-        )}
-      </div>
-
-      {/* Upload File Modal */}
-      {showUploadForm && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setShowUploadForm(false)}></div>
-            </div>
-
-            <span className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true">
-              &#8203;
-            </span>
-
-            <div className="inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold">Upload New G/BGcode</h2>
-                </div>
-                <UploadFileForm onUpload={handleUploadFile} />
-                <div className="mt-4">
-                  <button
-                    onClick={() => setShowUploadForm(false)}
-                    className="w-full inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <XMarkIcon className="h-4 w-4 mr-1" />
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* File Info Modal */}
-      {viewingFileInfo && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setViewingFileInfo(null)}></div>
-            </div>
-
-            <span className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true">
-              &#8203;
-            </span>
-
-            <div className="inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <FileInfoDialog
-                  file={viewingFileInfo}
-                  onClose={() => setViewingFileInfo(null)}
-                  onDelete={handleDeleteFile}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Print File Modal */}
-      {printingFile && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setPrintingFile(null)}></div>
-            </div>
-
-            <span className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true">
-              &#8203;
-            </span>
-
-            <div className="inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <PrintFileDialog
-                  fileName={printingFile.name}
-                  fileId={printingFile.id}
-                  onClose={() => setPrintingFile(null)}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 } 

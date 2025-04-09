@@ -26,6 +26,12 @@ RUN echo "NEXT_PUBLIC_BUILD_ENV=production" > .env
 # Set NODE_ENV to production for the build
 ENV NODE_ENV=production
 
+# Clear Next.js cache before building
+RUN rm -rf .next
+
+# Explicitly regenerate Prisma client *again* right before build (redundant, for debugging)
+# RUN npx prisma generate
+
 # Build the Next.js application
 RUN npm run build && npm prune --production && npm cache clean --force
 

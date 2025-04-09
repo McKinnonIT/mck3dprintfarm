@@ -57,3 +57,8 @@ prisma/dev.db-journal
 # external repos
 /grid-host/
 /docker/
+
+# Docker test environment data
+docker-tests/data/
+docker-tests/backups/
+docker-tests/uploads/

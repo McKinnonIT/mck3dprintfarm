@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ArrowPathIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import { ArrowUpOnSquareIcon, QueueListIcon } from "@heroicons/react/24/outline"; // Import new icons
+import { usePermissions } from "@/hooks/usePermissions"; // Import the hook
 
 // Simplified Printer type for selection
 type SelectablePrinter = {
@@ -64,6 +65,7 @@ export function PrintFileModal({
   error
 }: PrintFileModalProps) {
   const [selectedPrinterId, setSelectedPrinterId] = useState<string>("");
+  const { can } = usePermissions(); // Use the hook
 
   const compatiblePrinters = getCompatiblePrinters(fileType, printers);
 
@@ -89,8 +91,9 @@ export function PrintFileModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}> 
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="break-words">Upload and Print: {fileName || ""}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle>Send File to Printer</DialogTitle>
+          {fileName && <p className="text-sm text-muted-foreground pt-1 truncate">File: {fileName}</p>}
+          <DialogDescription className="pt-2">
             Select a compatible printer to send this file to.
             Only online and idle printers are shown.
           </DialogDescription>
@@ -123,29 +126,36 @@ export function PrintFileModal({
         </div>
         <DialogFooter className="sm:justify-between"> {/* Adjust footer layout */}
           <Button variant="outline" onClick={onClose} disabled={isSubmitting} className="mt-2 sm:mt-0">Cancel</Button>
+          {/* Use specific permission checks for each button */} 
           <div className="flex space-x-2 mt-2 sm:mt-0"> {/* Group action buttons */} 
-            <Button
-              // onClick={handleUploadOnly} // Placeholder for future action
-              variant="secondary" // Different style
-              disabled={!selectedPrinterId || isSubmitting}
-            >
-              <ArrowUpOnSquareIcon className="h-4 w-4 mr-2" /> Upload to Printer
-            </Button>
-            <Button
-              // onClick={handleQueue} // Placeholder for future action
-              variant="secondary" // Different style
-              disabled={!selectedPrinterId || isSubmitting}
-            >
-              <QueueListIcon className="h-4 w-4 mr-2" /> Queue Print
-            </Button>
-            <Button
-              onClick={handleConfirm} // Existing print action
-              disabled={!selectedPrinterId || isSubmitting}
-              className="bg-green-600 hover:bg-green-700 text-white" // Add green styling
-            >
-              {isSubmitting ? <><ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" /> Sending...</> : <><PrinterIcon className="h-4 w-4 mr-2" /> Print</>}
-            </Button>
-           </div>
+            {can('files:uploadToPrinter') && (
+              <Button
+                // onClick={handleUploadOnly} // Placeholder for future action
+                variant="secondary" // Different style
+                disabled={!selectedPrinterId || isSubmitting}
+              >
+                <ArrowUpOnSquareIcon className="h-4 w-4 mr-2" /> Upload to Printer
+              </Button>
+            )}
+            {can('files:queuePrint') && (
+              <Button
+                // onClick={handleQueue} // Placeholder for future action
+                variant="secondary" // Different style
+                disabled={!selectedPrinterId || isSubmitting}
+              >
+                <QueueListIcon className="h-4 w-4 mr-2" /> Queue Print
+              </Button>
+            )}
+            {can('files:startPrint') && (
+              <Button
+                onClick={handleConfirm} // Existing print action
+                disabled={!selectedPrinterId || isSubmitting}
+                className="bg-green-600 hover:bg-green-700 text-white" // Add green styling
+              >
+                {isSubmitting ? <><ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" /> Sending...</> : <>Print</>}
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

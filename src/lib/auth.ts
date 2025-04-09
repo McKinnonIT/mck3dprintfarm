@@ -15,21 +15,24 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
-      role?: string; // Keep existing role
-      allowedPages?: string[]; // Add allowedPages
+      role?: string;
+      allowedPages?: string[];
+      allowedActions?: string[]; // Add allowedActions
     } & DefaultSession["user"];
   }
 
   interface User {
-    allowedPages?: string[]; // Only add the new field
+    allowedPages?: string[];
+    allowedActions?: string[]; // Add allowedActions
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
-    role?: string; // Keep existing role
-    allowedPages?: string[]; // Add allowedPages
+    role?: string;
+    allowedPages?: string[];
+    allowedActions?: string[]; // Add allowedActions
   }
 }
 
@@ -54,18 +57,19 @@ export const authOptions: NextAuthOptions = {
               id: true,
               email: true,
               name: true,
-              password: true, 
-              isEnabled: true, 
-              role: { // Select the related role
-                select: { // Select needed fields from role
+              password: true,
+              isEnabled: true,
+              role: { 
+                select: { 
                   name: true,
-                  allowedPages: true // Fetch allowedPages string
+                  allowedPages: true,
+                  allowedActions: true // Fetch allowedActions string
                 }
               }
             }
           });
           // Log fetched user info (excluding password)
-          console.log(`Found user in DB for ${credentials.email}:`, user ? {id: user.id, email: user.email, name: user.name, roleName: user.role?.name, isEnabled: user.isEnabled, allowedPages: user.role?.allowedPages } : null);
+          console.log(`Found user in DB for ${credentials.email}:`, user ? {id: user.id, email: user.email, name: user.name, roleName: user.role?.name, isEnabled: user.isEnabled, allowedPages: user.role?.allowedPages, allowedActions: user.role?.allowedActions } : null);
 
           if (!user) {
             console.log("No user found with email:", credentials.email);
@@ -98,17 +102,19 @@ export const authOptions: NextAuthOptions = {
 
           console.log("User authenticated successfully:", {id: user.id, email: user.email});
           
-          // Get role name and parse allowedPages
+          // Get role name, parse allowedPages and allowedActions
           const roleName = user.role?.name ?? DEFAULT_USER_ROLE;
-          const allowedPagesArray = JSON.parse(user.role?.allowedPages || '[]') as string[];
+          let allowedPagesArray = JSON.parse(user.role?.allowedPages || '[]') as string[];
+          let allowedActionsArray = JSON.parse(user.role?.allowedActions || '[]') as string[]; // Parse actions
 
-          // Return user object for JWT callback, including allowedPages
+          // Return user object for JWT callback
           return {
             id: user.id,
             email: user.email,
             name: user.name,
             role: roleName,
-            allowedPages: allowedPagesArray, // Pass the parsed array
+            allowedPages: allowedPagesArray,
+            allowedActions: allowedActionsArray, // Include actions
           };
         } catch (error) {
           console.error("Authorization error:", error);
@@ -119,12 +125,12 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      // On sign-in or explicit update, populate token with user data
-      if (user) { // user object comes from the authorize callback
+      if (user) { 
         token.id = user.id;
         token.role = user.role;
-        token.allowedPages = user.allowedPages; // Add allowedPages to token
-        console.log("JWT populated on sign-in:", { id: token.id, role: token.role, allowedPages: token.allowedPages });
+        token.allowedPages = user.allowedPages;
+        token.allowedActions = user.allowedActions; // Add actions to token
+        console.log("JWT populated:", { id: token.id, role: token.role, allowedPages: token.allowedPages, allowedActions: token.allowedActions });
       }
        // Re-enable session update trigger handling
        if (trigger === "update" && session?.role) {
@@ -140,12 +146,12 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      // Transfer necessary info from token to session object
       if (token) {
         session.user.id = token.id;
         session.user.role = token.role;
-        session.user.allowedPages = token.allowedPages; // Add allowedPages to session
-        console.log("Session created/updated:", { userId: session.user.id, role: session.user.role, allowedPages: session.user.allowedPages });
+        session.user.allowedPages = token.allowedPages;
+        session.user.allowedActions = token.allowedActions; // Add actions to session
+        console.log("Session created/updated:", { userId: session.user.id, role: session.user.role, allowedPages: session.user.allowedPages, allowedActions: session.user.allowedActions });
       }
       return session;
     }

@@ -22,6 +22,7 @@ import {
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, 
     AlertDialogTrigger 
 } from "@/components/ui/alert-dialog";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface User {
   id: string;
@@ -46,6 +47,7 @@ interface Role {
 
 interface RoleDetails extends Role {
   allowedPages: string[];
+  allowedActions?: string[];
   users: Pick<User, 'id' | 'name' | 'email'>[];
 }
 
@@ -95,11 +97,33 @@ const AVAILABLE_PAGES = [
   { id: '/settings', label: 'Settings (All Tabs)' },
 ];
 
+// Define available actions for RBAC
+const AVAILABLE_ACTIONS = [
+  { id: '*'                , label: 'All Actions (Wildcard)' },
+  { id: 'roles:create'       , label: 'Create Roles' },
+  // { id: 'roles:edit'         , label: 'Edit Roles' }, // Removed
+  // { id: 'roles:delete'       , label: 'Delete Roles' }, // Removed
+  // { id: 'users:create'       , label: 'Create Users' }, // Removed
+  // { id: 'users:edit'         , label: 'Edit Users' }, // Removed
+  // { id: 'users:delete'       , label: 'Delete Users' }, // Removed
+  // { id: 'users:resetPassword', label: 'Reset User Passwords' }, // Removed
+  // { id: 'users:toggleStatus' , label: 'Enable/Disable Users' }, // Removed
+  // { id: 'settings:general:edit', label: 'Edit General Settings' }, // Removed
+  // { id: 'database:backup:create', label: 'Create Database Backups' }, // Removed
+  // { id: 'database:backup:delete', label: 'Delete Database Backups' }, // Removed
+  // Granular file printing actions (Currently in use):
+  { id: 'files:uploadToPrinter', label: 'Upload Files to Printer (via Modal)' },
+  { id: 'files:queuePrint'   , label: 'Queue Print Job (via Modal)' },
+  { id: 'files:startPrint'   , label: 'Start Print Job Immediately (via Modal)' },
+  // Add more actions as needed
+];
+
 const FILE_TYPES = [".stl", ".3mf", ".obj", ".gcode", ".bgcode", ".gx"];
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { can } = usePermissions();
 
   // Extract primitive/stable values for useMemo dependencies
   const userRole = session?.user?.role;
@@ -158,8 +182,8 @@ export default function SettingsPage() {
 
   const [isProcessingUserToggle, setIsProcessingUserToggle] = useState(false);
 
-  const [editingRole, setEditingRole] = useState<Role | null>(null);
-  const [newRoleData, setNewRoleData] = useState({ name: '', description: '', allowedPages: [] as string[] });
+  const [editingRole, setEditingRole] = useState<RoleDetails | null>(null);
+  const [newRoleData, setNewRoleData] = useState({ name: '', description: '', allowedPages: [] as string[], allowedActions: [] as string[] });
 
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
 
@@ -384,31 +408,34 @@ export default function SettingsPage() {
   };
 
   const openAddRoleModal = () => {
-    setNewRoleData({ name: '', description: '', allowedPages: [] });
-    setRolesError(null);
+    // Reset form data including allowedActions
+    setNewRoleData({ name: '', description: '', allowedPages: [], allowedActions: [] });
+    setRoleActionError(null);
     setIsAddRoleModalOpen(true);
   };
 
   const handleAddRole = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Submitting new role:", newRoleData);
     setIsProcessingRole(true);
-    setRolesError(null);
+    setRoleActionError(null);
     try {
       const response = await fetch('/api/roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRoleData),
+        body: JSON.stringify({
+             name: newRoleData.name, 
+             description: newRoleData.description, 
+             allowedPages: newRoleData.allowedPages,
+             allowedActions: newRoleData.allowedActions // Include allowedActions
+        }), 
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add role');
-      }
-      const addedRole: Role = await response.json();
-      setRoles(prev => [...prev, { ...addedRole, allowedPages: addedRole.allowedPages || [] }]);
+      const result = await response.json();
+      setRoles(prev => [...prev, { ...result, allowedPages: result.allowedPages || [] }]);
       closeAddRoleModal();
     } catch (err) {
       console.error("Add Role Error:", err);
-      setRolesError(err instanceof Error ? err.message : "An error occurred");
+      setRoleActionError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsProcessingRole(false);
     }
@@ -416,11 +443,18 @@ export default function SettingsPage() {
 
   const closeAddRoleModal = () => {
     setIsAddRoleModalOpen(false);
+    setNewRoleData({ name: '', description: '', allowedPages: [], allowedActions: [] });
   };
 
   const openEditRoleModal = (role: Role) => {
-    setEditingRole({ ...role, allowedPages: role.allowedPages || [] });
-    setRolesError(null);
+    console.log("Opening edit modal for role:", role);
+    // Ensure allowedActions is an array when setting editingRole state
+    setEditingRole({ 
+        ...role, 
+        allowedPages: Array.isArray(role.allowedPages) ? role.allowedPages : [],
+        allowedActions: Array.isArray((role as any).allowedActions) ? (role as any).allowedActions : [] 
+    } as RoleDetails);
+    setRoleActionError(null);
     setIsEditRoleModalOpen(true);
   };
 
@@ -445,19 +479,49 @@ export default function SettingsPage() {
     }
   };
 
+  const handleAllowedActionChange = (actionId: string, checked: boolean | string, isEditing: boolean) => {
+    const calculateUpdatedActions = (currentActions: string[] | undefined): string[] => {
+        let updated = [...(currentActions || [])];
+        if (checked) {
+            if (!updated.includes(actionId)) {
+                updated.push(actionId);
+            }
+            if (actionId === '*') {
+                updated = ['*'];
+            } else if (updated.includes('*')) {
+                updated = updated.filter(a => a !== '*');
+            }
+        } else {
+            updated = updated.filter(a => a !== actionId);
+        }
+        return updated;
+    };
+
+    if (isEditing) {
+        if (!editingRole) return;
+        const updatedActions = calculateUpdatedActions(editingRole.allowedActions);
+        setEditingRole(prev => prev ? { ...prev, allowedActions: updatedActions } : null);
+    } else {
+        const updatedActions = calculateUpdatedActions(newRoleData.allowedActions);
+        setNewRoleData(prev => ({ ...prev, allowedActions: updatedActions }));
+    }
+  };
+
   const handleEditRole = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRole) return;
+    console.log("Submitting edited role:", editingRole);
     setIsProcessingRole(true);
-    setRolesError(null);
+    setRoleActionError(null);
     try {
       const response = await fetch(`/api/roles/${editingRole.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editingRole.name,
-          description: editingRole.description,
-          allowedPages: editingRole.allowedPages,
+        body: JSON.stringify({ 
+            name: editingRole.name, 
+            description: editingRole.description, 
+            allowedPages: editingRole.allowedPages,
+            allowedActions: editingRole.allowedActions // Include allowedActions
         }),
       });
       if (!response.ok) {
@@ -469,7 +533,7 @@ export default function SettingsPage() {
       closeEditRoleModal();
     } catch (err) {
       console.error("Edit Role Error:", err);
-      setRolesError(err instanceof Error ? err.message : "An error occurred");
+      setRoleActionError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsProcessingRole(false);
     }
@@ -941,26 +1005,33 @@ export default function SettingsPage() {
                       ))}
                     </TableBody>
                   </Table>
-                )}
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
           </TabsContent>
         )}
 
         {isAdmin && (
           <TabsContent value="roles" className="space-y-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg font-medium">Roles</CardTitle>
-                <Button onClick={openAddRoleModal}>
-                    <PlusIcon className="mr-2 h-4 w-4" /> Add Role
-                </Button>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Manage Roles</CardTitle>
+                    <CardDescription>Define roles and their page access permissions.</CardDescription>
+                  </div>
+                  {can('roles:create') && (
+                    <Button onClick={openAddRoleModal} variant="outline" size="sm">
+                      <PlusIcon className="h-4 w-4 mr-1" /> Create Role
+                    </Button>
+                  )}
+                  </div>
               </CardHeader>
               <CardContent>
                 {rolesError && (
                     <div className="mb-4 text-sm text-red-600 bg-red-100 border border-red-300 rounded p-3">
                         Error: {rolesError}
-                    </div>
+                  </div>
                 )}
                 {!loadingRoles && roles.length > 0 && (
                   <Table>
@@ -970,6 +1041,7 @@ export default function SettingsPage() {
                         <TableHead>Description</TableHead>
                         <TableHead>User Count</TableHead>
                         <TableHead>Allowed Pages</TableHead>
+                        <TableHead>Allowed Actions</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -980,9 +1052,18 @@ export default function SettingsPage() {
                           <TableCell>{role.description || '-'}</TableCell>
                           <TableCell>{role.userCount ?? 'N/A'}</TableCell>
                           <TableCell>
-                            {role.allowedPages?.length > 0 
-                              ? role.allowedPages.join(', ') 
-                              : '-'}
+                            {role.allowedPages?.includes('*') 
+                               ? <span className="italic">All</span>
+                               : role.allowedPages?.length > 0 
+                                   ? role.allowedPages.join(', ') 
+                                   : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {(role as RoleDetails).allowedActions?.includes('*')
+                                ? <span className="italic">All (Wildcard)</span>
+                                : (role as RoleDetails).allowedActions?.length > 0
+                                    ? (role as RoleDetails).allowedActions.join(', ')
+                                    : 'None'}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button 
@@ -990,6 +1071,7 @@ export default function SettingsPage() {
                               size="sm" 
                               onClick={() => openEditRoleModal(role)}
                               disabled={role.name === 'ADMIN'}
+                              title={role.name === 'ADMIN' ? 'Cannot edit ADMIN role' : 'Edit Role'} 
                             >
                               Edit
                             </Button>
@@ -1011,15 +1093,15 @@ export default function SettingsPage() {
               )}
             </CardContent>
           </Card>
-          </TabsContent>
+        </TabsContent>
         )}
-
+        
         {isAdmin && (
           <TabsContent value="sso" className="space-y-4">
-            <Card>
-              <CardHeader>
+          <Card>
+            <CardHeader>
                 <CardTitle>Single Sign-On (SSO) & Integrations</CardTitle>
-              </CardHeader>
+            </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">Configure providers for single sign-on.</p>
                 <Card>
@@ -1031,19 +1113,19 @@ export default function SettingsPage() {
                     <div className="space-y-1">
                       <label className="text-xs font-medium">Client ID</label>
                       <Input placeholder="Enter Google Client ID" defaultValue={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""} />
-                  </div>
+                        </div>
                      <div className="space-y-1">
                       <label className="text-xs font-medium">Client Secret</label>
                       <Input type="password" placeholder="Enter Google Client Secret" defaultValue={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_SECRET || ""}/>
-                  </div>
+                      </div>
                      <div className="space-y-1">
                       <label className="text-xs font-medium">Authorized Redirect URI</label>
                       <Input readOnly value={redirectURIs.google} />
                       <p className="text-xs text-muted-foreground">Copy this URI into your Google Cloud Console OAuth 2.0 Client configuration.</p>
-                  </div>
+                        </div>
                     <div className="flex justify-end pt-2">
                         <Button disabled={true /* TODO: Implement save */}>Save Google Configuration</Button> 
-                </div>
+                      </div>
                   </CardContent>
                 </Card>
           <Card>
@@ -1055,15 +1137,15 @@ export default function SettingsPage() {
                      <div className="space-y-1">
                       <label className="text-xs font-medium">Tenant ID</label>
                       <Input placeholder="Enter Microsoft Entra Tenant ID" defaultValue={process.env.NEXT_PUBLIC_AZURE_AD_TENANT_ID || ""}/>
-                </div>
+                    </div>
                     <div className="space-y-1">
                       <label className="text-xs font-medium">Client ID</label>
                       <Input placeholder="Enter Microsoft Entra Client ID" defaultValue={process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_ID || ""}/>
-              </div>
+                </div>
                      <div className="space-y-1">
                       <label className="text-xs font-medium">Client Secret</label>
                       <Input type="password" placeholder="Enter Microsoft Entra Client Secret" defaultValue={process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_SECRET || ""}/>
-            </div>
+              </div>
                      <div className="space-y-1">
                       <label className="text-xs font-medium">Redirect URI</label>
                       <Input readOnly value={redirectURIs.microsoftEntra} />
@@ -1071,7 +1153,7 @@ export default function SettingsPage() {
                   </div>
                      <div className="flex justify-end pt-2">
                         <Button disabled={true /* TODO: Implement save */}>Save Entra ID Configuration</Button> 
-                </div>
+                  </div>
                   </CardContent>
                 </Card>
             </CardContent>
@@ -1112,8 +1194,8 @@ export default function SettingsPage() {
                             {!dbStats && !isLoadingStats && !statsError && (
                                 <p className="text-sm text-muted-foreground">Could not load statistics.</p>
                             )}
-              </div>
-              
+                      </div>
+                      
                         {/* Section 2: Create Backup */}
                         <div className="space-y-3 border-b pb-4">
                             <h3 className="text-lg font-medium">Create Backup</h3>
@@ -1132,8 +1214,8 @@ export default function SettingsPage() {
                             {isCreatingBackup && <p className="text-sm text-muted-foreground">Creating backup...</p>}
                             {backupStatusMessage && <p className="text-sm text-green-600">{backupStatusMessage}</p>}
                             {backupError && <p className="text-sm text-red-600">Error: {backupError}</p>}
-                  </div>
-                  
+                      </div>
+                      
                         {/* Section 3: Existing Backups */}
                         <div className="space-y-3">
                             <h3 className="text-lg font-medium">Existing Backups</h3>
@@ -1329,6 +1411,23 @@ export default function SettingsPage() {
                   ))}
                 </div>
               </div>
+              <div>
+                <Label>Allowed Actions</Label>
+                <div className="space-y-2 mt-2">
+                  {AVAILABLE_ACTIONS.map((action) => (
+                    <div key={action.id} className="flex items-center space-x-2">
+                       <Checkbox 
+                          id={`add-${action.id}`}
+                          checked={newRoleData.allowedActions.includes(action.id)}
+                          onCheckedChange={(checked) => handleAllowedActionChange(action.id, checked, false)}
+                       />
+                       <Label htmlFor={`add-${action.id}`} className="font-normal">
+                         {action.label} ({action.id})
+                       </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeAddRoleModal} disabled={isProcessingRole}>Cancel</Button>
                 <Button type="submit" disabled={isProcessingRole}>
@@ -1386,6 +1485,24 @@ export default function SettingsPage() {
                   </div>
                   {editingRole.name === 'ADMIN' && <p className="text-xs text-muted-foreground mt-1">The default ADMIN role always has access to all pages.</p>}
                 </div>
+              <div>
+                <Label>Allowed Actions</Label>
+                <div className="space-y-2 mt-2">
+                  {AVAILABLE_ACTIONS.map((action) => (
+                    <div key={action.id} className="flex items-center space-x-2">
+                       <Checkbox 
+                          id={`edit-${action.id}`}
+                          checked={editingRole.allowedActions.includes(action.id)}
+                          onCheckedChange={(checked) => handleAllowedActionChange(action.id, checked, true)}
+                          disabled={editingRole.name === 'ADMIN'}
+                        />
+                        <Label htmlFor={`edit-${action.id}`} className="font-normal">
+                          {action.label} ({action.id})
+                        </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeEditRoleModal} disabled={isProcessingRole}>Cancel</Button>
                 <Button type="submit" disabled={isProcessingRole || editingRole.name === 'ADMIN'}>

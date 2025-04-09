@@ -103,6 +103,7 @@ model Role {
   name         String   @unique
   description  String?
   allowedPages String   @default("[]") // JSON array of allowed page identifiers
+  allowedActions String @default("[]") // JSON array of allowed action identifiers
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   users        User[] // Relation to User model

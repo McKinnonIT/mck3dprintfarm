@@ -18,6 +18,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
                 name: true, 
                 description: true, 
                 allowedPages: true, // Include allowedPages
+                allowedActions: true, // Include allowedActions
                 _count: { select: { users: true } } // Include user count
             }
         });
@@ -29,6 +30,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         return NextResponse.json({ 
             ...role, 
             allowedPages: JSON.parse(role.allowedPages || '[]'),
+            allowedActions: JSON.parse(role.allowedActions || '[]'), // Parse allowedActions
             userCount: role._count.users
         });
     } catch (error) {
@@ -46,9 +48,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   try {
     const body = await request.json();
-    const { name, description, allowedPages } = body;
+    const { name, description, allowedPages, allowedActions } = body;
 
-    const dataToUpdate: { name?: string; description?: string | null; allowedPages?: string } = {};
+    const dataToUpdate: { name?: string; description?: string | null; allowedPages?: string; allowedActions?: string } = {};
 
     if (name !== undefined) {
       if (typeof name !== 'string' || name.trim() === '') {
@@ -69,16 +71,25 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         dataToUpdate.allowedPages = JSON.stringify(allowedPages);
     }
 
+    // Handle allowedActions update
+    if (allowedActions !== undefined) {
+        if (!Array.isArray(allowedActions)) {
+            return NextResponse.json({ error: 'allowedActions must be an array.' }, { status: 400 });
+        }
+        dataToUpdate.allowedActions = JSON.stringify(allowedActions);
+    }
+
     const updatedRole = await prisma.role.update({
       where: { id: params.id },
       data: dataToUpdate,
-      select: { id: true, name: true, description: true, allowedPages: true } // Select needed fields
+      select: { id: true, name: true, description: true, allowedPages: true, allowedActions: true } // Select needed fields
     });
 
-    // Parse allowedPages for the response
+    // Parse allowedPages and allowedActions for the response
     return NextResponse.json({ 
         ...updatedRole, 
-        allowedPages: JSON.parse(updatedRole.allowedPages || '[]') 
+        allowedPages: JSON.parse(updatedRole.allowedPages || '[]'),
+        allowedActions: JSON.parse(updatedRole.allowedActions || '[]') 
     });
 
   } catch (error: any) {

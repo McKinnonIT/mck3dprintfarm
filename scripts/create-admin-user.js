@@ -51,14 +51,28 @@ async function createAdminUser() {
         data: {
           name: adminRoleName,
           description: 'Full access to all system features.',
-          // Define default allowed pages for Admin - TBD based on actual page structure
-          // For now, let's use a wildcard or a placeholder
+          // Define default allowed pages/actions for Admin
           allowedPages: JSON.stringify(['*']), // Store as JSON string
+          allowedActions: JSON.stringify(['*']), // Store as JSON string
         },
       });
       console.log(`Role '${adminRoleName}' created with ID: ${adminRole.id}`);
     } else {
       console.log(`Role '${adminRoleName}' already exists with ID: ${adminRole.id}`);
+      // Ensure existing ADMIN role has wildcard permissions
+      if (adminRole.allowedPages !== JSON.stringify(['*']) || adminRole.allowedActions !== JSON.stringify(['*'])) {
+          console.log(`Updating existing '${adminRoleName}' role to ensure wildcard page and action permissions...`);
+          adminRole = await prisma.role.update({
+              where: { id: adminRole.id },
+              data: {
+                  allowedPages: JSON.stringify(['*']),
+                  allowedActions: JSON.stringify(['*'])
+              }
+          });
+          console.log(`Role '${adminRoleName}' permissions updated.`);
+      } else {
+        console.log(`Role '${adminRoleName}' already has correct wildcard permissions.`);
+      }
     }
 
     // Ensure Admin User Exists and is Assigned the Role

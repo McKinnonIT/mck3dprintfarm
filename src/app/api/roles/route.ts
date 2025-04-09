@@ -15,6 +15,7 @@ export async function GET(request: Request) {
                 name: true,
                 description: true,
                 allowedPages: isAdmin, // Only select allowedPages if user is Admin
+                allowedActions: isAdmin, // Only select allowedActions if user is Admin
                 _count: { select: { users: isAdmin } } // Only count users if user is Admin
             },
             orderBy: {
@@ -22,13 +23,15 @@ export async function GET(request: Request) {
             },
         });
 
-        // Format roles, parsing allowedPages if present
+        // Format roles, parsing allowedPages and allowedActions if present
         const formattedRoles = roles.map(role => ({
             id: role.id,
             name: role.name,
             description: role.description,
             // Parse allowedPages if it was selected (i.e., if admin)
             allowedPages: isAdmin ? JSON.parse(role.allowedPages || '[]') : undefined,
+            // Parse allowedActions if it was selected (i.e., if admin)
+            allowedActions: isAdmin ? JSON.parse(role.allowedActions || '[]') : undefined,
             // Include userCount if it was selected (i.e., if admin)
             userCount: isAdmin ? role._count?.users : undefined
         }));
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
 
     // --- Input Validation ---
     const body = await request.json();
-    const { name, description, allowedPages = [] } = body; // Default to empty array
+    const { name, description, allowedPages = [], allowedActions = [] } = body; // Default to empty arrays
 
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return NextResponse.json({ error: 'Role name is required.' }, { status: 400 });
@@ -60,29 +63,37 @@ export async function POST(request: Request) {
     if (!Array.isArray(allowedPages)) {
        return NextResponse.json({ error: 'allowedPages must be an array.' }, { status: 400 });
     }
+    // Ensure allowedActions is an array
+    if (!Array.isArray(allowedActions)) {
+        return NextResponse.json({ error: 'allowedActions must be an array.' }, { status: 400 });
+    }
     
     // --- Database Operation ---
     const allowedPagesString = JSON.stringify(allowedPages);
+    const allowedActionsString = JSON.stringify(allowedActions);
 
     const newRole = await prisma.role.create({
       data: {
         name: name.trim(),
         description: description || null,
         allowedPages: allowedPagesString, // Store as string
+        allowedActions: allowedActionsString, // Store as string
       },
        select: { // Select fields needed for response
            id: true, 
            name: true, 
            description: true, 
-           allowedPages: true
+           allowedPages: true,
+           allowedActions: true
        }
     });
 
     // --- Response ---
-    // Parse the stored JSON string back into an array for the response
+    // Parse the stored JSON strings back into arrays for the response
     const responseRole = {
       ...newRole,
       allowedPages: JSON.parse(newRole.allowedPages || '[]'),
+      allowedActions: JSON.parse(newRole.allowedActions || '[]'),
       userCount: 0 // New role has no users initially
     };
     return NextResponse.json(responseRole, { status: 201 }); // 201 Created

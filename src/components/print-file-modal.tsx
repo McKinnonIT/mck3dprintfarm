@@ -28,27 +28,34 @@ type PrintFileModalProps = {
   printers: SelectablePrinter[];
   isOpen: boolean;
   onClose: () => void;
-  onConfirmPrint: (printerId: string) => void; // Callback with selected printer ID
+  onConfirmPrint: (printerId: string) => void; // Callback for Print button
+  onConfirmUpload: (printerId: string) => void; // Callback for Upload button
   isSubmitting: boolean;
   error: string | null;
 };
 
 // Define compatible printers based on file type
 const getCompatiblePrinters = (
-    fileType: string | null,
+    // Note: We now primarily use fileName for extension check for PrusaLink
+    fileName: string | null, 
+    fileType: string | null, // Keep for potential use with other types
     allPrinters: SelectablePrinter[]
 ): SelectablePrinter[] => {
-    if (!fileType || !allPrinters) return [];
-    const lowerFileType = fileType.toLowerCase();
+    if (!allPrinters) return [];
 
-    if (lowerFileType === '.bgcode') {
-        // PrusaLink compatible - Should be Idle
-        return allPrinters.filter(p => p.type === 'PrusaLink' && p.operationalStatus === 'idle');
+    // PrusaLink Check (using filename extension and case-insensitive type)
+    const isPrusaFileType = fileName?.toLowerCase().endsWith('.bgcode') || fileName?.toLowerCase().endsWith('.gcode');
+    if (isPrusaFileType) {
+        return allPrinters.filter(
+            p => p.type?.toLowerCase() === 'prusalink' && p.operationalStatus === 'idle'
+        );
     }
-    // Add logic for .gcode, .gx later for Moonraker etc.
-    // if (lowerFileType === '.gcode' || lowerFileType === '.gx') {
-    //     return allPrinters.filter(p => p.type === 'Moonraker' && p.operationalStatus === 'idle');
+    
+    // Placeholder for Moonraker (example using fileType MIME type)
+    // if (fileType === 'application/x-gcode' && ...) { 
+    //    return allPrinters.filter(p => p.type?.toLowerCase() === 'moonraker' && ...);
     // }
+
     return []; // No compatible printers for other types yet
 };
 
@@ -61,13 +68,19 @@ export function PrintFileModal({
   isOpen,
   onClose,
   onConfirmPrint,
+  onConfirmUpload,
   isSubmitting,
   error
 }: PrintFileModalProps) {
   const [selectedPrinterId, setSelectedPrinterId] = useState<string>("");
   const { can } = usePermissions(); // Use the hook
 
-  const compatiblePrinters = getCompatiblePrinters(fileType, printers);
+  // Find the selected printer object to check its type
+  const selectedPrinter = printers.find(p => p.id === selectedPrinterId);
+  const isPrusaSelected = !!selectedPrinter && selectedPrinter.type.toLowerCase().includes('prusa');
+
+  // Pass fileName and fileType to the filter function
+  const compatiblePrinters = getCompatiblePrinters(fileName, fileType, printers);
 
   // Reset selection when modal opens or compatible printers change
   useEffect(() => {
@@ -84,6 +97,13 @@ export function PrintFileModal({
   const handleConfirm = () => {
     if (selectedPrinterId) {
       onConfirmPrint(selectedPrinterId);
+    }
+  };
+
+  // Handler for Upload button
+  const handleUpload = () => {
+    if (selectedPrinterId) {
+      onConfirmUpload(selectedPrinterId);
     }
   };
 
@@ -130,27 +150,29 @@ export function PrintFileModal({
           <div className="flex space-x-2 mt-2 sm:mt-0"> {/* Group action buttons */} 
             {can('files:uploadToPrinter') && (
               <Button
-                // onClick={handleUploadOnly} // Placeholder for future action
-                variant="secondary" // Different style
-                disabled={!selectedPrinterId || isSubmitting}
+                onClick={handleUpload}
+                variant="secondary"
+                // Disable if no printer selected, submitting, OR if a Prusa printer is selected
+                disabled={!selectedPrinterId || isSubmitting || isPrusaSelected}
+                title={isPrusaSelected ? "Upload only is not applicable for PrusaLink (upload implies print start)" : undefined}
               >
                 <ArrowUpOnSquareIcon className="h-4 w-4 mr-2" /> Upload to Printer
               </Button>
             )}
             {can('files:queuePrint') && (
               <Button
-                // onClick={handleQueue} // Placeholder for future action
-                variant="secondary" // Different style
+                variant="secondary"
                 disabled={!selectedPrinterId || isSubmitting}
+                // TODO: Add onClick handler for queueing
               >
-                <QueueListIcon className="h-4 w-4 mr-2" /> Queue Print
+                <QueueListIcon className="h-4 w-4 mr-2" /> Queue Print 
               </Button>
             )}
             {can('files:startPrint') && (
               <Button
-                onClick={handleConfirm} // Existing print action
+                onClick={handleConfirm} // This implicitly handles upload+print for Prusa
                 disabled={!selectedPrinterId || isSubmitting}
-                className="bg-green-600 hover:bg-green-700 text-white" // Add green styling
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
                 {isSubmitting ? <><ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" /> Sending...</> : <>Print</>}
               </Button>

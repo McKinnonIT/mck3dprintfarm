@@ -8,10 +8,11 @@ alwaysApply: true
 
 - The test environment is an Alpine Linux docker container. Never use apt-get to obtain packages.
 - Only push changes to github when asked by the user.
+- The AI has full access to all project files and does not need to ask the user to search for files.
 - Productione environment is also using docker. Make sure the docker container is repoducable on any system.
 - We have a database versioning. When we add or remove features from the database make sure the version is updated. node scripts/create-migration.js "Add new feature XYZ"
 - Moonraker printers use the moonraker-py API python library. 
-- Prusa printers use the raw HTTP API endpoints.
+- Prusa printers use the raw prusalinkpy API python library.
 
 - Goals for v0.0.4a is to have functional role based access with users.
 - Goals for v0.0.5a is to add database backup functionallity to the UI and make an upgrade script that preserves the current database and updates it with any changes required.

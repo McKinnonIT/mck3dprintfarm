@@ -7,7 +7,7 @@ import { authOptions } from "@/lib/auth";
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { fileId: string } }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,7 +18,7 @@ export async function DELETE(
 
     // 2. Fetch the file record including who uploaded it
     const file = await prisma.file.findUnique({
-      where: { id: params.id },
+      where: { id: params.fileId },
       select: { id: true, path: true, uploadedBy: true }, // Select necessary fields
     });
 
@@ -27,7 +27,7 @@ export async function DELETE(
         return NextResponse.json({ error: "File not found in database" }, { status: 404 });
       }
       console.error(`File record ${file.id} is missing the path. Cannot delete from filesystem.`);
-      await prisma.file.delete({ where: { id: params.id } });
+      await prisma.file.delete({ where: { id: params.fileId } });
       return NextResponse.json({ success: true, message: "File record deleted, but file path was missing." });
     }
 
@@ -59,14 +59,14 @@ export async function DELETE(
 
     // 5. Delete the file record from the database (if authorized)
     await prisma.file.delete({
-      where: { id: params.id },
+      where: { id: params.fileId },
     });
     console.log(`Successfully deleted file record from DB: ${file.id}`);
 
     return NextResponse.json({ success: true });
     
   } catch (error) {
-    console.error(`DELETE /api/files/${params.id} - Failed:`, error);
+    console.error(`DELETE /api/files/${params.fileId} - Failed:`, error);
     return NextResponse.json(
       { error: "Failed to delete file" },
       { status: 500 }

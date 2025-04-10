@@ -1031,7 +1031,7 @@ export default function SettingsPage() {
                 {rolesError && (
                     <div className="mb-4 text-sm text-red-600 bg-red-100 border border-red-300 rounded p-3">
                         Error: {rolesError}
-                  </div>
+                </div>
                 )}
                 {!loadingRoles && roles.length > 0 && (
                   <Table>
@@ -1410,8 +1410,8 @@ export default function SettingsPage() {
                   </div>
                   ))}
                 </div>
-              </div>
-              <div>
+                    </div>
+                    <div>
                 <Label>Allowed Actions</Label>
                 <div className="space-y-2 mt-2">
                   {AVAILABLE_ACTIONS.map((action) => (
@@ -1426,8 +1426,8 @@ export default function SettingsPage() {
                        </Label>
                     </div>
                   ))}
+                  </div>
                 </div>
-              </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeAddRoleModal} disabled={isProcessingRole}>Cancel</Button>
                 <Button type="submit" disabled={isProcessingRole}>
@@ -1447,7 +1447,7 @@ export default function SettingsPage() {
             </DialogHeader>
             {rolesError && <p className="text-sm text-red-600">{rolesError}</p>}
             <form onSubmit={handleEditRole} className="space-y-4">
-                    <div>
+                  <div>
                 <Label htmlFor="edit-role-name">Role Name</Label>
                 <Input 
                   id="edit-role-name" 
@@ -1485,7 +1485,7 @@ export default function SettingsPage() {
                   </div>
                   {editingRole.name === 'ADMIN' && <p className="text-xs text-muted-foreground mt-1">The default ADMIN role always has access to all pages.</p>}
                 </div>
-              <div>
+                <div>
                 <Label>Allowed Actions</Label>
                 <div className="space-y-2 mt-2">
                   {AVAILABLE_ACTIONS.map((action) => (
@@ -1499,10 +1499,10 @@ export default function SettingsPage() {
                         <Label htmlFor={`edit-${action.id}`} className="font-normal">
                           {action.label} ({action.id})
                         </Label>
-                    </div>
+                </div>
                   ))}
                 </div>
-              </div>
+                  </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={closeEditRoleModal} disabled={isProcessingRole}>Cancel</Button>
                 <Button type="submit" disabled={isProcessingRole || editingRole.name === 'ADMIN'}>

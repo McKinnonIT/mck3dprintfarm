@@ -65,8 +65,8 @@ RUN apk add --no-cache sqlite && \
     npm config set cache /tmp/npm-tmp && \
     npm install -g prisma --no-optional && \
     npm install bcryptjs && \
-    # Install Python packages globally
-    pip3 install --break-system-packages pyprusalink aiohttp moonraker-api bambulabs_api && \
+    # Install Python packages globally, upgrading pyprusalink
+    pip3 install --break-system-packages --upgrade pyprusalink aiohttp moonraker-api bambulabs_api && \
     # Make sure Python is in the path with proper permissions
     which python3 && \
     chmod +x $(which python3) && \

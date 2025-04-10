@@ -103,6 +103,9 @@ export function PrintFileDialog({ fileName, fileId, onClose }: PrintFileDialogPr
     setLoading(true);
     setError(null);
     
+    // Add explicit logging before fetch
+    console.log(`[PrintFileDialog] handleSubmit: Calling /api/print-jobs with fileId=${fileId}, printerId=${selectedPrinterId}, printNow=true`);
+    
     try {
       const response = await fetch('/api/print-jobs', {
         method: 'POST',
@@ -154,6 +157,9 @@ export function PrintFileDialog({ fileName, fileId, onClose }: PrintFileDialogPr
 
     setLoading(true);
     setError(null);
+    
+    // Add explicit logging before fetch
+    console.log(`[PrintFileDialog] handleUploadToPrinter: Calling /api/print-jobs with fileId=${fileId}, printerId=${selectedPrinterId}, printNow=false`);
     
     try {
       const response = await fetch('/api/print-jobs', {

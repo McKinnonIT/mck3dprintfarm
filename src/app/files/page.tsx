@@ -30,14 +30,15 @@ type File = {
 
 // Define Printer type for state
 type Printer = {
-  id: string;
-  name: string;
+    id: string;
+    name: string;
   type: string;
   operationalStatus: string;
 };
 
 export default function FilesPage() {
   const { data: session, status } = useSession();
+  console.log("[FilesPage] Rendering FilesPage component. Status:", status);
   const router = useRouter();
   const allowedPages = session?.user?.allowedPages;
   const hasAccess = canAccessPage(allowedPages, '/files');
@@ -115,7 +116,7 @@ export default function FilesPage() {
       // Refetch files list (or add optimistically)
       // fetchData(); 
       setFiles(prev => [uploadedFile, ...prev]); // Optimistic update example
-      setShowUploadForm(false);
+    setShowUploadForm(false);
   };
 
   // Determine the title based on session status and user name
@@ -185,14 +186,18 @@ export default function FilesPage() {
       toast.loading(`Sending file "${fileToPrint.name}" to printer...`);
 
       try {
-          const response = await fetch(`/api/files/${fileToPrint.id}/print`, {
+          const response = await fetch(`/api/print-jobs`, { 
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ printerId }),
+              body: JSON.stringify({ 
+                fileId: fileToPrint.id, 
+                printerId: printerId, 
+                printNow: true 
+              }), 
           });
           const result = await response.json();
           if (!response.ok) {
-              throw new Error(result.message || 'Failed to start print job.');
+              throw new Error(result.error || 'Failed to start print job.');
           }
 
           toast.dismiss();
@@ -206,6 +211,50 @@ export default function FilesPage() {
       } finally {
           setIsSubmitting(false);
       }
+  };
+
+  // --- Handler for Upload Only button ---
+  const handleConfirmUpload = async (printerId: string) => {
+    if (!showPrintModalForFile) return;
+
+    setIsSubmitting(true);
+    setPrintError(null);
+    const fileToUpload = showPrintModalForFile;
+
+    console.log(`Attempting to UPLOAD file ${fileToUpload.id} (${fileToUpload.name}) to printer ${printerId}`);
+    toast.loading(`Uploading file "${fileToUpload.name}" to printer...`);
+
+    try {
+        const response = await fetch(`/api/print-jobs`, { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              fileId: fileToUpload.id, 
+              printerId: printerId, 
+              printNow: false 
+            }), 
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to upload file.');
+        }
+
+        toast.dismiss();
+        toast.success(`File "${fileToUpload.name}" uploaded successfully!`);
+        setShowPrintModalForFile(null); // Close modal on success
+    } catch (err) {
+        toast.dismiss();
+        console.error("Upload file error:", err);
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+        setPrintError(errorMessage); // Show error in modal
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenPrintDialog = (file: File) => {
+    console.log(`[FilesPage] Opening print dialog for file: ${file.name} (ID: ${file.id})`);
+    setShowPrintModalForFile(file);
   };
 
   // Handle loading state for the whole page
@@ -256,7 +305,7 @@ export default function FilesPage() {
            {searchQuery ? "No files found matching your search." : "No files uploaded yet."}
          </div>
        ) : !error && filteredFiles.length > 0 ? (
-         <div className="space-y-4">
+      <div className="space-y-4">
             {filteredFiles.map((file) => {
               const lowerCaseFileName = file.name.toLowerCase();
               const fileExtension = lowerCaseFileName.substring(lowerCaseFileName.lastIndexOf('.'));
@@ -270,14 +319,14 @@ export default function FilesPage() {
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                      {/* File Info (Left) */}
                      <div className="flex-grow flex items-center gap-4">
-                       <div>
-                           <h3 className="text-lg font-semibold">{file.name}</h3>
+                <div>
+                  <h3 className="text-lg font-semibold">{file.name}</h3>
                            <p className="text-sm text-muted-foreground">
-                               {formatFileSize(file.size)} • {file.type}
+                    {formatFileSize(file.size)} • {file.type}
                                {' • '} Uploaded: {new Date(file.uploadedAt).toLocaleDateString()}
-                           </p>
-                       </div>
-                     </div>
+                  </p>
+                </div>
+                  </div>
                      {/* Actions (Right) */}
                      <div className="flex flex-shrink-0 gap-2 pt-2 md:pt-0">
                         <Button 
@@ -294,7 +343,7 @@ export default function FilesPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => openPrintModal(file)}
+                            onClick={() => handleOpenPrintDialog(file)}
                             disabled={isSubmitting}
                             className="bg-green-100 text-green-800 hover:bg-green-200"
                           >
@@ -321,12 +370,12 @@ export default function FilesPage() {
                         >
                            Delete
                         </Button>
-                     </div>
-                  </div>
+                </div>
+              </div>
                </Card>
               );
             })}
-         </div>
+            </div>
         ) : null}
       
       {/* Upload Modal - Using Shadcn Dialog */}
@@ -387,6 +436,7 @@ export default function FilesPage() {
           fileType={showPrintModalForFile ? showPrintModalForFile.name.substring(showPrintModalForFile.name.lastIndexOf('.')).toLowerCase() : null}
           printers={printers}
           onConfirmPrint={handleConfirmPrint}
+          onConfirmUpload={handleConfirmUpload}
           isSubmitting={isSubmitting}
           error={printError}
       />

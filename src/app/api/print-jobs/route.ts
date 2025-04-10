@@ -4,9 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import fs from "fs";
 import path from "path";
-import { uploadFileToPrinter, startPrintJob } from "@/lib/printer-utils";
-const prusaLinkBridge = require("@/lib/prusalink-bridge");
-const moonrakerBridge = require("@/lib/moonraker-bridge-py");
+import { spawn, execSync, ChildProcessWithoutNullStreams } from 'child_process';
 
 export async function POST(request: Request) {
   try {
@@ -53,200 +51,265 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!printer.apiKey && (printer.type.toLowerCase().includes('prusa') || printer.type.toLowerCase() === 'moonraker')) {
+        return NextResponse.json({ error: "Printer API key is missing for this printer type." }, { status: 400 });
+    }
+
     // Determine status based on printNow flag
     const jobStatus = printNow ? "pending" : "uploaded";
     
-    // Create a temporary file record in the database
-    const filePath = file.path;
-    const fileRecord = await prisma.file.create({
-      data: {
-        name: file.name,
-        path: filePath,
-        size: file.size,
-        type: "gcode",
-        uploadedBy: session.user.id
-      }
-    });
+    // Find the absolute path based on the stored relative path
+    const absoluteFilePath = path.join(process.cwd(), "uploads", file.path);
 
-    // Create a record of the print job in the database
-    const printJob = await prisma.printJob.create({
-      data: {
-        name: file.name,
-        fileId: fileRecord.id,
-        printerId: printerId,
-        status: "uploaded",
-        userId: session.user.id
-      }
-    });
-
-    // Check if file exists on disk
-    if (!fs.existsSync(filePath)) {
+    // Check if file exists on disk before proceeding
+    if (!fs.existsSync(absoluteFilePath)) {
+      console.error(`File not found on server disk at path: ${absoluteFilePath}. DB record path: ${file.path}`);
       return NextResponse.json(
-        { error: "File not found on disk" },
+        { error: "File not found on server disk. It may have been deleted or moved." },
         { status: 404 }
       );
     }
+
+    // Create a record of the print job in the database *before* calling the bridge
+    // We will update its status later
+    const printJob = await prisma.printJob.create({
+      data: {
+        name: file.name,
+        fileId: file.id, // Link to the existing file record
+        printerId: printerId,
+        status: "pending", // Initial status
+        userId: session.user.id
+      }
+    });
 
     // Get file extension to determine the correct API flow
     const fileExt = path.extname(file.name).toLowerCase();
     const isPrusaLink = printer.type.toLowerCase().includes('prusa');
     const isMoonraker = printer.type.toLowerCase() === 'moonraker';
+    const isBambuLab = printer.type.toLowerCase().includes('bambu');
     const isBGCode = fileExt === '.bgcode';
     const isGCode = fileExt === '.gcode';
+    const is3MF = fileExt === '.3mf';
     
-    // For PrusaLink printers, only bgcode files are supported
+    // --- File Type Compatibility Checks ---
     if (isPrusaLink && !isBGCode) {
-      await prisma.printJob.update({
-        where: { id: printJob.id },
-        data: {
-          status: "failed",
-          error: "Only Prusa printers support .bgcode files"
-        }
-      });
-      
-      return NextResponse.json(
-        { error: "Only Prusa printers support .bgcode files" },
-        { status: 400 }
-      );
+       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "failed", error: "PrusaLink printers currently only support .bgcode files via this interface." } });
+       return NextResponse.json({ error: "PrusaLink printers currently only support .bgcode files via this interface.", jobId: printJob.id }, { status: 400 });
     }
-
-    // For Moonraker printers, only gcode files are supported
     if (isMoonraker && !isGCode) {
-      await prisma.printJob.update({
-        where: { id: printJob.id },
-        data: {
-          status: "failed",
-          error: "Moonraker printers only support .gcode files"
-        }
-      });
-      
-      return NextResponse.json(
-        { error: "Moonraker printers only support .gcode files" },
-        { status: 400 }
-      );
+       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "failed", error: "Moonraker printers only support .gcode files." } });
+       return NextResponse.json({ error: "Moonraker printers only support .gcode files.", jobId: printJob.id }, { status: 400 });
     }
+    if (isBambuLab && !is3MF && !isGCode) { // Bambu can often take gcode too
+       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "failed", error: "Bambu Lab printers currently only support .3mf files (and sometimes .gcode) via this interface." } });
+       return NextResponse.json({ error: "Bambu Lab printers currently only support .3mf files (and sometimes .gcode) via this interface.", jobId: printJob.id }, { status: 400 });
+    }
+    // --- End Compatibility Checks ---
 
     try {
-      // Get the printer's IP address
-      const printerIp = printer.apiUrl.replace(/^https?:\/\//, '').replace(/:\d+$/, '');
-      console.log(`Printer IP: ${printerIp}`);
+      // --- PrusaLink Handling (Using Python Bridge) ---
+      if (isPrusaLink) {
+        console.log(`[Print Job API] Using Python bridge for PrusaLink printer ${printer.name}`);
+        const printerIp = printer.apiUrl.replace(/^https?:\/\//, '').split(':')[0]; // Extract IP
+        const apiKey = printer.apiKey; // Already checked if exists
+        const filenameOnPrinter = path.basename(file.name); // Use original filename on printer
 
-      // Use our direct Python implementation of PrusaLinkPy
-      console.log(`[DEBUG] Using direct PrusaLinkPy script for ${printer.name}, IP: ${printerIp}`);
+        // Use absolute path directly inside the container
+        const pythonScriptPath = '/app/src/lib/prusalink_bridge.py';
 
-      try {
-        // Upload the file to the printer using the direct Python implementation
-        console.log(`[DEBUG] Uploading file ${filePath} (${file.size / 1024 / 1024}MB) to printer ${printer.name}`);
-        
-        const prusaLinkBridge = require('@/lib/prusalink-pure');
-        
-        // Generate a unique remote filename to avoid conflicts
-        const timestamp = new Date().getTime();
-        const remoteFilename = `PrintFarm_${timestamp}_${path.basename(file.name)}`;
-        
-        // Determine storage location (use /usb/ for Prusa printers)
-        const remoteStorage = printer.type === "prusalink" ? "/usb/" : "";
-        const remotePath = `${remoteStorage}${remoteFilename}`;
-        
-        // Upload the file
-        console.log(`[DEBUG] Remote path: ${remotePath}`);
-        const uploadResult = await prusaLinkBridge.uploadFileToPrinter(printerIp, printer.apiKey, filePath, remotePath);
-        
-        if (!uploadResult.success) {
-          console.error(`[ERROR] Failed to upload file to printer ${printer.name}:`, uploadResult.error);
-          return NextResponse.json({ 
-            error: `Failed to upload file to printer: ${uploadResult.message}` 
-          }, { status: 500 });
+        // Verify the script exists (optional, but good practice)
+        if (!fs.existsSync(pythonScriptPath)) {
+            console.error(`[Print Job API] Python bridge script not found at ${pythonScriptPath}`);
+            throw new Error(`PrusaLink bridge script not found.`);
         }
-        
-        // Start printing only if printNow is true
+
+        // Prepare arguments for the Python script
+        const pythonArgs = [
+            pythonScriptPath, // Script path is the first argument
+            '--ip', printerIp,
+            '--apikey', apiKey,
+            '--filepath', absoluteFilePath,
+            '--filename', filenameOnPrinter
+        ];
         if (printNow) {
-          console.log(`[DEBUG] Starting print job on printer ${printer.name}`);
-          
-          const printResult = await prusaLinkBridge.startPrintJob(printerIp, printer.apiKey, remotePath);
-          
-          if (!printResult.success) {
-            console.error(`[ERROR] Failed to start print job on printer ${printer.name}:`, printResult.error);
-            
-            // Update job status to reflect the failure
+            pythonArgs.push('--printnow');
+        }
+
+        console.log(`[Print Job API] Spawning Python: /usr/bin/python3 ${pythonArgs.join(' ')}`);
+
+        // --- Spawn the Actual Python Script --- 
+        const pythonProcess = spawn('/usr/bin/python3', pythonArgs);
+
+        let scriptStdout = '';
+        let scriptStderr = '';
+
+        // --- Handle Python Script Output/Errors --- 
+        pythonProcess.stdout.on('data', (data) => {
+            const outputChunk = data.toString();
+            scriptStdout += outputChunk;
+            console.log(`[Print Job API - Python stdout]: ${outputChunk.trim()}`);
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+            // Python script logs messages to stderr
+            const errorChunk = data.toString();
+            scriptStderr += errorChunk;
+            console.error(`[Print Job API - Python stderr]: ${errorChunk.trim()}`);
+        });
+
+        // Promise to wait for the Python script process to finish
+        const scriptResult = await new Promise<{success: boolean; message?: string; error?: any}>((resolve, reject) => {
+            pythonProcess.on('error', (err) => {
+                // This catches errors spawning the process itself (e.g., command not found)
+                console.error('[Print Job API] Failed to spawn Python process:', err);
+                reject(new Error(`Failed to start Python bridge: ${err.message}`));
+            });
+
+            pythonProcess.on('close', (code) => {
+                console.log(`[Print Job API] Python process exited with code ${code}`);
+                if (code !== 0) {
+                    // Non-zero exit code indicates an error *within* the Python script (already logged to stderr)
+                    console.error(`[Print Job API] Python script failed (code ${code}). Stderr:\n${scriptStderr}`);
+                    // Try parsing stdout for a JSON error message, otherwise use stderr
+                    try {
+                        const errorResult = JSON.parse(scriptStdout || '{}');
+                        reject(new Error(errorResult.message || scriptStderr || `Python script failed with exit code ${code}`));
+                    } catch (parseError) {
+                        reject(new Error(scriptStderr || `Python script failed with exit code ${code}`));
+                    }
+                } else {
+                    // Success (exit code 0)
+                    try {
+                        // The result JSON is printed to stdout
+                        const result = JSON.parse(scriptStdout);
+                        if (result.success) {
+                            resolve(result);
+                        } else {
+                            // Script ran but reported failure
+                            console.error(`[Print Job API] Python script reported failure:`, result);
+                            reject(new Error(result.message || "Python script reported an unspecified error."));
+                        }
+                    } catch (parseError: any) {
+                        console.error('[Print Job API] Failed to parse Python script JSON output:', parseError);
+                        console.error(`[Print Job API] Raw stdout from Python:\n${scriptStdout}`);
+                        reject(new Error(`Failed to parse response from Python bridge: ${parseError.message}`));
+                    }
+                }
+            });
+        }); // End of Python script promise
+
+        console.log('[Print Job API] Python bridge script completed.', scriptResult);
+
+        // --- Update Job Status Based on Python Result --- 
+        if (scriptResult.success) {
+            const finalStatus = printNow ? "printing" : "uploaded";
             await prisma.printJob.update({
               where: { id: printJob.id },
               data: { 
-                status: "failed",
-                error: printResult.message
-              }
+                    status: finalStatus, 
+                    startedAt: printNow ? new Date() : null,
+                    error: null // Clear any previous error
+                }
             });
-            
-            return NextResponse.json({ 
-              error: `File uploaded successfully but print failed to start: ${printResult.message}`,
-              jobId: printJob.id
-            }, { status: 500 });
-          }
-          
-          // Update job status to printing
-          await prisma.printJob.update({
-            where: { id: printJob.id },
-            data: { status: "printing" }
-          });
-          
-          return NextResponse.json({ 
-            message: "File uploaded and print started successfully", 
-            jobId: printJob.id 
-          });
+            if (printNow) {
+                await prisma.printer.update({ 
+                    where: { id: printer.id }, 
+                    data: { 
+                        operationalStatus: "printing", 
+                        printStartTime: new Date() 
+                    }
+                });
+            }
+            console.log(`[Print Job API] Job ${printJob.id} status updated to ${finalStatus} successfully.`);
+        } else {
+            // This case should technically be handled by the reject in the promise, but as a fallback:
+            console.error('[Print Job API] Python script failed, updating job status.');
+            throw new Error(scriptResult.message || "Unknown error from PrusaLink Python bridge");
         }
-        
-        return NextResponse.json({ 
-          message: "File uploaded successfully", 
-          jobId: printJob.id 
-        });
-        
-      } catch (error) {
-        console.error(`[ERROR] Exception in print-jobs API:`, error);
-        return NextResponse.json({ 
-          error: `Server error: ${error.message}` 
-        }, { status: 500 });
+
+      // --- End PrusaLink Handling ---
+
+      } else if (isMoonraker) {
+        // --- Moonraker Handling (Existing Code - Needs Verification) ---
+        console.log(`[Print Job API] Using Moonraker bridge for ${printer.name}`);
+        // This part still uses require - needs verification if moonraker-bridge-py works this way
+        const moonrakerBridge = require("@/lib/moonraker-bridge-py"); 
+        let uploadResult;
+        try {
+            uploadResult = await moonrakerBridge.uploadAndPrint(
+                printer.apiUrl,
+                printer.apiKey,
+                absoluteFilePath,
+                path.basename(file.name),
+                printNow
+            );
+            console.log(`[Print Job API] Moonraker bridge result:`, uploadResult);
+            if (!uploadResult.success) {
+                console.error('[Print Job API] Moonraker bridge returned error:', uploadResult);
+                throw new Error(uploadResult.message || "Unknown error from Moonraker bridge");
+            }
+         } catch (error: any) {
+             console.error('[Print Job API] Moonraker bridge error:', error);
+             throw error; // Rethrow to be caught by outer try/catch
+         }
+        // Update job status based on operation result
+        const finalStatus = printNow ? "printing" : "uploaded";
+        await prisma.printJob.update({ where: { id: printJob.id }, data: { status: finalStatus, startedAt: printNow ? new Date() : null } });
+        if (printNow) {
+            await prisma.printer.update({ where: { id: printer.id }, data: { operationalStatus: "printing", printStartTime: new Date() } });
+        }
+       // --- End Moonraker Handling ---
+
+      } else if (isBambuLab) {
+          // TODO: Implement Bambu Lab handling using its Python bridge
+          console.warn(`[Print Job API] Bambu Lab handling not yet implemented via Python bridge.`);
+          throw new Error('Bambu Lab printing not yet implemented via bridge.');
+      } else {
+          // --- Generic/Fallback Handling (Needs Review) ---
+          // This path should ideally not be hit if types are handled above
+          console.warn(`[Print Job API] Reached generic handling for printer type ${printer.type}. Review required.`);
+          throw new Error(`Unsupported printer type for bridge: ${printer.type}`);
+          // const uploadResult = await uploadFileToPrinter(printer, absoluteFilePath, file.name);
+          // if (!uploadResult.success) throw new Error(uploadResult.message);
+          // if (printNow) {
+          //     const printResult = await startPrintJob(printer, uploadResult, file.name);
+          //     if (!printResult.success) throw new Error(printResult.message);
+          //     await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "printing", startedAt: new Date() } });
+          //     await prisma.printer.update({ where: { id: printer.id }, data: { operationalStatus: "printing", printStartTime: new Date() } });
+          // } else {
+          //     await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "uploaded" } });
+          // }
       }
-    } catch (error) {
-      console.error('Printer communication error:', error);
-      console.error('[DEBUG] Error type:', typeof error);
-      console.error('[DEBUG] Error stack:', error.stack);
-      
-      // Log the current state of the key variables for debugging
-      try {
-        console.error('[DEBUG] printer:', JSON.stringify({
-          id: printer.id,
-          name: printer.name,
-          type: printer.type,
-          apiUrl: printer.apiUrl
-        }, null, 2));
-      } catch (logError) {
-        console.error('[DEBUG] Could not log printer details');
-      }
-      
+
+      // If we reach here, the operation specific to the printer type was successful
+      const finalJob = await prisma.printJob.findUnique({ where: { id: printJob.id }});
+      return NextResponse.json(finalJob);
+
+    } catch (error: any) {
+      // Outer error handler: Catches errors from bridge calls or other issues within the try block
+      console.error('[Print Job API] Error during printer communication or job update:', error);
       // Update job status to failed
       await prisma.printJob.update({
         where: { id: printJob.id },
         data: {
           status: "failed",
-          error: error instanceof Error ? error.message : "Unknown error"
+              error: error.message || "Unknown communication error" 
         }
-      });
+      }).catch(dbErr => console.error("DB update failed on outer error:", dbErr)); // Catch potential error during update
       
       return NextResponse.json(
         { 
-          error: error instanceof Error ? error.message : "Unknown error",
-          job: {
-            ...printJob,
-            status: "failed"
-          }
+          error: error.message || "Unknown communication error", 
+          jobId: printJob.id
         }, 
         { status: 500 }
       );
     }
-  } catch (error) {
-    console.error('API error:', error);
+  } catch (error: any) {
+    // Top-level error handler: Catches errors before job creation or in initial setup
+    console.error('[Print Job API] Top-level API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: error.message || "Unknown internal server error" }, 
       { status: 500 }
     );
   }

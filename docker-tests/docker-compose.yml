@@ -1,9 +1,11 @@
 services:
   mck3dprintfarm:
-    # Tell Compose how to build the image (context is relative to compose file)
-    build: .. 
-    # Still specify the image name/tag for the built image
-    image: mck3dprintfarm:v0.0.6a
+    container_name: mck3dprintfarm
+    # Use the image built by the main Dockerfile
+    image: mck3dprintfarm:v0.0.7a 
+    build:
+      context: ..
+      dockerfile: Dockerfile
     # The ENTRYPOINT in the Dockerfile now handles the full startup sequence
     # command: |
     #   sh -c " ... removed ... "

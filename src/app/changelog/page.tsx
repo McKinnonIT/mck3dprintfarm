@@ -16,11 +16,17 @@ export default function ChangelogPage() {
       <h1 className="text-3xl font-bold mb-6">Changelog</h1>
       
       <div className="space-y-8">
-        <section>
-          <h2 className="text-2xl font-semibold border-b pb-2 mb-4">[0.0.6a] - 2025-04-12</h2>
+        {/* START: v0.0.6a Entry */}
+        <section className="border-b pb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-2xl font-semibold" id="v0.0.6a">Version 0.0.6a</h2>
+            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">Released: 2025-04-12</p>
+          
           <div className="prose prose-blue max-w-none">
-            <h3>Fixed</h3>
-            <ul>
+            <h3 className="text-lg font-medium mt-4 mb-2">Fixed</h3>
+            <ul className="list-disc pl-6 space-y-2">
               <li>Resolved issues preventing selection of Moonraker printers in the Print File modal on the Files page.</li>
               <li>Fixed incorrect Moonraker print job submission logic; now uses direct HTTP POST via Node.js `fetch` instead of a Python bridge.</li>
               <li>Corrected file upload failures caused by a foreign key constraint violation (missing user check).</li>
@@ -29,25 +35,27 @@ export default function ChangelogPage() {
               <li>Resolved migration history inconsistency caused by `git clean` removing migration files.</li>
               <li>Corrected Moonraker Python library installation in Dockerfile (switched from `moonraker-py`/`moonraker-api` attempts to the correct `moonraker` package).</li>
             </ul>
-            <h3>Changed</h3>
-            <ul>
+            
+            <h3 className="text-lg font-medium mt-4 mb-2">Changed</h3>
+            <ul className="list-disc pl-6 space-y-2">
               <li>Refactored the Manage Printers page to use a table layout.</li>
               <li>Updated Manage Printers table to display Tool/Bed temperatures and Current Job filename/time remaining.</li>
             </ul>
-            <h3>Added</h3>
-            <ul>
+
+            <h3 className="text-lg font-medium mt-4 mb-2">Added</h3>
+            <ul className="list-disc pl-6 space-y-2">
               <li>Added `currentJobFilename` field to the `Printer` database model.</li>
             </ul>
           </div>
         </section>
+        {/* END: v0.0.6a Entry */}
 
         {/* START: v0.0.5a Entry */}
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.0.5a">Version 0.0.5a</h2>
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
           </div>
-          <p className="text-sm text-gray-500 mb-4">Released: {releaseDate}</p>
+          <p className="text-sm text-gray-500 mb-4">Released: 2025-04-10</p>
           
           <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>
           <ul className="list-disc pl-6 space-y-2">
@@ -81,9 +89,8 @@ export default function ChangelogPage() {
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.0.4a">Version 0.0.4a</h2>
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
           </div>
-          <p className="text-sm text-gray-500 mb-4">Released: {releaseDate}</p>
+          <p className="text-sm text-gray-500 mb-4">Released: 2024-06-11</p>
           
           <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>
           <ul className="list-disc pl-6 space-y-2">
@@ -119,7 +126,7 @@ export default function ChangelogPage() {
         </section>
         {/* END: v0.0.4a Entry */}
 
-        {/* --- Existing Entries --- */} 
+        {/* --- Existing Entries --- */ 
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.0.3a">Version 0.0.3a</h2>

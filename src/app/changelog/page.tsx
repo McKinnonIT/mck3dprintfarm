@@ -16,6 +16,31 @@ export default function ChangelogPage() {
       <h1 className="text-3xl font-bold mb-6">Changelog</h1>
       
       <div className="space-y-8">
+        <section>
+          <h2 className="text-2xl font-semibold border-b pb-2 mb-4">[0.0.6a] - 2025-04-12</h2>
+          <div className="prose prose-blue max-w-none">
+            <h3>Fixed</h3>
+            <ul>
+              <li>Resolved issues preventing selection of Moonraker printers in the Print File modal on the Files page.</li>
+              <li>Fixed incorrect Moonraker print job submission logic; now uses direct HTTP POST via Node.js `fetch` instead of a Python bridge.</li>
+              <li>Corrected file upload failures caused by a foreign key constraint violation (missing user check).</li>
+              <li>Fixed duplicate Delete Printer confirmation dialogs on the Manage Printers page; ensured confirmation is modal-only.</li>
+              <li>Made Delete Printer confirmation case-insensitive (accepts "delete", "DELETE", etc.).</li>
+              <li>Resolved migration history inconsistency caused by `git clean` removing migration files.</li>
+              <li>Corrected Moonraker Python library installation in Dockerfile (switched from `moonraker-py`/`moonraker-api` attempts to the correct `moonraker` package).</li>
+            </ul>
+            <h3>Changed</h3>
+            <ul>
+              <li>Refactored the Manage Printers page to use a table layout.</li>
+              <li>Updated Manage Printers table to display Tool/Bed temperatures and Current Job filename/time remaining.</li>
+            </ul>
+            <h3>Added</h3>
+            <ul>
+              <li>Added `currentJobFilename` field to the `Printer` database model.</li>
+            </ul>
+          </div>
+        </section>
+
         {/* START: v0.0.5a Entry */}
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">

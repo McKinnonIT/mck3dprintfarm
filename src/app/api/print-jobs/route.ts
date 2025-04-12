@@ -278,10 +278,10 @@ export async function POST(request: Request) {
           const uploadResult = await response.json(); 
           console.log('[Print Job API] Moonraker upload successful:', uploadResult);
 
-        } catch (error: any) {
+         } catch (error: any) {
           console.error('[Print Job API] Error during Moonraker HTTP POST:', error);
-          throw error; // Rethrow to be caught by outer try/catch
-        }
+             throw error; // Rethrow to be caught by outer try/catch
+         }
 
         // Update job status based on successful HTTP POST
         const finalStatus = printNow ? "printing" : "uploaded";

@@ -18,6 +18,7 @@ import {
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { GcodeThumbnailPreview } from "@/components/gcode-thumbnail-preview";
 import { PrintFileModal } from "@/components/print-file-modal";
+import { FilePreviewModal3D } from "@/components/file-preview-modal-3d";
 
 // Define File type (adjust as needed)
 type File = {
@@ -53,6 +54,7 @@ export default function FilesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [previewingFile, setPreviewingFile] = useState<File | null>(null);
+  const [previewingFile3D, setPreviewingFile3D] = useState<File | null>(null);
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [showPrintModalForFile, setShowPrintModalForFile] = useState<File | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
@@ -310,9 +312,11 @@ export default function FilesPage() {
               const lowerCaseFileName = file.name.toLowerCase();
               const fileExtension = lowerCaseFileName.substring(lowerCaseFileName.lastIndexOf('.'));
               const printableExtensions = ['.gcode', '.bgcode', '.gx'];
-              const previewableExtensions = ['.gcode', '.bgcode'];
+              const previewableGcodeExtensions = ['.gcode', '.bgcode'];
+              const previewable3DExtensions = ['.stl', '.gcode'];
               const isPrintable = printableExtensions.includes(fileExtension);
-              const isPreviewable = previewableExtensions.includes(fileExtension);
+              const isGcodePreviewable = previewableGcodeExtensions.includes(fileExtension);
+              const is3DPreviewable = previewable3DExtensions.includes(fileExtension);
 
               return (
                <Card key={file.id} className="p-4">
@@ -332,8 +336,10 @@ export default function FilesPage() {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          onClick={() => isPreviewable && setPreviewingFile(file)}
-                          disabled={!isPreviewable || isSubmitting}
+                          onClick={() => {
+                            if (is3DPreviewable) setPreviewingFile3D(file);
+                          }}
+                          disabled={!is3DPreviewable || isSubmitting}
                         >
                           Preview
                         </Button>
@@ -425,6 +431,14 @@ export default function FilesPage() {
         fileName={previewingFile?.name ?? null}
         isOpen={!!previewingFile}
         onClose={() => setPreviewingFile(null)}
+      />
+
+      {/* Combined 3D Preview Modal */}
+      <FilePreviewModal3D
+        fileId={previewingFile3D?.id ?? null}
+        fileName={previewingFile3D?.name ?? null}
+        isOpen={!!previewingFile3D}
+        onClose={() => setPreviewingFile3D(null)}
       />
 
       {/* Print File Modal */}

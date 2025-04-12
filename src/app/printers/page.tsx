@@ -10,7 +10,14 @@ import { PlusIcon, TrashIcon, PencilIcon, PauseIcon, StopIcon, ClockIcon, PlayIc
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+} from "@/components/ui/alert-dialog";
 import { DeletePrinterDialog } from "@/components/delete-printer-dialog";
 import { PrintHistoryModal } from "@/components/print-history-modal";
 import { toast } from "sonner";
@@ -470,14 +477,24 @@ export default function PrintersPage() {
          </DialogContent>
        </Dialog>
 
-      {deletingPrinter && (
-          <DeletePrinterDialog
-              printerName={deletingPrinter.name}
-              onCancel={() => setDeletingPrinter(null)}
-              onConfirm={handleDeletePrinter}
-              isSubmitting={isSubmitting}
-          />
-      )}
+      <AlertDialog open={!!deletingPrinter} onOpenChange={(open) => !open && setDeletingPrinter(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Printer Confirmation</AlertDialogTitle>
+            <AlertDialogDescription>
+              {/* Description moved inside DeletePrinterDialog now, or keep minimal here */}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deletingPrinter && (
+            <DeletePrinterDialog
+                printerName={deletingPrinter.name}
+                onCancel={() => setDeletingPrinter(null)}
+                onConfirm={handleDeletePrinter}
+                isSubmitting={isSubmitting}
+            />
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
 
       {showHistoryModalFor && (
         <PrintHistoryModal

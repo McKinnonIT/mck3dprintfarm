@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from "@/components/ui/dialog";
@@ -34,6 +34,9 @@ type PrintFileModalProps = {
   error: string | null;
 };
 
+// Define compatible operational statuses at the module level
+const COMPATIBLE_STATUSES = ['idle', 'ready', 'standby'];
+
 // Define compatible printers based on file type
 const getCompatiblePrinters = (
     // Note: We now primarily use fileName for extension check for PrusaLink
@@ -41,22 +44,39 @@ const getCompatiblePrinters = (
     fileType: string | null, // Keep for potential use with other types
     allPrinters: SelectablePrinter[]
 ): SelectablePrinter[] => {
-    if (!allPrinters) return [];
+    if (!allPrinters || !fileName) return [];
 
-    // PrusaLink Check (using filename extension and case-insensitive type)
-    const isPrusaFileType = fileName?.toLowerCase().endsWith('.bgcode') || fileName?.toLowerCase().endsWith('.gcode');
-    if (isPrusaFileType) {
-        return allPrinters.filter(
-            p => p.type?.toLowerCase() === 'prusalink' && p.operationalStatus === 'idle'
+    const lowerFileName = fileName.toLowerCase();
+    
+    console.log("[getCompatiblePrinters] Input FileName:", fileName);
+    console.log("[getCompatiblePrinters] Input Printers Raw:", JSON.stringify(allPrinters, null, 2));
+
+    // Log details before filtering
+    allPrinters.forEach(p => {
+        console.log(`[getCompatiblePrinters] Checking Printer: ID=${p.id}, Name=${p.name}, Type=${p.type}, Status=${p.operationalStatus}`);
+    });
+
+    let compatible: SelectablePrinter[] = [];
+
+    // Handle PrusaLink specific files (.bgcode)
+    if (lowerFileName.endsWith('.bgcode')) {
+        compatible = allPrinters.filter(
+            p => p.type?.toLowerCase() === 'prusalink' && 
+                 COMPATIBLE_STATUSES.includes(p.operationalStatus?.toLowerCase())
         );
     }
+    // Handle general G-code files (.gcode)
+    else if (lowerFileName.endsWith('.gcode')) {
+        compatible = allPrinters.filter(
+            p => (p.type?.toLowerCase() === 'prusalink' || p.type?.toLowerCase() === 'moonraker') && 
+                 COMPATIBLE_STATUSES.includes(p.operationalStatus?.toLowerCase())
+        );
+    }
+    // Add logic for other file types/printer types if needed
+    // else if (lowerFileName.endsWith('.some_other_extension')) { ... }
     
-    // Placeholder for Moonraker (example using fileType MIME type)
-    // if (fileType === 'application/x-gcode' && ...) { 
-    //    return allPrinters.filter(p => p.type?.toLowerCase() === 'moonraker' && ...);
-    // }
-
-    return []; // No compatible printers for other types yet
+    console.log("[getCompatiblePrinters] Filtered Compatible Printers:", JSON.stringify(compatible, null, 2));
+    return compatible;
 };
 
 
@@ -75,12 +95,22 @@ export function PrintFileModal({
   const [selectedPrinterId, setSelectedPrinterId] = useState<string>("");
   const { can } = usePermissions(); // Use the hook
 
+  // Handler for Select component's value change
+  const handlePrinterSelectChange = (value: string) => {
+      console.log("[PrintFileModal] Printer selected in dropdown:", value);
+      setSelectedPrinterId(value);
+  };
+
   // Find the selected printer object to check its type
   const selectedPrinter = printers.find(p => p.id === selectedPrinterId);
   const isPrusaSelected = !!selectedPrinter && selectedPrinter.type.toLowerCase().includes('prusa');
 
   // Pass fileName and fileType to the filter function
-  const compatiblePrinters = getCompatiblePrinters(fileName, fileType, printers);
+  // Memoize compatiblePrinters to prevent unnecessary useEffect triggers
+  const compatiblePrinters = useMemo(() => {
+    console.log("[PrintFileModal] Recalculating compatible printers..."); 
+    return getCompatiblePrinters(fileName, fileType, printers);
+  }, [fileName, fileType, printers]);
 
   // Reset selection when modal opens or compatible printers change
   useEffect(() => {
@@ -125,7 +155,7 @@ export function PrintFileModal({
             </Label>
             <Select
               value={selectedPrinterId}
-              onValueChange={setSelectedPrinterId}
+              onValueChange={handlePrinterSelectChange}
               disabled={compatiblePrinters.length === 0 || isSubmitting}
             >
               <SelectTrigger id="printer-select" className="">

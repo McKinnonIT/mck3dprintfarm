@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { DeletePrinterDialog } from "@/components/delete-printer-dialog";
 import { PrintJobHistory } from "@/components/print-job-history";
 import { TrashIcon, XMarkIcon, CheckIcon } from "@heroicons/react/24/outline";
 
@@ -52,7 +51,6 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
   const [groups, setGroups] = useState<Group[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSerialNumber, setShowSerialNumber] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     setName(printer.name);
@@ -259,7 +257,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
         </div>
 
         <div className="flex justify-between">
-          <Button type="button" variant="destructive" onClick={() => setShowDeleteConfirm(true)} disabled={isSubmitting} className="w-full sm:w-auto">
+          <Button type="button" variant="destructive" onClick={onDelete} disabled={isSubmitting} className="w-full sm:w-auto">
             <TrashIcon className="h-4 w-4 mr-1" />
             Delete Printer
           </Button>
@@ -286,18 +284,6 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
             {showJobHistory ? "Hide" : "Show"} Job History
           </Button>
         </div>
-      )}
-
-      {showDeleteConfirm && (
-        <DeletePrinterDialog
-          printerName={printer.name}
-          onCancel={() => setShowDeleteConfirm(false)}
-          onConfirm={() => {
-            setShowDeleteConfirm(false);
-            onDelete();
-          }}
-          isSubmitting={isSubmitting}
-        />
       )}
     </div>
   );

@@ -8,13 +8,18 @@ alwaysApply: true
 
 - The test environment is an Alpine Linux docker container. Never use apt-get to obtain packages.
 - Only push changes to github when asked by the user.
-- The AI has full access to all project files and does not need to ask the user to search for files.
-- Productione environment is also using docker. Make sure the docker container is repoducable on any system.
-- We have a database versioning. When we add or remove features from the database make sure the version is updated. node scripts/create-migration.js "Add new feature XYZ"
-- Moonraker printers use the moonraker-py API python library. 
-- Prusa printers use the raw prusalinkpy API python library.
+- The AI has full access to all project files and does not need to ask the user to search for files or read files. Never ask the user to edit files when you can!
+- Productione environment is also using docker. Make sure the docker container is repoducable on any system. All testing is done in the /docker-tests folder.
+- Moonraker printers use the moonraker API python library. 
+- Prusa printers use the pyprusalink API python library.
+- Important: try to fix things at the cause, not the symptom.
+- Be very detailed with summarization and do not miss out things that are important.
+- The database location inside the container is /app/prisma/dev.db
 
 - Goals for v0.0.4a is to have functional role based access with users.
 - Goals for v0.0.5a is to add database backup functionallity to the UI and make an upgrade script that preserves the current database and updates it with any changes required.
-- Goals for v0.0.6a recode the Dashboard, Printers and Files pages and confirm we're able to add and edit printers, upload files and send them to printers and monitor progress via the Dashboard.
-- Goals for v0.0.7a is to have single sign on with Google and Entra ID working and using RBAC.
+- Goals for v0.0.6a recode the Dashboard, Printers and Files pages and confirm we're able to add and edit printers, upload files and send them to printers.
+- Goals for v0.0.7a is to be able to reliably backup and restore the database via the UI.
+- Goals for v0.0.8a setup the jobs page so users can submit print jobs to be queued for approval.
+- Goals for v0.0.9a setup the Dashboard page to monitor all printers.
+- Goals for v0.1.0a is to have single sign on with Google and Entra ID working and using RBAC.

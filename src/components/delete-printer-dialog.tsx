@@ -17,7 +17,7 @@ export function DeletePrinterDialog({ printerName, onConfirm, onCancel, isSubmit
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (confirmation !== "DELETE") {
+    if (confirmation.toUpperCase() !== "DELETE") {
       setError("Please type DELETE to confirm");
       return;
     }
@@ -54,7 +54,7 @@ export function DeletePrinterDialog({ printerName, onConfirm, onCancel, isSubmit
           <Button
             type="submit"
             className="flex-1 bg-red-600 hover:bg-red-700 inline-flex items-center"
-            disabled={confirmation !== "DELETE" || isSubmitting}
+            disabled={confirmation.toUpperCase() !== "DELETE" || isSubmitting}
           >
             <TrashIcon className="h-4 w-4 mr-1" />
             {isSubmitting ? "Deleting..." : "Delete Printer"}

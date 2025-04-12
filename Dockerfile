@@ -66,7 +66,7 @@ RUN apk add --no-cache sqlite && \
     npm install -g prisma --no-optional && \
     npm install bcryptjs && \
     # Install Python packages globally, upgrading pyprusalink
-    pip3 install --break-system-packages --upgrade pyprusalink aiohttp moonraker-api bambulabs_api && \
+    pip3 install --break-system-packages --upgrade pyprusalink aiohttp moonraker bambulabs_api && \
     # Make sure Python is in the path with proper permissions
     which python3 && \
     chmod +x $(which python3) && \
@@ -76,11 +76,16 @@ RUN apk add --no-cache sqlite && \
 # Make sure to copy Python scripts to all possible locations
 COPY --from=builder /app/src/lib/*.py /app/src/lib/
 RUN mkdir -p /app/.next/server/app/api/test-prusalink-status && \
-    cp /app/src/lib/prusalink-direct.py /app/.next/server/app/api/test-prusalink-status/ && \
+    # Copy relevant scripts for direct testing if needed
+    cp /app/src/lib/prusalink-direct.py /app/.next/server/app/api/test-prusalink-status/ || true && \
     mkdir -p /app/.next/server/chunks/app/src/lib && \
-    cp /app/src/lib/prusalink-direct.py /app/.next/server/chunks/app/src/lib/ && \
-    # Ensure all Python scripts are executable
-    chmod +x /app/src/lib/*.py /app/.next/server/app/api/test-prusalink-status/*.py /app/.next/server/chunks/app/src/lib/*.py
+    # Copy relevant scripts for direct testing if needed
+    cp /app/src/lib/prusalink-direct.py /app/.next/server/chunks/app/src/lib/ || true && \
+    # Ensure all Python scripts in src/lib are executable
+    chmod +x /app/src/lib/*.py && \
+    # Make other specific scripts executable if they exist
+    chmod +x /app/.next/server/app/api/test-prusalink-status/*.py || true && \
+    chmod +x /app/.next/server/chunks/app/src/lib/*.py || true
 
 # Copy the new script and make it executable
 COPY prisma/run-ensure-tables.sh /app/prisma/run-ensure-tables.sh

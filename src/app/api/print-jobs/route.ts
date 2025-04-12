@@ -230,36 +230,65 @@ export async function POST(request: Request) {
       // --- End PrusaLink Handling ---
 
       } else if (isMoonraker) {
-        // --- Moonraker Handling (Existing Code - Needs Verification) ---
-        console.log(`[Print Job API] Using Moonraker bridge for ${printer.name}`);
-        // This part still uses require - needs verification if moonraker-bridge-py works this way
-        const moonrakerBridge = require("@/lib/moonraker-bridge-py"); 
-        let uploadResult;
+        // --- Moonraker Handling (Using Node.js Fetch for HTTP POST) ---
+        console.log(`[Print Job API] Using Node Fetch for Moonraker: ${printer.name}`);
+        const moonrakerUploadUrl = new URL('/server/files/upload', printer.apiUrl).toString();
+        const apiKey = printer.apiKey || ''; // Use empty string if null/undefined
+        const filenameOnPrinter = path.basename(file.name);
+
         try {
-            uploadResult = await moonrakerBridge.uploadAndPrint(
-                printer.apiUrl,
-                printer.apiKey,
-                absoluteFilePath,
-                path.basename(file.name),
-                printNow
-            );
-            console.log(`[Print Job API] Moonraker bridge result:`, uploadResult);
-            if (!uploadResult.success) {
-                console.error('[Print Job API] Moonraker bridge returned error:', uploadResult);
-                throw new Error(uploadResult.message || "Unknown error from Moonraker bridge");
+          // Read file content as a stream or buffer for fetch
+          const fileBuffer = fs.readFileSync(absoluteFilePath);
+          
+          // Construct FormData for the POST request
+          const formData = new FormData();
+          formData.append('file', new Blob([fileBuffer]), filenameOnPrinter);
+          // Moonraker API: `print=true` starts the print immediately
+          if (printNow) {
+            formData.append('print', 'true');
+          }
+
+          console.log(`[Print Job API] POSTing to Moonraker: ${moonrakerUploadUrl} (Filename: ${filenameOnPrinter}, Print: ${printNow})`);
+          
+          const headers: HeadersInit = {};
+          if (apiKey) {
+            headers['X-Api-Key'] = apiKey;
+          }
+          
+          const response = await fetch(moonrakerUploadUrl, {
+            method: 'POST',
+            headers: headers,
+            body: formData,
+          });
+
+          // Check response status
+          if (!response.ok) {
+            let errorBody = 'Unknown upload error';
+            try { 
+              const errorJson = await response.json();
+              errorBody = errorJson.error?.message || JSON.stringify(errorJson);
+            } catch (e) {
+              errorBody = await response.text();
             }
-         } catch (error: any) {
-             console.error('[Print Job API] Moonraker bridge error:', error);
-             throw error; // Rethrow to be caught by outer try/catch
-         }
-        // Update job status based on operation result
+            console.error(`[Print Job API] Moonraker upload failed (${response.status}): ${errorBody}`);
+            throw new Error(`Moonraker upload failed: ${response.status} ${errorBody}`);
+          }
+
+          // If successful, Moonraker returns info about the uploaded file/job
+          const uploadResult = await response.json(); 
+          console.log('[Print Job API] Moonraker upload successful:', uploadResult);
+
+        } catch (error: any) {
+          console.error('[Print Job API] Error during Moonraker HTTP POST:', error);
+          throw error; // Rethrow to be caught by outer try/catch
+        }
+
+        // Update job status based on successful HTTP POST
         const finalStatus = printNow ? "printing" : "uploaded";
         await prisma.printJob.update({ where: { id: printJob.id }, data: { status: finalStatus, startedAt: printNow ? new Date() : null } });
         if (printNow) {
             await prisma.printer.update({ where: { id: printer.id }, data: { operationalStatus: "printing", printStartTime: new Date() } });
         }
-       // --- End Moonraker Handling ---
-
       } else if (isBambuLab) {
           // TODO: Implement Bambu Lab handling using its Python bridge
           console.warn(`[Print Job API] Bambu Lab handling not yet implemented via Python bridge.`);

@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.6a] - 2025-04-12
 
 ### Fixed
+- **PrusaLink Integration:**
+  - Updated status checking to use direct HTTP API calls instead of the Python bridge for reliability.
+  - Correctly extract job filename and temperatures from PrusaLink API responses.
 - **Moonraker Integration:**
   - Fixed print job submission; now uses direct HTTP POST via Node.js `fetch` instead of incorrect Python bridge attempts.
   - Corrected Python library installation in Dockerfile (`moonraker` package).

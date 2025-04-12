@@ -28,6 +28,13 @@ export default function ChangelogPage() {
             <h3 className="text-lg font-medium mt-4 mb-2">Fixed</h3>
             <ul className="list-disc pl-6 space-y-2">
               <li>
+                <strong>PrusaLink Integration:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Updated status checking to use direct HTTP API calls instead of the Python bridge for reliability.</li>
+                  <li>Correctly extract job filename and temperatures from PrusaLink API responses.</li>
+                </ul>
+              </li>
+              <li>
                 <strong>Moonraker Integration:</strong>
                 <ul className="list-disc pl-4">
                   <li>Fixed print job submission; now uses direct HTTP POST via Node.js `fetch` instead of incorrect Python bridge attempts.</li>

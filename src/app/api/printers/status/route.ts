@@ -120,6 +120,8 @@ export async function GET() {
         let printJobName: string | undefined = undefined;
         let bedTemp: number | null = null;
         let toolTemp: number | null = null;
+        let printProgress: number | null = null;
+        let currentJobFilename: string | null = null; // Initialize here
         
         // Acquire semaphore permit before making network requests
         await CONNECTION_SEMAPHORE.acquire();
@@ -218,6 +220,8 @@ export async function GET() {
                         console.log(`Cleaned print job name for ${printer.name}: ${printJobName}`);
                       }
                     }
+                    // Set currentJobFilename based on printJobName found
+                    currentJobFilename = printJobName || null;
                   } else {
                     console.log(`No print_stats in response for ${printer.name}`);
                     operationalStatus = "idle"; // If we got a response but no print stats, printer is likely idle
@@ -351,6 +355,12 @@ export async function GET() {
                             printImageUrl = jobData.job.thumbnail_url;
                           }
                         }
+                        // Extract filename from job data if printing
+                        if (jobData && jobData.job && jobData.job.file && jobData.job.file.display_name) {
+                          currentJobFilename = jobData.job.file.display_name; // Use correct variable
+                        } else {
+                          console.log(`Print job name cleared or not found for ${printer.name} (status: ${operationalStatus})`);
+                        }
                       } else {
                         console.log(`Failed to get job data for ${printer.name}: ${jobResponse.status}`);
                       }
@@ -416,41 +426,17 @@ export async function GET() {
           }
 
           // Create a printer update object
-          const updateData: any = {
+          const updateData = {
             operationalStatus,
             lastSeen: new Date(),
+            currentJobFilename, // Include in update data
+            printStartTime: printStartTime || null,
+            printTimeElapsed: printTimeElapsed || null,
+            printTimeRemaining: printTimeRemaining || null,
+            printImageUrl: printImageUrl || null,
+            bedTemp: bedTemp || null,
+            toolTemp: toolTemp || null,
           };
-
-          // Only include defined values in the update
-          if (printStartTime !== undefined) updateData.printStartTime = printStartTime;
-          if (printTimeElapsed !== undefined) updateData.printTimeElapsed = printTimeElapsed;
-          if (printTimeRemaining !== undefined) updateData.printTimeRemaining = printTimeRemaining;
-          if (printImageUrl !== undefined) updateData.printImageUrl = printImageUrl;
-          
-          // Only keep printJobName if printer is printing, otherwise clear it
-          // Temporarily disabled due to schema mismatch
-          // if (operationalStatus === 'printing') {
-          //   if (printJobName !== undefined) {
-          //     updateData.printJobName = printJobName;
-          //     console.log(`Saving print job name for ${printer.name}: ${printJobName}`);
-          //   }
-          // } else {
-          //   // Clear print job name when printer is not printing
-          //   updateData.printJobName = null;
-          //   console.log(`Clearing print job name for ${printer.name} (status: ${operationalStatus})`);
-          // }
-          
-          // Log the print job name but don't add it to update data until schema is updated
-          if (operationalStatus === 'printing') {
-            if (printJobName !== undefined) {
-              console.log(`Print job name for ${printer.name}: ${printJobName} (not saved due to schema mismatch)`);
-            }
-          } else {
-            console.log(`Print job name cleared for ${printer.name} (status: ${operationalStatus})`);
-          }
-          
-          if (bedTemp !== null) updateData.bedTemp = bedTemp;
-          if (toolTemp !== null) updateData.toolTemp = toolTemp;
 
           console.log(`FINAL UPDATE DATA for ${printer.name}:`, JSON.stringify(updateData));
 

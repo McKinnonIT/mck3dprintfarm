@@ -55,7 +55,10 @@ type Printer = {
   printTimeRemaining?: number;
   webcamUrl?: string;
   printImageUrl?: string;
+  currentJobFilename?: string;
   groupId?: string;
+  toolTemp?: number;
+  bedTemp?: number;
 };
 
 type JobHistoryEntry = {
@@ -317,6 +320,23 @@ export default function PrintersPage() {
     }
   };
 
+  // Helper to format time remaining
+  const formatTime = (seconds: number | undefined | null): string => {
+    if (seconds === undefined || seconds === null || seconds < 0) return 'N/A';
+    if (seconds === Infinity) return '∞'; 
+
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    
+    let parts: string[] = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (remainingSeconds > 0 || parts.length === 0) parts.push(`${remainingSeconds}s`); // Show seconds if other parts are zero
+
+    return parts.join(' ');
+  };
+
   if (status === 'loading' || (status === 'authenticated' && !hasAccess && !loading)) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -422,13 +442,22 @@ export default function PrintersPage() {
                 </TableCell>
                 {/* Col 4: Temps */}
                 <TableCell className="align-top text-sm py-3">
-                  <div>Tool: {/* TODO: Add temp formatting */} N/A</div> 
-                  <div>Bed: {/* TODO: Add temp formatting */} N/A</div>
+                  <div>Tool: {printer.toolTemp !== null && printer.toolTemp !== undefined ? `${printer.toolTemp.toFixed(1)}°C` : 'N/A'}</div>
+                  <div>Bed: {printer.bedTemp !== null && printer.bedTemp !== undefined ? `${printer.bedTemp.toFixed(1)}°C` : 'N/A'}</div>
                 </TableCell>
                 {/* Col 5: Job */}
-                <TableCell className="align-top py-3 text-sm text-muted-foreground">
-                   {/* TODO: Add Job info later */}
-                   -
+                <TableCell className="align-top py-3">
+                  {printer.operationalStatus === 'printing' || printer.operationalStatus === 'paused' ? (
+                    <div className="flex flex-col space-y-1">
+                      {/* TODO: Add progress bar when data is available */}
+                       <span className="text-sm font-medium text-gray-800 truncate" title={printer.currentJobFilename ?? 'N/A'}>
+                           {printer.currentJobFilename || 'N/A'}
+                       </span>
+                       <span className="text-xs text-gray-500">Time Left: {formatTime(printer.printTimeRemaining)}</span>
+                     </div>
+                  ) : (
+                    <span className="text-sm text-gray-400">-</span>
+                  )}
                 </TableCell>
                 {/* Col 6: Actions */}
                 <TableCell className="text-right align-top py-3">

@@ -47,6 +47,7 @@ model Printer {
   printJobName       String?
   bedTemp            Float?
   toolTemp           Float?
+  currentJobFilename String?
   printJobs          PrintJob[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt

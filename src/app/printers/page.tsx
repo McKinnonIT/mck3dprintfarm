@@ -21,6 +21,14 @@ import {
 import { DeletePrinterDialog } from "@/components/delete-printer-dialog";
 import { PrintHistoryModal } from "@/components/print-history-modal";
 import { toast } from "sonner";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type NewPrinterData = {
   name: string;
@@ -298,6 +306,17 @@ export default function PrintersPage() {
     printer.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Helper to extract IP from API URL
+  const extractIp = (apiUrl: string) => {
+    try {
+      const url = new URL(apiUrl);
+      return url.hostname;
+    } catch (e) {
+      console.error(`Invalid API URL format: ${apiUrl}`, e);
+      return "Invalid";
+    }
+  };
+
   if (status === 'loading' || (status === 'authenticated' && !hasAccess && !loading)) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -371,83 +390,112 @@ export default function PrintersPage() {
           )}
         </div>
       ) : !error && filteredPrinters.length > 0 ? (
-        <div className="space-y-4">
-          {filteredPrinters.map((printer) => (
-            <div
-              key={printer.id}
-              className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-lg border bg-white p-4 shadow-sm"
-            >
-              <div className="flex flex-grow items-center gap-4">
-                <div className="space-y-1 flex-shrink-0">
-                  <h3 className="text-lg font-semibold">{printer.name}</h3>
-                  <p className="text-sm text-gray-600 truncate" title={printer.apiUrl}>API: {printer.apiUrl}</p>
-                  <p className="text-sm text-gray-600">Type: {printer.type}</p>
-                </div>
-                <div className="flex flex-col items-start gap-1 flex-shrink-0 pl-4 border-l ml-4">
-                  {renderStatusBadge("Management Status", printer.status)}
-                  {renderStatusBadge("Operational Status", printer.operationalStatus)}
-                </div>
-                <div className="flex-grow"></div>
-              </div>
-              
-              <div className="flex flex-shrink-0 gap-2 pt-2 md:pt-0">
-                {printer.operationalStatus === 'paused' ? (
-                  <Button
-                    className="bg-green-100 text-green-800 hover:bg-green-200 disabled:bg-gray-100 disabled:text-gray-400"
-                    size="sm"
-                    onClick={() => handlePrinterAction(printer.id, 'resume')}
-                    disabled={isSubmitting || printer.status !== 'active'}
-                    aria-label={`Resume ${printer.name}`}
-                    title="Resume Print"
-                  >
-                    <PlayIcon className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button
-                    className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 disabled:bg-gray-100 disabled:text-gray-400"
-                    size="sm"
-                    onClick={() => handlePrinterAction(printer.id, 'pause')}
-                    disabled={isSubmitting || printer.status !== 'active' || printer.operationalStatus !== 'printing'}
-                    aria-label={`Pause ${printer.name}`}
-                    title="Pause Print"
-                  >
-                    <PauseIcon className="h-4 w-4" />
-                  </Button>
-                )}
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handlePrinterAction(printer.id, 'cancel')}
-                  disabled={isSubmitting || printer.status !== 'active' || printer.operationalStatus !== 'printing'}
-                  aria-label={`Stop ${printer.name}`}
-                  title="Cancel Print"
-                >
-                  <StopIcon className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleShowHistory(printer)}
-                  disabled={isSubmitting || historyLoading && showHistoryModalFor?.id === printer.id}
-                  aria-label={`History for ${printer.name}`}
-                  title="Print History"
-                >
-                  <ClockIcon className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  onClick={() => openModal(printer)} 
-                  disabled={isSubmitting}
-                  aria-label={`Edit ${printer.name}`}
-                  title="Edit Printer"
-                >
-                  <PencilIcon className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[20%]">Printer</TableHead>
+              <TableHead className="w-[15%]">IP Address</TableHead>
+              <TableHead className="w-[15%]">Status</TableHead>
+              <TableHead className="w-[10%]">Temps</TableHead>
+              <TableHead className="w-[15%]">Current Job</TableHead>
+              <TableHead className="text-right w-[25%]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredPrinters.map((printer) => (
+              <TableRow key={printer.id}>
+                {/* Col 1: Name / Type */}
+                <TableCell className="align-top py-3">
+                  <div className="font-medium truncate" title={printer.name}>{printer.name}</div>
+                  <div className="text-sm text-muted-foreground">{printer.type}</div>
+                </TableCell>
+                {/* Col 2: IP */}
+                <TableCell className="align-top py-3 text-sm text-muted-foreground">
+                  {extractIp(printer.apiUrl)}
+                </TableCell>
+                {/* Col 3: Statuses */}
+                <TableCell className="align-top py-3">
+                  {renderStatusBadge("Mgt", printer.status)}
+                  <div className="mt-1">
+                    {renderStatusBadge("Op", printer.operationalStatus)}
+                  </div>
+                </TableCell>
+                {/* Col 4: Temps */}
+                <TableCell className="align-top text-sm py-3">
+                  <div>Tool: {/* TODO: Add temp formatting */} N/A</div> 
+                  <div>Bed: {/* TODO: Add temp formatting */} N/A</div>
+                </TableCell>
+                {/* Col 5: Job */}
+                <TableCell className="align-top py-3 text-sm text-muted-foreground">
+                   {/* TODO: Add Job info later */}
+                   -
+                </TableCell>
+                {/* Col 6: Actions */}
+                <TableCell className="text-right align-top py-3">
+                  <div className="flex flex-wrap gap-1.5 justify-end">
+                    {/* Pause/Resume Button */}
+                    {printer.operationalStatus === 'paused' ? (
+                      <Button
+                        className="bg-green-100 text-green-800 hover:bg-green-200 disabled:bg-gray-100 disabled:text-gray-400"
+                        size="sm"
+                        onClick={() => handlePrinterAction(printer.id, 'resume')}
+                        disabled={isSubmitting || printer.status !== 'active'}
+                        aria-label={`Resume ${printer.name}`}
+                        title="Resume Print"
+                      >
+                        <PlayIcon className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button
+                        className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 disabled:bg-gray-100 disabled:text-gray-400"
+                        size="sm"
+                        onClick={() => handlePrinterAction(printer.id, 'pause')}
+                        disabled={isSubmitting || printer.status !== 'active' || printer.operationalStatus !== 'printing'}
+                        aria-label={`Pause ${printer.name}`}
+                        title="Pause Print"
+                      >
+                        <PauseIcon className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {/* Stop Button */}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handlePrinterAction(printer.id, 'cancel')}
+                      disabled={isSubmitting || printer.status !== 'active' || printer.operationalStatus !== 'printing'}
+                      aria-label={`Stop ${printer.name}`}
+                      title="Cancel Print"
+                    >
+                      <StopIcon className="h-4 w-4" />
+                    </Button>
+                    {/* History Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleShowHistory(printer)}
+                      disabled={isSubmitting || historyLoading && showHistoryModalFor?.id === printer.id}
+                      aria-label={`History for ${printer.name}`}
+                      title="Print History"
+                    >
+                      <ClockIcon className="h-4 w-4" />
+                    </Button>
+                    {/* Edit Button */}
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      onClick={() => openModal(printer)} 
+                      disabled={isSubmitting}
+                      aria-label={`Edit ${printer.name}`}
+                      title="Edit Printer"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       ) : null}
 
       <Dialog open={isModalOpen} onOpenChange={(open) => { if (!open && !isSubmitting) closeModal(); }}>

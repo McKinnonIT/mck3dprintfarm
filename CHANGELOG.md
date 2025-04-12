@@ -10,20 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.6a] - 2025-04-12
 
 ### Fixed
-- Resolved issues preventing selection of Moonraker printers in the Print File modal on the Files page.
-- Fixed incorrect Moonraker print job submission logic; now uses direct HTTP POST via Node.js `fetch` instead of a Python bridge.
-- Corrected file upload failures caused by a foreign key constraint violation (missing user check).
-- Fixed duplicate Delete Printer confirmation dialogs on the Manage Printers page; ensured confirmation is modal-only.
-- Made Delete Printer confirmation case-insensitive (accepts "delete", "DELETE", etc.).
-- Resolved migration history inconsistency caused by `git clean` removing migration files.
-- Corrected Moonraker Python library installation in Dockerfile (switched from `moonraker-py`/`moonraker-api` attempts to the correct `moonraker` package).
+- **Moonraker Integration:**
+  - Fixed print job submission; now uses direct HTTP POST via Node.js `fetch` instead of incorrect Python bridge attempts.
+  - Corrected Python library installation in Dockerfile (`moonraker` package).
+- **Printer Selection:**
+  - Resolved issue preventing selection of multiple compatible printers (e.g., Moonraker) in the Print File modal (fixed `useEffect` dependency bug).
+- **Printer Management:**
+  - Fixed duplicate Delete Printer confirmation dialogs; ensured confirmation is modal-only and correctly wrapped.
+  - Made Delete Printer confirmation input case-insensitive.
+- **File Uploads:**
+  - Corrected failures caused by foreign key constraint violation (added missing user check before creating `File` record).
+- **Database Migrations:**
+  - Resolved migration history inconsistency caused by `git clean` removing applied migration files.
+- **Changelog Page:**
+  - Fixed JSX structure errors on the changelog page.
 
 ### Changed
-- Refactored the Manage Printers page to use a table layout.
-- Updated Manage Printers table to display Tool/Bed temperatures and Current Job filename/time remaining.
+- **Printer Management UI:**
+  - Refactored the Manage Printers page to use a table layout (`shadcn/ui`).
+  - Updated Manage Printers table to display Tool/Bed temperatures.
+  - Updated Manage Printers table to display Current Job filename and Time Remaining when printing/paused.
 
 ### Added
-- Added `currentJobFilename` field to the `Printer` database model.
+- **Printer Data:**
+  - Added `currentJobFilename` field to the `Printer` database model and corresponding API/UI handling.
 
 ## [0.0.5a] - 2025-04-10
 

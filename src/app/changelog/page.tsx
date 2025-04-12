@@ -27,24 +27,66 @@ export default function ChangelogPage() {
           <div className="prose prose-blue max-w-none">
             <h3 className="text-lg font-medium mt-4 mb-2">Fixed</h3>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Resolved issues preventing selection of Moonraker printers in the Print File modal on the Files page.</li>
-              <li>Fixed incorrect Moonraker print job submission logic; now uses direct HTTP POST via Node.js `fetch` instead of a Python bridge.</li>
-              <li>Corrected file upload failures caused by a foreign key constraint violation (missing user check).</li>
-              <li>Fixed duplicate Delete Printer confirmation dialogs on the Manage Printers page; ensured confirmation is modal-only.</li>
-              <li>Made Delete Printer confirmation case-insensitive (accepts "delete", "DELETE", etc.).</li>
-              <li>Resolved migration history inconsistency caused by `git clean` removing migration files.</li>
-              <li>Corrected Moonraker Python library installation in Dockerfile (switched from `moonraker-py`/`moonraker-api` attempts to the correct `moonraker` package).</li>
+              <li>
+                <strong>Moonraker Integration:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Fixed print job submission; now uses direct HTTP POST via Node.js `fetch` instead of incorrect Python bridge attempts.</li>
+                  <li>Corrected Python library installation in Dockerfile (`moonraker` package).</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Printer Selection:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Resolved issue preventing selection of multiple compatible printers (e.g., Moonraker) in the Print File modal (fixed `useEffect` dependency bug).</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Printer Management:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Fixed duplicate Delete Printer confirmation dialogs; ensured confirmation is modal-only and correctly wrapped.</li>
+                  <li>Made Delete Printer confirmation input case-insensitive.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>File Uploads:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Corrected failures caused by foreign key constraint violation (added missing user check before creating `File` record).</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Database Migrations:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Resolved migration history inconsistency caused by `git clean` removing applied migration files.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Changelog Page:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Fixed JSX structure errors on the changelog page.</li>
+                </ul>
+              </li>
             </ul>
             
             <h3 className="text-lg font-medium mt-4 mb-2">Changed</h3>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Refactored the Manage Printers page to use a table layout.</li>
-              <li>Updated Manage Printers table to display Tool/Bed temperatures and Current Job filename/time remaining.</li>
+              <li>
+                <strong>Printer Management UI:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Refactored the Manage Printers page to use a table layout (`shadcn/ui`).</li>
+                  <li>Updated Manage Printers table to display Tool/Bed temperatures.</li>
+                  <li>Updated Manage Printers table to display Current Job filename and Time Remaining when printing/paused.</li>
+                </ul>
+              </li>
             </ul>
 
             <h3 className="text-lg font-medium mt-4 mb-2">Added</h3>
             <ul className="list-disc pl-6 space-y-2">
-              <li>Added `currentJobFilename` field to the `Printer` database model.</li>
+              <li>
+                <strong>Printer Data:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Added `currentJobFilename` field to the `Printer` database model and corresponding API/UI handling.</li>
+                </ul>
+              </li>
             </ul>
           </div>
         </section>
@@ -126,11 +168,10 @@ export default function ChangelogPage() {
         </section>
         {/* END: v0.0.4a Entry */}
 
-        {/* --- Existing Entries --- */ 
-        <section className="border-b pb-6">
-          <div className="flex items-center gap-4 mb-4">
-            <h2 className="text-2xl font-semibold" id="v0.0.3a">Version 0.0.3a</h2>
-          </div>
+         <section className="border-b pb-6">
+           <div className="flex items-center gap-4 mb-4">
+             <h2 className="text-2xl font-semibold" id="v0.0.3a">Version 0.0.3a</h2>
+           </div>
           <p className="text-sm text-gray-500 mb-4">Released: May 14, 2024</p>
           
           <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>

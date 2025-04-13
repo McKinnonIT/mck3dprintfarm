@@ -105,6 +105,13 @@ export function Navigation() {
                 </Link>
             )}
 
+            {/* Jobs Link */} 
+            {session && canAccessPage(allowedPages, '/jobs') && (
+                <Link href="/jobs" className={getLinkClassName('/jobs')}>
+                    Jobs
+                </Link>
+            )}
+
             {/* Other Links - only render if user is logged in */}
             {session && (
               <>

@@ -90,6 +90,7 @@ function formatBytes(bytes: number, decimals = 2): string {
 
 const AVAILABLE_PAGES = [
   { id: '/dashboard', label: 'Dashboard' },
+  { id: '/jobs', label: 'Jobs' },
   { id: '/printers', label: 'Printers' },
   { id: '/groups', label: 'Groups Management' },
   { id: '/files', label: 'Files' },

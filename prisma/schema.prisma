@@ -79,7 +79,7 @@ model PrintJob {
   file        File      @relation(fields: [fileId], references: [id])
   printerId   String
   printer     Printer   @relation(fields: [printerId], references: [id])
-  submittedByUserId String
+  submittedByUserId String?
   submittedByUser User     @relation("SubmittedJobs", fields: [submittedByUserId], references: [id])
   approvedByUserId String?
   approvedByUser User?     @relation("ApprovedJobs", fields: [approvedByUserId], references: [id])

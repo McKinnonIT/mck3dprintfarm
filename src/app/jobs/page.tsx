@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge"; // For displaying status
 import { formatDistanceToNow } from 'date-fns';
 import { canAccessPage } from "@/lib/rbacUtils";
+import { usePermissions } from "@/hooks/usePermissions"; // Import usePermissions
+import { CheckIcon, XMarkIcon, TrashIcon, ArrowPathIcon } from "@heroicons/react/24/outline"; // Import icons
 
 // Define Job type matching API response
 type Job = {
@@ -27,6 +29,7 @@ type Job = {
   submittedByUser: { name: string | null; email: string; };
   printer: { name: string; };
   file: { name: string; };
+  approvedByUser: { name: string | null; email: string; } | null; // Add approvedByUser
   // Add other fields as needed from the API response
 };
 
@@ -42,6 +45,7 @@ const JOBS_PER_PAGE = 20;
 export default function JobsPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
+  const { can } = usePermissions(); // Use the permissions hook
   const allowedPages = session?.user?.allowedPages;
   const hasAccess = canAccessPage(allowedPages, '/jobs');
 
@@ -51,6 +55,8 @@ export default function JobsPage() {
   const [totalPages, setTotalPages] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [processingJobId, setProcessingJobId] = useState<string | null>(null); // State for loading indicator on buttons
+  const [actionError, setActionError] = useState<string | null>(null); // State for action errors
 
   // Map tab values to API status filters
   const statusMap: { [key: string]: string } = {
@@ -124,6 +130,44 @@ export default function JobsPage() {
     }
   }, [sessionStatus, hasAccess, router]);
 
+  // --- Handle Job Actions ---
+  const handleJobAction = useCallback(async (jobId: string, action: 'APPROVE' | 'REJECT' | 'CANCEL') => {
+    setProcessingJobId(jobId); // Indicate processing for this job
+    setActionError(null); // Clear previous action errors
+    console.log(`[JobsPage] Performing action ${action} on job ${jobId}`);
+
+    try {
+      const response = await fetch(`/api/jobs/${jobId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+
+      if (!response.ok) {
+        let errorMsg = `Failed to ${action.toLowerCase()} job.`;
+        try {
+            const errorData = await response.json();
+            errorMsg = errorData.error || errorMsg;
+        } catch (parseError) {
+            // Ignore if response body isn't valid JSON
+            errorMsg += ` (Status: ${response.status})`;
+        }
+        throw new Error(errorMsg);
+      }
+
+      // On success, refetch the jobs for the current view to see the update
+      console.log(`[JobsPage] Action ${action} successful for job ${jobId}. Refetching jobs...`);
+      fetchJobs(activeTab, currentPage);
+
+    } catch (err) {
+      console.error(`[JobsPage] Error performing action ${action} on job ${jobId}:`, err);
+      setActionError(err instanceof Error ? err.message : 'An unexpected error occurred.');
+      // Optionally re-throw or handle further
+    } finally {
+      setProcessingJobId(null); // Clear processing indicator
+    }
+  }, [activeTab, currentPage, fetchJobs]); // Include fetchJobs dependency
+
   // Loading state
   if (sessionStatus === 'loading' || (sessionStatus === 'authenticated' && loading)) {
       return <div className="p-6">Loading jobs...</div>;
@@ -158,8 +202,11 @@ export default function JobsPage() {
         {Object.keys(statusMap).map((tabValue) => (
           <TabsContent key={tabValue} value={tabValue} className="space-y-4">
             {error && (
-              <div className="text-red-600">Error loading jobs: {error}</div>
+              <div className="text-red-600 mb-4">Error loading jobs: {error}</div>
             )}
+            {actionError && (
+                 <div className="text-red-600 mb-4">Action Error: {actionError}</div>
+             )}
             {!error && (
               <>
                 <Table>
@@ -170,13 +217,14 @@ export default function JobsPage() {
                       <TableHead>Submitted By</TableHead>
                       <TableHead>Submitted At</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead> {/* Placeholder */}
+                      <TableHead>Approved By</TableHead> {/* New Header */}
+                      <TableHead>Actions</TableHead> 
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {jobs.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-24 text-center">
+                        <TableCell colSpan={7} className="h-24 text-center">
                           No jobs found for this status.
                         </TableCell>
                       </TableRow>
@@ -191,8 +239,55 @@ export default function JobsPage() {
                           <Badge variant={getStatusBadgeVariant(job.status)}>{job.status.replace('_', ' ')}</Badge>
                         </TableCell>
                         <TableCell>
-                          {/* Placeholder for action buttons like Approve, Cancel */}
-                          <Button variant="outline" size="sm" disabled>Details</Button>
+                           {job.approvedByUser?.name || job.approvedByUser?.email || (job.status === 'APPROVED' ? '...' : '--')}
+                        </TableCell>
+                        <TableCell>
+                          {/* Action Buttons - Conditionally Rendered */}
+                          <div className="flex space-x-2">
+                             {job.status === 'PENDING_APPROVAL' && (
+                               <>
+                                {can('jobs:approve') && (
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => handleJobAction(job.id, 'APPROVE')}
+                                        disabled={processingJobId === job.id}
+                                        title="Approve Job"
+                                        className="bg-green-100 hover:bg-green-200 text-green-800"
+                                    >
+                                        {processingJobId === job.id ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <CheckIcon className="h-4 w-4" />}
+                                    </Button>
+                                )}
+                                {can('jobs:reject') && (
+                                    <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        onClick={() => handleJobAction(job.id, 'REJECT')}
+                                        disabled={processingJobId === job.id}
+                                        title="Reject Job"
+                                    >
+                                        {processingJobId === job.id ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <XMarkIcon className="h-4 w-4" />}
+                                     </Button>
+                                 )}
+                               </>
+                             )}
+                             
+                             {/* Cancel Button: Show for pending/active jobs if user has permission */}
+                             {['PENDING_APPROVAL', 'APPROVED', 'QUEUED', 'PRINTING'].includes(job.status) && can('jobs:cancel') && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600 border-red-300 hover:bg-red-100 hover:text-red-700"
+                                    onClick={() => handleJobAction(job.id, 'CANCEL')}
+                                    disabled={processingJobId === job.id}
+                                    title="Cancel Job"
+                                >
+                                   {processingJobId === job.id ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <TrashIcon className="h-4 w-4" />}
+                                </Button>
+                             )}
+                             
+                             {/* Add Details button or other actions later if needed */}                         
+                           </div>
                         </TableCell>
                       </TableRow>
                     ))}

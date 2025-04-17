@@ -20,7 +20,7 @@ enum JobStatus {
   PRINTING
   COMPLETED
   FAILED
-  CANCELLED
+  REJECTED
 }
 
 model User {
@@ -86,7 +86,7 @@ model PrintJob {
   startedAt   DateTime?
   completedAt DateTime?
   failedAt    DateTime?
-  cancelledAt DateTime?
+  rejectedAt  DateTime?
   errorMessage String?
   notes       String?
 

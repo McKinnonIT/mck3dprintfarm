@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 // Try importing from the generated namespace
 import { JobStatus } from '.prisma/client';
+import { canPerformAction } from "@/lib/rbacUtils"; // Import the utility function
 // Prisma Client includes enum types, no separate import needed for values
 
 export async function POST(request: Request) {
@@ -73,6 +74,7 @@ export async function GET(request: Request) {
 
     const userId = session.user.id;
     const userRole = session.user.role; // Assuming role is available in session
+    const allowedActions = session.user.allowedActions || []; // Get actions from session
 
     // Define the query options
     let queryOptions: any = {
@@ -88,6 +90,13 @@ export async function GET(request: Request) {
             email: true,
           }
         },
+        approvedByUser: { // Include approving user details
+           select: {
+                id: true,
+                name: true,
+                email: true,
+            }
+        }
       },
       orderBy: {
         submittedAt: 'desc', // Show newest jobs first
@@ -95,10 +104,26 @@ export async function GET(request: Request) {
       where: {}, // Initialize where clause
     };
 
-    // Apply RBAC - Admins see all, others see their own
-    if (userRole !== 'ADMIN') {
-      queryOptions.where.submittedByUserId = userId;
+    // Apply RBAC based on allowed actions
+    const canViewAll = canPerformAction(allowedActions, 'jobs:view:all') || canPerformAction(allowedActions, '*'
+);
+    const canViewOwn = canPerformAction(allowedActions, 'jobs:view:own');
+
+    if (!canViewAll) {
+        if (canViewOwn) {
+            queryOptions.where.submittedByUserId = userId;
+        } else {
+            // If user cannot view all or own, they shouldn't see any jobs via this route
+            // Return empty list or throw an error if preferred
+            return NextResponse.json({
+                jobs: [],
+                totalJobs: 0,
+                currentPage: page,
+                totalPages: 0,
+            });
+        }
     }
+    // If canViewAll is true, no userId filter is applied
 
     // Apply Status Filter if provided
     if (statusFilter) {

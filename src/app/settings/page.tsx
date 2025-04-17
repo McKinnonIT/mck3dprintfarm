@@ -116,6 +116,13 @@ const AVAILABLE_ACTIONS = [
   { id: 'files:uploadToPrinter', label: 'Upload Files to Printer (via Modal)' },
   { id: 'files:queuePrint'   , label: 'Queue Print Job (via Modal)' },
   { id: 'files:startPrint'   , label: 'Start Print Job Immediately (via Modal)' },
+  // Job management actions:
+  { id: 'jobs:create'        , label: 'Submit New Print Job Request' },
+  { id: 'jobs:approve'       , label: 'Approve Pending Print Job' },
+  { id: 'jobs:reject'        , label: 'Reject Pending Print Job' },
+  { id: 'jobs:cancel'        , label: 'Cancel Print Job' },
+  { id: 'jobs:view:all'      , label: 'View All Print Jobs' },
+  { id: 'jobs:view:own'      , label: 'View Own Print Jobs' },
   // Add more actions as needed
 ];
 

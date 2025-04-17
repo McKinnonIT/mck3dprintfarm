@@ -25,3 +25,23 @@ export const canAccessPage = (allowedPages: string[] | undefined | null, pagePat
     // console.log(`canAccessPage check for ${pagePath}: ${hasAccess ? 'GRANTED' : 'DENIED'}. Allowed:`, allowedPages);
     return hasAccess;
 }; 
+
+/**
+ * Checks if a user's allowed actions permit a specific action.
+ * Handles wildcard ('*') access.
+ * 
+ * @param allowedActions - An array of action strings the user is allowed to perform, or undefined/null.
+ * @param action - The action string being checked (e.g., 'jobs:create', 'users:edit').
+ * @returns True if the action is permitted, false otherwise.
+ */
+export const canPerformAction = (allowedActions: string[] | undefined | null, action: string): boolean => {
+    if (!allowedActions) {
+        // console.log(`canPerformAction: No allowedActions array provided for action ${action}. Denying.`);
+        return false;
+    }
+
+    // Check for wildcard or direct match
+    const hasPermission = allowedActions.includes('*') || allowedActions.includes(action);
+    // console.log(`canPerformAction check for ${action}: ${hasPermission ? 'GRANTED' : 'DENIED'}. Allowed:`, allowedActions);
+    return hasPermission;
+}; 

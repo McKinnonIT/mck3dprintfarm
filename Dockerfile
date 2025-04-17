@@ -14,7 +14,7 @@ RUN npm ci && \
 # Copy the source code
 COPY . .
 
-# Generate Prisma client
+# Generate Prisma client (after copying schema)
 RUN npx prisma generate
 
 # Remove the potentially populated database file before copying
@@ -28,9 +28,6 @@ ENV NODE_ENV=production
 
 # Clear Next.js cache before building
 RUN rm -rf .next
-
-# Explicitly regenerate Prisma client *again* right before build (redundant, for debugging)
-# RUN npx prisma generate
 
 # Build the Next.js application
 RUN npm run build && npm prune --production && npm cache clean --force

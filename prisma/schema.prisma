@@ -13,13 +13,24 @@ datasource db {
   url      = "file:/app/data/dev.db"
 }
 
+enum JobStatus {
+  PENDING_APPROVAL
+  APPROVED
+  QUEUED // Added for when approved but printer not ready
+  PRINTING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique
   name      String?
   password  String?
   files     File[]
-  printJobs PrintJob[]
+  submittedPrintJobs PrintJob[] @relation("SubmittedJobs")
+  approvedPrintJobs  PrintJob[] @relation("ApprovedJobs")
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -58,18 +69,30 @@ model Printer {
 model PrintJob {
   id          String    @id @default(cuid())
   name        String
-  status      String // pending, printing, completed, failed
+  status      JobStatus @default(PENDING_APPROVAL)
   createdAt   DateTime  @default(now())
+  submittedAt DateTime  @default(now())
+  approvedAt  DateTime?
+  queuedAt    DateTime?
   updatedAt   DateTime  @updatedAt
   fileId      String
   file        File      @relation(fields: [fileId], references: [id])
   printerId   String
   printer     Printer   @relation(fields: [printerId], references: [id])
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
+  submittedByUserId String
+  submittedByUser User     @relation("SubmittedJobs", fields: [submittedByUserId], references: [id])
+  approvedByUserId String?
+  approvedByUser User?     @relation("ApprovedJobs", fields: [approvedByUserId], references: [id])
   startedAt   DateTime?
   completedAt DateTime?
-  error       String?
+  failedAt    DateTime?
+  cancelledAt DateTime?
+  errorMessage String?
+  notes       String?
+
+  @@index([status])
+  @@index([submittedByUserId])
+  @@index([printerId])
 }
 
 model File {

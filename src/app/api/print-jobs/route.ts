@@ -77,8 +77,8 @@ export async function POST(request: Request) {
         name: file.name,
         fileId: file.id, // Link to the existing file record
         printerId: printerId,
-        status: "pending", // Initial status
-        userId: session.user.id
+        status: "PENDING_APPROVAL", // Use Enum value (Prisma maps this)
+        submittedByUserId: session.user.id // Use renamed field
       }
     });
 
@@ -93,15 +93,15 @@ export async function POST(request: Request) {
     
     // --- File Type Compatibility Checks ---
     if (isPrusaLink && !isBGCode) {
-       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "failed", error: "PrusaLink printers currently only support .bgcode files via this interface." } });
+       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "FAILED", errorMessage: "PrusaLink printers currently only support .bgcode files via this interface." } });
        return NextResponse.json({ error: "PrusaLink printers currently only support .bgcode files via this interface.", jobId: printJob.id }, { status: 400 });
     }
     if (isMoonraker && !isGCode) {
-       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "failed", error: "Moonraker printers only support .gcode files." } });
+       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "FAILED", errorMessage: "Moonraker printers only support .gcode files." } });
        return NextResponse.json({ error: "Moonraker printers only support .gcode files.", jobId: printJob.id }, { status: 400 });
     }
     if (isBambuLab && !is3MF && !isGCode) { // Bambu can often take gcode too
-       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "failed", error: "Bambu Lab printers currently only support .3mf files (and sometimes .gcode) via this interface." } });
+       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "FAILED", errorMessage: "Bambu Lab printers currently only support .3mf files (and sometimes .gcode) via this interface." } });
        return NextResponse.json({ error: "Bambu Lab printers currently only support .3mf files (and sometimes .gcode) via this interface.", jobId: printJob.id }, { status: 400 });
     }
     // --- End Compatibility Checks ---
@@ -202,13 +202,14 @@ export async function POST(request: Request) {
 
         // --- Update Job Status Based on Python Result --- 
         if (scriptResult.success) {
-            const finalStatus = printNow ? "printing" : "uploaded";
+            // Use Enum values for status update
+            const finalStatus = printNow ? "PRINTING" : "APPROVED"; 
             await prisma.printJob.update({
               where: { id: printJob.id },
               data: { 
                     status: finalStatus, 
                     startedAt: printNow ? new Date() : null,
-                    error: null // Clear any previous error
+                    errorMessage: null // Clear any previous error
                 }
             });
             if (printNow) {
@@ -284,8 +285,16 @@ export async function POST(request: Request) {
          }
 
         // Update job status based on successful HTTP POST
-        const finalStatus = printNow ? "printing" : "uploaded";
-        await prisma.printJob.update({ where: { id: printJob.id }, data: { status: finalStatus, startedAt: printNow ? new Date() : null } });
+        // Use Enum values for status update (Moonraker)
+        const finalStatus = printNow ? "PRINTING" : "APPROVED";
+        await prisma.printJob.update({ 
+            where: { id: printJob.id }, 
+            data: { 
+                status: finalStatus, 
+                startedAt: printNow ? new Date() : null,
+                errorMessage: null // Clear any previous error
+            } 
+        });
         if (printNow) {
             await prisma.printer.update({ where: { id: printer.id }, data: { operationalStatus: "printing", printStartTime: new Date() } });
         }
@@ -321,8 +330,8 @@ export async function POST(request: Request) {
       await prisma.printJob.update({
         where: { id: printJob.id },
         data: {
-          status: "failed",
-              error: error.message || "Unknown communication error" 
+          status: "FAILED",
+          errorMessage: error.message || "Unknown communication error"
         }
       }).catch(dbErr => console.error("DB update failed on outer error:", dbErr)); // Catch potential error during update
       
@@ -357,7 +366,7 @@ export async function GET() {
 
     const printJobs = await prisma.printJob.findMany({
       where: {
-        userId: session.user.id,
+        submittedByUserId: session.user.id,
       },
       include: {
         file: true,

@@ -9,7 +9,7 @@ import { PlusIcon, MagnifyingGlassIcon, PrinterIcon } from "@heroicons/react/24/
 import { canAccessPage } from "@/lib/rbacUtils";
 import { UploadFileForm } from "@/components/upload-file-form";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -19,6 +19,12 @@ import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { GcodeThumbnailPreview } from "@/components/gcode-thumbnail-preview";
 import { PrintFileModal } from "@/components/print-file-modal";
 import { FilePreviewModal3D } from "@/components/file-preview-modal-3d";
+
+// Define structure for queued job details (for the confirmation dialog)
+type QueuedJobDetails = {
+  jobId: string;
+  fileName: string;
+};
 
 // Define File type (adjust as needed)
 type File = {
@@ -58,6 +64,8 @@ export default function FilesPage() {
   const [printers, setPrinters] = useState<Printer[]>([]);
   const [showPrintModalForFile, setShowPrintModalForFile] = useState<File | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
+  const [showQueueConfirmDialog, setShowQueueConfirmDialog] = useState(false);
+  const [queuedJobDetails, setQueuedJobDetails] = useState<QueuedJobDetails | null>(null);
 
   // Access control check
   useEffect(() => {
@@ -247,6 +255,46 @@ export default function FilesPage() {
     } catch (err) {
         toast.dismiss();
         console.error("Upload file error:", err);
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+        setPrintError(errorMessage); // Show error in modal
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  // --- Handler for Queue Job button ---
+  const handleConfirmQueue = async (printerId: string) => {
+    if (!showPrintModalForFile) return;
+
+    setIsSubmitting(true);
+    setPrintError(null);
+    const fileToQueue = showPrintModalForFile;
+
+    console.log(`Attempting to QUEUE file ${fileToQueue.id} (${fileToQueue.name}) for printer ${printerId}`);
+    // toast.loading(`Queueing job for "${fileToQueue.name}"...`); // Replaced by dialog
+
+    try {
+        const response = await fetch(`/api/jobs`, { // Call the new endpoint
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              fileId: fileToQueue.id, 
+              printerId: printerId, 
+              // No printNow flag needed, defaults to PENDING_APPROVAL
+            }), 
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to queue job.');
+        }
+
+        // Show confirmation dialog instead of toast
+        setQueuedJobDetails({ jobId: result.id, fileName: fileToQueue.name });
+        setShowQueueConfirmDialog(true);
+        setShowPrintModalForFile(null); // Close modal on success
+    } catch (err) {
+        // toast.dismiss(); // Removed toast
+        console.error("Queue job error:", err);
         const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
         setPrintError(errorMessage); // Show error in modal
     } finally {
@@ -451,9 +499,30 @@ export default function FilesPage() {
           printers={printers}
           onConfirmPrint={handleConfirmPrint}
           onConfirmUpload={handleConfirmUpload}
+          onConfirmQueue={handleConfirmQueue}
           isSubmitting={isSubmitting}
           error={printError}
       />
+
+      {/* Queue Job Confirmation Dialog */}
+      <Dialog open={showQueueConfirmDialog} onOpenChange={setShowQueueConfirmDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Job Queued Successfully</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p>
+              Job for file <code className="mx-1 font-mono bg-muted px-1 rounded">{queuedJobDetails?.fileName}</code> submitted.
+            </p>
+            <p className="mt-2">
+              Check the Jobs page for further information and status updates.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowQueueConfirmDialog(false)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

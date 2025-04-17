@@ -80,7 +80,7 @@ model PrintJob {
   printerId   String
   printer     Printer   @relation(fields: [printerId], references: [id])
   submittedByUserId String?
-  submittedByUser User     @relation("SubmittedJobs", fields: [submittedByUserId], references: [id])
+  submittedByUser User?    @relation("SubmittedJobs", fields: [submittedByUserId], references: [id])
   approvedByUserId String?
   approvedByUser User?     @relation("ApprovedJobs", fields: [approvedByUserId], references: [id])
   startedAt   DateTime?

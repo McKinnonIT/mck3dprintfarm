@@ -30,6 +30,7 @@ type PrintFileModalProps = {
   onClose: () => void;
   onConfirmPrint: (printerId: string) => void; // Callback for Print button
   onConfirmUpload: (printerId: string) => void; // Callback for Upload button
+  onConfirmQueue: (printerId: string) => void; // Callback for Queue Job button
   isSubmitting: boolean;
   error: string | null;
 };
@@ -89,6 +90,7 @@ export function PrintFileModal({
   onClose,
   onConfirmPrint,
   onConfirmUpload,
+  onConfirmQueue,
   isSubmitting,
   error
 }: PrintFileModalProps) {
@@ -134,6 +136,13 @@ export function PrintFileModal({
   const handleUpload = () => {
     if (selectedPrinterId) {
       onConfirmUpload(selectedPrinterId);
+    }
+  };
+
+  // Handler for Queue Job button
+  const handleQueue = () => {
+    if (selectedPrinterId) {
+      onConfirmQueue(selectedPrinterId);
     }
   };
 
@@ -191,11 +200,11 @@ export function PrintFileModal({
             )}
             {can('files:queuePrint') && (
               <Button
-                variant="secondary"
                 disabled={!selectedPrinterId || isSubmitting}
-                // TODO: Add onClick handler for queueing
+                onClick={handleQueue}
+                className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900"
               >
-                <QueueListIcon className="h-4 w-4 mr-2" /> Queue Print 
+                <QueueListIcon className="h-4 w-4 mr-2" /> Queue Job
               </Button>
             )}
             {can('files:startPrint') && (

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { testPrinterConnection } from "@/lib/printer-utils";
-const prusaLinkBridge = require("@/lib/prusalink-bridge");
+import { getPrinterDriver } from "@/lib/drivers";
 const bambuLabBridge = require("@/lib/bambulabs-bridge");
 
 export async function POST(request: Request) {
@@ -41,13 +41,12 @@ export async function POST(request: Request) {
 
     // Test connection to printer
     const isPrusaLink = printer.type.toLowerCase().includes('prusa');
+    const isMoonraker = printer.type.toLowerCase() === 'moonraker';
     const isBambuLab = printer.type.toLowerCase() === 'bambulab';
-    
-    let connectionResult;
-    if (isPrusaLink) {
-      console.log(`[DEBUG] Using PrusaLinkPy bridge for testing ${printer.name}`);
-      
-      if (!printer.apiKey) {
+
+    let connectionResult: any;
+    if (isPrusaLink || isMoonraker) {
+      if (isPrusaLink && !printer.apiKey) {
         return NextResponse.json({
           success: false,
           message: "API key is required for PrusaLink printers",
@@ -58,59 +57,16 @@ export async function POST(request: Request) {
           }
         });
       }
-      
-      // Extract IP from API URL
-      const apiUrl = printer.apiUrl;
-      const match = apiUrl.match(/https?:\/\/([^:\/]+)/);
-      if (!match || !match[1]) {
-        return NextResponse.json({
-          success: false,
-          message: "Could not extract IP address from API URL",
-          printer: {
-            id: printer.id,
-            name: printer.name,
-            type: printer.type,
-            apiUrl: printer.apiUrl
-          }
-        });
-      }
-      
-      const printerIp = match[1];
-      
-      // Use the PrusaLinkPy bridge for testing
+
       try {
-        // Add explicit timeout for PrusaLinkPy requests
-        const prusaLinkPyPromise = prusaLinkBridge.testConnection(printerIp, printer.apiKey);
-        
-        // Create a timeout promise
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('PrusaLinkPy request timed out')), 8000);
-        });
-        
-        // Race the actual request against the timeout
-        const connectionResult = await Promise.race([prusaLinkPyPromise, timeoutPromise])
-          .catch(error => {
-            console.error(`PrusaLinkPy request timed out for ${printer.name}`);
-            return { success: false, message: 'Request timed out', error: 'Timeout' };
-          });
-        
-        console.log("[DEBUG] PrusaLinkPy test result:", connectionResult);
+        const driver = getPrinterDriver(printer);
+        const result = await driver.testConnection();
+        connectionResult = { success: true, message: result.message, data: result.details };
       } catch (error) {
-        console.error("[DEBUG] PrusaLinkPy bridge error:", error);
-        console.error("[DEBUG] Error details:", JSON.stringify(error, null, 2));
-        
-        let errorMessage = error instanceof Error ? error.message : String(error);
-        
-        // If we have a traceback from PrusaLinkPy, include that in the log
-        if (error.traceback) {
-          console.error("[DEBUG] Python traceback:", error.traceback);
-          errorMessage = `PrusaLinkPy error: ${error.message}`;
-        }
-        
+        console.error(`[DEBUG] Driver connection test failed for ${printer.name}:`, error);
         connectionResult = {
           success: false,
-          message: errorMessage,
-          error: error
+          message: error instanceof Error ? error.message : String(error),
         };
       }
     } else if (isBambuLab) {

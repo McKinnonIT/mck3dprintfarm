@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-const prusaLinkBridge = require("@/lib/prusalink-bridge");
+import { getPrinterDriver } from "@/lib/drivers";
 
 export async function POST(request: Request) {
   try {
@@ -43,64 +43,42 @@ export async function POST(request: Request) {
 
     // Connect to printer
     const isPrusaLink = printer.type.toLowerCase().includes('prusa');
-    
-    let connectionResult;
-    if (isPrusaLink) {
-      console.log(`[DEBUG] Using PrusaLinkPy bridge for connecting to ${printer.name}`);
-      
-      if (!printer.apiKey) {
-        return NextResponse.json({
-          success: false,
-          message: "API key is required for PrusaLink printers",
-          printer: {
-            id: printer.id,
-            name: printer.name,
-            type: printer.type
-          }
-        });
-      }
-      
-      // Extract IP from API URL
-      const apiUrl = printer.apiUrl;
-      const match = apiUrl.match(/https?:\/\/([^:\/]+)/);
-      if (!match || !match[1]) {
-        return NextResponse.json({
-          success: false,
-          message: "Could not extract IP address from API URL",
-          printer: {
-            id: printer.id,
-            name: printer.name,
-            type: printer.type,
-            apiUrl: printer.apiUrl
-          }
-        });
-      }
-      
-      const printerIp = match[1];
-      
-      try {
-        connectionResult = await prusaLinkBridge.connectPrinter(
-          printerIp, 
-          printer.apiKey,
-          60
-        );
-      } catch (error) {
-        console.error(`Error connecting to printer ${printer.name}:`, error);
-        return NextResponse.json({
-          success: false,
-          message: `Failed to connect to ${printer.name}: ${error.message || 'Unknown error'}`,
-          printer: {
-            id: printer.id,
-            name: printer.name,
-            type: printer.type
-          }
-        });
-      }
-    } else {
-      // Handle other printer types (Moonraker, etc.)
+    const isMoonraker = printer.type.toLowerCase() === 'moonraker';
+
+    if (isPrusaLink && !printer.apiKey) {
+      return NextResponse.json({
+        success: false,
+        message: "API key is required for PrusaLink printers",
+        printer: {
+          id: printer.id,
+          name: printer.name,
+          type: printer.type
+        }
+      });
+    }
+
+    if (!isPrusaLink && !isMoonraker) {
       return NextResponse.json({
         success: false,
         message: "Connection not implemented for this printer type",
+        printer: {
+          id: printer.id,
+          name: printer.name,
+          type: printer.type
+        }
+      });
+    }
+
+    let connectionResult;
+    try {
+      const driver = getPrinterDriver(printer);
+      const result = await driver.testConnection();
+      connectionResult = { data: result.details };
+    } catch (error) {
+      console.error(`Error connecting to printer ${printer.name}:`, error);
+      return NextResponse.json({
+        success: false,
+        message: `Failed to connect to ${printer.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         printer: {
           id: printer.id,
           name: printer.name,

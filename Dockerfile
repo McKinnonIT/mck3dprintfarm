@@ -54,35 +54,17 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/package.json ./package.json
 
-# Install necessary tools including sqlite3 for direct db access
-# Add Python and required libraries directly (no virtual environment)
+# Install sqlite3 for direct db access, plus Python for the Bambu Lab
+# bridge (the only remaining printer integration that still needs it -
+# PrusaLink and Moonraker talk native HTTP now, no Python required).
 RUN apk add --no-cache sqlite && \
     apk add --no-cache python3 py3-pip && \
     mkdir -p /tmp/npm-tmp && \
     npm config set cache /tmp/npm-tmp && \
     npm install -g prisma --no-optional && \
     npm install bcryptjs && \
-    # Install Python packages globally, upgrading pyprusalink
-    pip3 install --break-system-packages --upgrade pyprusalink aiohttp moonraker bambulabs_api && \
-    # Make sure Python is in the path with proper permissions
-    which python3 && \
-    chmod +x $(which python3) && \
-    python3 -c "print('Python test successful')" && \
+    pip3 install --break-system-packages --upgrade bambulabs_api && \
     rm -rf /tmp/npm-tmp
-
-# Make sure to copy Python scripts to all possible locations
-COPY --from=builder /app/src/lib/*.py /app/src/lib/
-RUN mkdir -p /app/.next/server/app/api/test-prusalink-status && \
-    # Copy relevant scripts for direct testing if needed
-    cp /app/src/lib/prusalink-direct.py /app/.next/server/app/api/test-prusalink-status/ || true && \
-    mkdir -p /app/.next/server/chunks/app/src/lib && \
-    # Copy relevant scripts for direct testing if needed
-    cp /app/src/lib/prusalink-direct.py /app/.next/server/chunks/app/src/lib/ || true && \
-    # Ensure all Python scripts in src/lib are executable
-    chmod +x /app/src/lib/*.py && \
-    # Make other specific scripts executable if they exist
-    chmod +x /app/.next/server/app/api/test-prusalink-status/*.py || true && \
-    chmod +x /app/.next/server/chunks/app/src/lib/*.py || true
 
 # Copy the new script and make it executable
 COPY prisma/run-ensure-tables.sh /app/prisma/run-ensure-tables.sh

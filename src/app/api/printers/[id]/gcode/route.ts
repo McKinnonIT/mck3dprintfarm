@@ -3,8 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// Import the GCode sending utilities
-const { sendGCode } = require('@/lib/moonraker-send-gcode');
+import { getPrinterDriver } from '@/lib/drivers';
 
 export async function POST(
   request: NextRequest,
@@ -50,25 +49,16 @@ export async function POST(
       // Send the GCode command to the Moonraker printer
       try {
         console.log(`[API] Sending GCode '${command}' to Moonraker printer at ${printer.apiUrl}`);
-        
-        const result = await sendGCode(
-          printer.apiUrl,
-          printer.apiKey,
-          command
-        );
-        
-        if (!result.success) {
-          console.error(`[API] Error sending GCode: ${result.message}`);
-          return NextResponse.json(
-            { success: false, message: result.message },
-            { status: 500 }
-          );
+
+        const driver = getPrinterDriver(printer);
+        if (!driver.sendGcode) {
+          throw new Error('This printer driver does not support raw G-code');
         }
-        
+        await driver.sendGcode(command);
+
         return NextResponse.json({
           success: true,
           message: 'GCode command sent successfully',
-          data: result.data
         });
       } catch (error) {
         console.error('[API] Error sending GCode:', error);

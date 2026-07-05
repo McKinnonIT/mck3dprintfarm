@@ -2,19 +2,14 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { PUBLIC_PRINTER_SELECT } from '@/lib/public-printer-fields'
 
 export async function GET() {
   try {
     const groups = await prisma.group.findMany({
       include: {
         printers: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            status: true,
-            operationalStatus: true,
-          },
+          select: PUBLIC_PRINTER_SELECT,
         },
       },
     })
@@ -41,13 +36,7 @@ export async function POST(request: Request) {
       },
       include: {
         printers: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            status: true,
-            operationalStatus: true,
-          },
+          select: PUBLIC_PRINTER_SELECT,
         },
       },
     })

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
+import { PUBLIC_PRINTER_SELECT } from '@/lib/public-printer-fields'
 
 // Define the request body type
 type GroupOrderUpdate = {
@@ -14,7 +15,7 @@ export async function PATCH(req: Request) {
   try {
     // Check if user is authenticated and has admin role
     const session = await getServerSession(authOptions)
-    if (!session || session.user?.role !== 'admin') {
+    if (!session || session.user?.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Unauthorized. Only admins can update group order.' },
         { status: 403 }
@@ -52,7 +53,7 @@ export async function PATCH(req: Request) {
     // Get the groups and printers using a direct query without type issues
     const groups = await prisma.group.findMany({
       include: {
-        printers: true
+        printers: { select: PUBLIC_PRINTER_SELECT }
       }
     });
     

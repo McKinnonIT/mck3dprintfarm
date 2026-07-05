@@ -98,12 +98,10 @@ export function Navigation() {
           </div>
 
           <div className="flex items-center space-x-4">
-            {/* Dashboard Link */} 
-            {canAccessPage(allowedPages, '/dashboard') && (
-                <Link href="/dashboard" className={getLinkClassName('/dashboard')}>
-                    Dashboard
-                </Link>
-            )}
+            {/* Dashboard Link - public, no access check */}
+            <Link href="/dashboard" className={getLinkClassName('/dashboard')}>
+                Dashboard
+            </Link>
 
             {/* Jobs Link */} 
             {session && canAccessPage(allowedPages, '/jobs') && (

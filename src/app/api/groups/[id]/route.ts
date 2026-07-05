@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { PUBLIC_PRINTER_SELECT } from '@/lib/public-printer-fields'
 
 export async function GET(
   request: Request,
@@ -12,13 +13,7 @@ export async function GET(
       where: { id: params.id },
       include: {
         printers: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            status: true,
-            operationalStatus: true,
-          },
+          select: PUBLIC_PRINTER_SELECT,
         },
       },
     })
@@ -52,13 +47,7 @@ export async function PUT(
       },
       include: {
         printers: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            status: true,
-            operationalStatus: true,
-          },
+          select: PUBLIC_PRINTER_SELECT,
         },
       },
     })

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +12,13 @@ type Printer = {
   serialNumber?: string;
   webcamUrl?: string;
   status: string;
+  groupId?: string;
+};
+
+type Group = {
+  id: string;
+  name: string;
+  description?: string;
 };
 
 type AddPrinterFormProps = {
@@ -28,7 +35,22 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
   const [serialNumber, setSerialNumber] = useState("");
   const [webcamUrl, setWebcamUrl] = useState("");
   const [status, setStatus] = useState("active");
+  const [groupId, setGroupId] = useState("");
+  const [groups, setGroups] = useState<Group[]>([]);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const response = await fetch("/api/groups");
+        if (!response.ok) throw new Error("Failed to fetch groups");
+        setGroups(await response.json());
+      } catch (err) {
+        console.error("Failed to fetch groups:", err);
+      }
+    };
+    fetchGroups();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +79,7 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
       serialNumber: type === "bambulab" ? serialNumber : undefined,
       webcamUrl: webcamUrl || undefined,
       status: "active",
+      groupId: groupId || undefined,
     });
   };
 
@@ -185,6 +208,23 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
           onChange={(e) => setWebcamUrl(e.target.value)}
           className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
+      </div>
+
+      <div>
+        <label htmlFor="groupId" className="block text-sm font-medium text-gray-700">
+          Group (optional)
+        </label>
+        <select
+          id="groupId"
+          value={groupId}
+          onChange={(e) => setGroupId(e.target.value)}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          <option value="">No Group</option>
+          {groups.map((group) => (
+            <option key={group.id} value={group.id}>{group.name}</option>
+          ))}
+        </select>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

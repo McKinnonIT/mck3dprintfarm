@@ -107,10 +107,24 @@ export default function PrintersPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/printers/status');
-      if (!response.ok) throw new Error('Failed to fetch printer status');
-      const data = await response.json();
-      setPrinters(data);
+      // /api/printers/status is also used by the public dashboard and never
+      // includes apiUrl/apiKey/serialNumber, so fetch the full records
+      // separately and overlay live status onto them.
+      const [printersRes, statusRes] = await Promise.all([
+        fetch('/api/printers'),
+        fetch('/api/printers/status'),
+      ]);
+      if (!printersRes.ok) throw new Error('Failed to fetch printers');
+      if (!statusRes.ok) throw new Error('Failed to fetch printer status');
+      const printersData: Printer[] = await printersRes.json();
+      const statusData: Partial<Printer>[] = await statusRes.json();
+      const statusById = new Map<string, Partial<Printer>>(statusData.map((p) => [p.id as string, p]));
+      setPrinters(
+        printersData.map((p) => {
+          const liveStatus = statusById.get(p.id);
+          return liveStatus ? { ...p, ...liveStatus } : p;
+        })
+      );
     } catch (err) {
       console.error('Failed to fetch printers:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');

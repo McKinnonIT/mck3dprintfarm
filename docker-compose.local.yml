@@ -1,0 +1,19 @@
+services:
+  mck3dprintfarm:
+    image: mck3dprintfarm:v0.0.8a
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+      - mck3dprintfarm_v7_data:/app/data
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=your-super-secret-random-string-here-please-change-this
+      - DEFAULT_ADMIN_EMAIL=admin@example.com
+      - DEFAULT_ADMIN_PASSWORD=Admin123!
+      - DEFAULT_ADMIN_NAME=Administrator
+
+volumes:
+  mck3dprintfarm_v7_data:

@@ -20,4 +20,5 @@ export const PUBLIC_PRINTER_SELECT = {
   printTimeElapsed: true,
   printTimeRemaining: true,
   groupId: true,
+  machineProfileId: true,
 } as const;

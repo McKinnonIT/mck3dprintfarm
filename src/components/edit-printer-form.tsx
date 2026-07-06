@@ -21,12 +21,18 @@ type Printer = {
   webcamUrl?: string;
   printImageUrl?: string;
   groupId?: string;
+  machineProfileId?: string | null;
 };
 
 type Group = {
   id: string;
   name: string;
   description?: string;
+};
+
+type MachineProfile = {
+  id: string;
+  name: string;
 };
 
 type EditPrinterFormProps = {
@@ -49,6 +55,8 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
   const [status, setStatus] = useState(printer.status);
   const [groupId, setGroupId] = useState(printer.groupId || "");
   const [groups, setGroups] = useState<Group[]>([]);
+  const [machineProfileId, setMachineProfileId] = useState(printer.machineProfileId || "");
+  const [machineProfiles, setMachineProfiles] = useState<MachineProfile[]>([]);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSerialNumber, setShowSerialNumber] = useState(false);
 
@@ -61,6 +69,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
     setWebcamUrl(printer.webcamUrl || "");
     setStatus(printer.status);
     setGroupId(printer.groupId || "");
+    setMachineProfileId(printer.machineProfileId || "");
   }, [printer.id]);
 
   useEffect(() => {
@@ -75,7 +84,19 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
       }
     };
 
+    const fetchMachineProfiles = async () => {
+      try {
+        const response = await fetch('/api/machine-profiles');
+        if (!response.ok) throw new Error('Failed to fetch machine profiles');
+        const data = await response.json();
+        setMachineProfiles(data);
+      } catch (error) {
+        console.error('Failed to fetch machine profiles:', error);
+      }
+    };
+
     fetchGroups();
+    fetchMachineProfiles();
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -89,6 +110,9 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
       webcamUrl,
       status,
       groupId: groupId || undefined,
+      // Explicit null (not undefined) so the API actually clears an
+      // existing assignment - Prisma skips undefined fields on update.
+      machineProfileId: machineProfileId || null,
     });
   };
 
@@ -254,6 +278,28 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label htmlFor="machineProfileId" className="block text-sm font-medium text-gray-700">
+            Machine Profile (optional)
+          </label>
+          <select
+            id="machineProfileId"
+            value={machineProfileId}
+            onChange={(e) => setMachineProfileId(e.target.value)}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">No Profile Assigned</option>
+            {machineProfiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">
+            Required to slice files for this printer from the Files page.
+          </p>
         </div>
 
         <div className="flex justify-between">

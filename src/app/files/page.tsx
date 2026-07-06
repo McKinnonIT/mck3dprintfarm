@@ -11,6 +11,8 @@ import { UploadFileForm } from "@/components/upload-file-form";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { SlicerSettingsTabs } from "@/components/slicer-settings-tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -19,6 +21,7 @@ import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { GcodeThumbnailPreview } from "@/components/gcode-thumbnail-preview";
 import { PrintFileModal } from "@/components/print-file-modal";
 import { FilePreviewModal3D } from "@/components/file-preview-modal-3d";
+import { SlicePanel } from "@/components/slice-panel";
 
 // Define structure for queued job details (for the confirmation dialog)
 type QueuedJobDetails = {
@@ -33,6 +36,8 @@ type File = {
   size: number;
   type: string;
   uploadedAt: Date;
+  // Present only if this file IS a sliced output; tells us which model it came from.
+  sliceJobsAsResult?: { sourceFileId: string }[];
 };
 
 // Define Printer type for state
@@ -41,6 +46,7 @@ type Printer = {
     name: string;
   type: string;
   operationalStatus: string;
+  machineProfileId?: string | null;
 };
 
 export default function FilesPage() {
@@ -66,6 +72,8 @@ export default function FilesPage() {
   const [printError, setPrintError] = useState<string | null>(null);
   const [showQueueConfirmDialog, setShowQueueConfirmDialog] = useState(false);
   const [queuedJobDetails, setQueuedJobDetails] = useState<QueuedJobDetails | null>(null);
+
+  const [slicingFile, setSlicingFile] = useState<File | null>(null);
 
   // Access control check
   useEffect(() => {
@@ -104,7 +112,6 @@ export default function FilesPage() {
       if (!printersResponse.ok) throw new Error('Failed to fetch printers');
       const printersData = await printersResponse.json();
       setPrinters(printersData);
-
     } catch (err) {
       console.error('Failed to fetch initial data:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -143,10 +150,104 @@ export default function FilesPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Filtered Files
-  const filteredFiles = files.filter(file =>
-    file.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Group sliced outputs under the model file they came from. A file is a
+  // sliced output if it has a sliceJobsAsResult entry; the model it belongs
+  // to may have since been deleted (pre-existing data), in which case it's
+  // shown as its own top-level group.
+  type FileGroup = { model: File; isModel: boolean; sliced: File[] };
+  const modelIds = new Set(
+    files.filter((f) => !f.sliceJobsAsResult || f.sliceJobsAsResult.length === 0).map((f) => f.id)
   );
+  const slicedByParent = new Map<string, File[]>();
+  const groups: FileGroup[] = [];
+  for (const file of files) {
+    const parentId = file.sliceJobsAsResult?.[0]?.sourceFileId;
+    if (parentId && modelIds.has(parentId)) {
+      slicedByParent.set(parentId, [...(slicedByParent.get(parentId) || []), file]);
+    } else if (!parentId) {
+      groups.push({ model: file, isModel: true, sliced: [] });
+    } else {
+      // Orphaned sliced file - its source model no longer exists.
+      groups.push({ model: file, isModel: false, sliced: [] });
+    }
+  }
+  for (const group of groups) {
+    if (group.isModel) group.sliced = slicedByParent.get(group.model.id) || [];
+  }
+
+  const query = searchQuery.toLowerCase();
+  const matchesQuery = (file: File) => file.name.toLowerCase().includes(query);
+  const filteredGroups = groups.filter(
+    (group) => matchesQuery(group.model) || group.sliced.some(matchesQuery)
+  );
+
+  const renderFileActions = (file: File) => {
+    const lowerCaseFileName = file.name.toLowerCase();
+    const fileExtension = lowerCaseFileName.substring(lowerCaseFileName.lastIndexOf('.'));
+    const printableExtensions = ['.gcode', '.bgcode', '.gx'];
+    const previewable3DExtensions = ['.stl', '.gcode'];
+    const sliceableExtensions = ['.stl', '.3mf', '.obj'];
+    const isPrintable = printableExtensions.includes(fileExtension);
+    const is3DPreviewable = previewable3DExtensions.includes(fileExtension);
+    const isSliceable = sliceableExtensions.includes(fileExtension);
+
+    return (
+      <div className="flex flex-shrink-0 gap-2 pt-2 md:pt-0">
+        {/* Preview is folded into the Slice panel for sliceable files (below); it
+            only stands alone here for previewable-but-not-sliceable files (.gcode). */}
+        {is3DPreviewable && !isSliceable && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPreviewingFile3D(file)}
+            disabled={isSubmitting}
+          >
+            Preview
+          </Button>
+        )}
+
+        {/* Conditional Print/Slice Button */}
+        {isPrintable ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleOpenPrintDialog(file)}
+            disabled={isSubmitting}
+            className="bg-green-100 text-green-800 hover:bg-green-200"
+          >
+             <PrinterIcon className="h-4 w-4 mr-1" /> Print
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleOpenSliceDialog(file)}
+            disabled={!isSliceable || isSubmitting}
+          >
+            Slice
+          </Button>
+        )}
+
+        {/* Conditional Multi-Print Button */}
+        {isPrintable && (
+          <Button variant="outline" size="sm" disabled>Multi-Print</Button>
+        )}
+
+        <Button variant="outline" size="sm" disabled>Info</Button>
+        <Button
+           variant="destructive"
+           size="sm"
+           onClick={() => {
+             setDeleteError(null);
+             setDeletingFile(file);
+           }}
+           disabled={isSubmitting}
+        >
+           Delete
+        </Button>
+      </div>
+    );
+  };
 
   // Handler for Delete Confirmation
   const handleDeleteFileConfirm = async () => {
@@ -307,6 +408,14 @@ export default function FilesPage() {
     setShowPrintModalForFile(file);
   };
 
+  const handleOpenSliceDialog = (file: File) => {
+    setSlicingFile(file);
+  };
+
+  const handleCloseSliceDialog = () => {
+    setSlicingFile(null);
+  };
+
   // Handle loading state for the whole page
   if (status === 'loading' || (status === 'authenticated' && !hasAccess && loading)) {
       return <div className="p-6">Loading...</div>;
@@ -350,85 +459,60 @@ export default function FilesPage() {
            {/* Consider using a spinner component */}
            <p>Loading files...</p> 
          </div>
-       ) : !error && filteredFiles.length === 0 ? (
+       ) : !error && filteredGroups.length === 0 ? (
          <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 text-center text-muted-foreground">
            {searchQuery ? "No files found matching your search." : "No files uploaded yet."}
          </div>
-       ) : !error && filteredFiles.length > 0 ? (
+       ) : !error && filteredGroups.length > 0 ? (
       <div className="space-y-4">
-            {filteredFiles.map((file) => {
-              const lowerCaseFileName = file.name.toLowerCase();
-              const fileExtension = lowerCaseFileName.substring(lowerCaseFileName.lastIndexOf('.'));
-              const printableExtensions = ['.gcode', '.bgcode', '.gx'];
-              const previewableGcodeExtensions = ['.gcode', '.bgcode'];
-              const previewable3DExtensions = ['.stl', '.gcode'];
-              const isPrintable = printableExtensions.includes(fileExtension);
-              const isGcodePreviewable = previewableGcodeExtensions.includes(fileExtension);
-              const is3DPreviewable = previewable3DExtensions.includes(fileExtension);
-
-              return (
-               <Card key={file.id} className="p-4">
+            {filteredGroups.map((group) => (
+               <Card key={group.model.id} className="p-4">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                      {/* File Info (Left) */}
                      <div className="flex-grow flex items-center gap-4">
                 <div>
-                  <h3 className="text-lg font-semibold">{file.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold">{group.model.name}</h3>
+                    <Badge variant={group.isModel ? "secondary" : "outline"}>
+                      {group.isModel ? "Model" : "Sliced"}
+                    </Badge>
+                  </div>
                            <p className="text-sm text-muted-foreground">
-                    {formatFileSize(file.size)} • {file.type}
-                               {' • '} Uploaded: {new Date(file.uploadedAt).toLocaleDateString()}
+                    {formatFileSize(group.model.size)} • {group.model.type}
+                               {' • '} Uploaded: {new Date(group.model.uploadedAt).toLocaleDateString()}
                   </p>
                 </div>
                   </div>
                      {/* Actions (Right) */}
-                     <div className="flex flex-shrink-0 gap-2 pt-2 md:pt-0">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => {
-                            if (is3DPreviewable) setPreviewingFile3D(file);
-                          }}
-                          disabled={!is3DPreviewable || isSubmitting}
-                        >
-                          Preview
-                        </Button>
-                        
-                        {/* Conditional Print/Slice Button */}
-                        {isPrintable ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenPrintDialog(file)}
-                            disabled={isSubmitting}
-                            className="bg-green-100 text-green-800 hover:bg-green-200"
-                          >
-                             <PrinterIcon className="h-4 w-4 mr-1" /> Print
-                          </Button>
-                        ) : (
-                          <Button variant="outline" size="sm" disabled>Slice</Button>
-                        )}
-
-                        {/* Conditional Multi-Print Button */}
-                        {isPrintable && (
-                          <Button variant="outline" size="sm" disabled>Multi-Print</Button>
-                        )}
-                        
-                        <Button variant="outline" size="sm" disabled>Info</Button>
-                        <Button 
-                           variant="destructive" 
-                           size="sm" 
-                           onClick={() => {
-                             setDeleteError(null);
-                             setDeletingFile(file);
-                           }}
-                           disabled={isSubmitting}
-                        >
-                           Delete
-                        </Button>
-                </div>
+                     {renderFileActions(group.model)}
               </div>
+
+                  {group.sliced.length > 0 && (
+                    <div className="mt-3 space-y-2 border-t pt-3">
+                      {group.sliced.map((slicedFile) => (
+                        <div
+                          key={slicedFile.id}
+                          className="flex flex-col md:flex-row md:items-center justify-between gap-4 pl-4 border-l-2 border-muted"
+                        >
+                          <div className="flex-grow flex items-center gap-4">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-medium">{slicedFile.name}</h4>
+                                <Badge variant="outline">Sliced</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {formatFileSize(slicedFile.size)} • {slicedFile.type}
+                                {' • '} Uploaded: {new Date(slicedFile.uploadedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          {renderFileActions(slicedFile)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                </Card>
-              );
-            })}
+            ))}
             </div>
         ) : null}
       
@@ -524,6 +608,28 @@ export default function FilesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Slice Panel: 3D preview + printer/filament/slicing profile selection + settings tabs */}
+      <Dialog open={!!slicingFile} onOpenChange={(open) => !open && handleCloseSliceDialog()}>
+        <DialogContent className="sm:max-w-3xl md:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Slice "{slicingFile?.name}"</DialogTitle>
+          </DialogHeader>
+          {slicingFile && (
+            <SlicePanel
+              key={slicingFile.id}
+              files={files}
+              initialFile={slicingFile}
+              onCancel={handleCloseSliceDialog}
+              onSliced={({ fileName }) => {
+                toast.success(`Sliced "${fileName}" successfully!`);
+                handleCloseSliceDialog();
+                fetchData();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
-} 
+}

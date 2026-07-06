@@ -39,6 +39,7 @@ type NewPrinterData = {
   webcamUrl?: string;
   status: string;
   groupId?: string | null;
+  machineProfileId?: string | null;
 };
 
 type Printer = {
@@ -57,6 +58,7 @@ type Printer = {
   printImageUrl?: string;
   currentJobFilename?: string;
   groupId?: string;
+  machineProfileId?: string | null;
   toolTemp?: number;
   bedTemp?: number;
 };

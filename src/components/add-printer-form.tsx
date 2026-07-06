@@ -13,12 +13,18 @@ type Printer = {
   webcamUrl?: string;
   status: string;
   groupId?: string;
+  machineProfileId?: string;
 };
 
 type Group = {
   id: string;
   name: string;
   description?: string;
+};
+
+type MachineProfile = {
+  id: string;
+  name: string;
 };
 
 type AddPrinterFormProps = {
@@ -37,6 +43,8 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
   const [status, setStatus] = useState("active");
   const [groupId, setGroupId] = useState("");
   const [groups, setGroups] = useState<Group[]>([]);
+  const [machineProfileId, setMachineProfileId] = useState("");
+  const [machineProfiles, setMachineProfiles] = useState<MachineProfile[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -49,7 +57,17 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
         console.error("Failed to fetch groups:", err);
       }
     };
+    const fetchMachineProfiles = async () => {
+      try {
+        const response = await fetch("/api/machine-profiles");
+        if (!response.ok) throw new Error("Failed to fetch machine profiles");
+        setMachineProfiles(await response.json());
+      } catch (err) {
+        console.error("Failed to fetch machine profiles:", err);
+      }
+    };
     fetchGroups();
+    fetchMachineProfiles();
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -80,6 +98,7 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
       webcamUrl: webcamUrl || undefined,
       status: "active",
       groupId: groupId || undefined,
+      machineProfileId: machineProfileId || undefined,
     });
   };
 
@@ -225,6 +244,26 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
             <option key={group.id} value={group.id}>{group.name}</option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <label htmlFor="machineProfileId" className="block text-sm font-medium text-gray-700">
+          Machine Profile (optional)
+        </label>
+        <select
+          id="machineProfileId"
+          value={machineProfileId}
+          onChange={(e) => setMachineProfileId(e.target.value)}
+          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          <option value="">No Profile Assigned</option>
+          {machineProfiles.map((profile) => (
+            <option key={profile.id} value={profile.id}>{profile.name}</option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-500">
+          Required to slice files for this printer from the Files page.
+        </p>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

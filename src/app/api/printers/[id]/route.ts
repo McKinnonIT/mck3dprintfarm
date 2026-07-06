@@ -52,6 +52,7 @@ export async function PUT(
           webcamUrl: body.webcamUrl,
           status: body.status, // This is the management status (active/disabled/maintenance)
           groupId: body.groupId,
+          machineProfileId: body.machineProfileId,
         },
         include: {
           group: {
@@ -82,6 +83,7 @@ export async function PUT(
         printImageUrl: body.printImageUrl,
         lastSeen: new Date(),
         groupId: body.groupId,
+        machineProfileId: body.machineProfileId,
       },
       include: {
         group: {

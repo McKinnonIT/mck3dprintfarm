@@ -5,6 +5,40 @@ import { join } from "path";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+async function unlinkIfExists(relativePath: string) {
+  try {
+    await unlink(join(process.cwd(), "uploads", relativePath));
+  } catch (error: any) {
+    if (error.code !== "ENOENT") {
+      console.error(`Failed to delete file from filesystem (Path: ${relativePath}):`, error);
+    }
+  }
+}
+
+// Deletes a file and everything that only exists because of it: PrintJob
+// history referencing it (fileId has no cascading delete at the DB level)
+// and, if it's a model, every sliced output derived from it (SliceJob rows
+// require their sourceFileId to exist, so those must go first too).
+async function deleteFileCascade(fileId: string) {
+  const childSliceJobs = await prisma.sliceJob.findMany({
+    where: { sourceFileId: fileId },
+    select: { resultFileId: true },
+  });
+  for (const job of childSliceJobs) {
+    if (job.resultFileId) {
+      await deleteFileCascade(job.resultFileId);
+    }
+  }
+  await prisma.sliceJob.deleteMany({ where: { sourceFileId: fileId } });
+  await prisma.printJob.deleteMany({ where: { fileId } });
+
+  const file = await prisma.file.findUnique({ where: { id: fileId }, select: { path: true } });
+  if (file?.path) {
+    await unlinkIfExists(file.path);
+  }
+  await prisma.file.delete({ where: { id: fileId } });
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: { fileId: string } }
@@ -22,13 +56,8 @@ export async function DELETE(
       select: { id: true, path: true, uploadedBy: true }, // Select necessary fields
     });
 
-    if (!file || !file.path) {
-      if (!file) {
-        return NextResponse.json({ error: "File not found in database" }, { status: 404 });
-      }
-      console.error(`File record ${file.id} is missing the path. Cannot delete from filesystem.`);
-      await prisma.file.delete({ where: { id: params.fileId } });
-      return NextResponse.json({ success: true, message: "File record deleted, but file path was missing." });
+    if (!file) {
+      return NextResponse.json({ error: "File not found in database" }, { status: 404 });
     }
 
     // 3. Check authorization: Admin or Uploader
@@ -40,31 +69,12 @@ export async function DELETE(
         return NextResponse.json({ error: "Forbidden: You do not have permission to delete this file." }, { status: 403 });
     }
 
-    // Construct the absolute path
-    const absoluteFilePath = join(process.cwd(), "uploads", file.path);
-
-    // 4. Delete the file from the filesystem (if authorized)
-    try {
-      console.log(`Attempting to delete file from filesystem: ${absoluteFilePath}`);
-      await unlink(absoluteFilePath);
-      console.log(`Successfully deleted file from filesystem: ${absoluteFilePath}`);
-    } catch (error: any) {
-       // Log error but continue to DB deletion if file system delete fails (e.g., file already gone)
-       if (error.code !== 'ENOENT') { // ENOENT = Error NO ENTry (file not found)
-           console.error(`Failed to delete file from filesystem (Path: ${absoluteFilePath}):`, error);
-       } else {
-           console.warn(`File not found on filesystem during delete attempt (Path: ${absoluteFilePath}). Proceeding with DB deletion.`);
-       }
-    }
-
-    // 5. Delete the file record from the database (if authorized)
-    await prisma.file.delete({
-      where: { id: params.fileId },
-    });
+    // 4. Delete the file (and its sliced children / print history) from disk and DB
+    await deleteFileCascade(file.id);
     console.log(`Successfully deleted file record from DB: ${file.id}`);
 
     return NextResponse.json({ success: true });
-    
+
   } catch (error) {
     console.error(`DELETE /api/files/${params.fileId} - Failed:`, error);
     return NextResponse.json(
@@ -72,4 +82,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-} 
+}

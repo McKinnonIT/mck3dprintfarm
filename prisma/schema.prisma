@@ -31,6 +31,10 @@ model User {
   files     File[]
   submittedPrintJobs PrintJob[] @relation("SubmittedJobs")
   approvedPrintJobs  PrintJob[] @relation("ApprovedJobs")
+  uploadedMachineProfiles  MachineProfile[]  @relation("UploadedMachineProfiles")
+  uploadedFilamentProfiles FilamentProfile[] @relation("UploadedFilamentProfiles")
+  uploadedSlicingProfiles  SlicingProfile[]  @relation("UploadedSlicingProfiles")
+  submittedSliceJobs     SliceJob[]      @relation("SubmittedSliceJobs")
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -60,10 +64,13 @@ model Printer {
   toolTemp           Float?
   currentJobFilename String?
   printJobs          PrintJob[]
+  sliceJobs          SliceJob[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
   groupId            String?
   group              Group?     @relation(fields: [groupId], references: [id])
+  machineProfileId   String?
+  machineProfile     MachineProfile? @relation(fields: [machineProfileId], references: [id])
 }
 
 model PrintJob {
@@ -109,6 +116,90 @@ model File {
   groupId    String?
   group      Group?     @relation(fields: [groupId], references: [id])
   printJobs  PrintJob[]
+  sliceJobsAsSource SliceJob[] @relation("SliceJobSource")
+  sliceJobsAsResult SliceJob[] @relation("SliceJobResult")
+}
+
+model MachineProfile {
+  id                     String           @id @default(cuid())
+  name                   String           @unique
+  description            String?
+  machineJson            String
+  filename               String
+  uploadedByUserId       String?
+  uploadedBy             User?            @relation("UploadedMachineProfiles", fields: [uploadedByUserId], references: [id])
+  printers               Printer[]
+  sliceJobs              SliceJob[]
+  // Empty list = unrestricted (any Slicing Profile in the library may be
+  // used with this machine); once curated, only these may be selected.
+  allowedSlicingProfiles SlicingProfile[] @relation("MachineAllowedSlicingProfiles")
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+}
+
+model FilamentProfile {
+  id               String     @id @default(cuid())
+  name             String     @unique
+  description      String?
+  filamentJson     String
+  filename         String
+  uploadedByUserId String?
+  uploadedBy       User?      @relation("UploadedFilamentProfiles", fields: [uploadedByUserId], references: [id])
+  sliceJobs        SliceJob[]
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+}
+
+model SlicingProfile {
+  id                String           @id @default(cuid())
+  name              String           @unique
+  description       String?
+  // OrcaSlicer's own "process" profile JSON, verbatim - an internal detail,
+  // not renamed alongside the model despite the user-facing name change.
+  processJson       String
+  filename          String
+  uploadedByUserId  String?
+  uploadedBy        User?            @relation("UploadedSlicingProfiles", fields: [uploadedByUserId], references: [id])
+  sliceJobs         SliceJob[]
+  allowedForMachines MachineProfile[] @relation("MachineAllowedSlicingProfiles")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+enum SliceJobStatus {
+  QUEUED
+  SLICING
+  COMPLETED
+  FAILED
+}
+
+model SliceJob {
+  id                  String           @id @default(cuid())
+  status              SliceJobStatus   @default(QUEUED)
+  sourceFileId        String
+  sourceFile          File             @relation("SliceJobSource", fields: [sourceFileId], references: [id])
+  printerId           String
+  printer             Printer          @relation(fields: [printerId], references: [id])
+  machineProfileId    String?
+  machineProfile      MachineProfile?  @relation(fields: [machineProfileId], references: [id], onDelete: SetNull)
+  filamentProfileId   String?
+  filamentProfile     FilamentProfile? @relation(fields: [filamentProfileId], references: [id], onDelete: SetNull)
+  slicingProfileId    String?
+  slicingProfile      SlicingProfile?  @relation(fields: [slicingProfileId], references: [id], onDelete: SetNull)
+  customOverridesJson String?
+  resultFileId        String?
+  resultFile          File?            @relation("SliceJobResult", fields: [resultFileId], references: [id])
+  submittedByUserId   String?
+  submittedByUser     User?            @relation("SubmittedSliceJobs", fields: [submittedByUserId], references: [id])
+  errorMessage        String?
+  createdAt           DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  startedAt           DateTime?
+  completedAt         DateTime?
+
+  @@index([status])
+  @@index([sourceFileId])
+  @@index([printerId])
 }
 
 model Group {

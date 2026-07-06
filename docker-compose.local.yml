@@ -1,6 +1,6 @@
 services:
   mck3dprintfarm:
-    image: mck3dprintfarm:v0.0.8a
+    image: mck3dprintfarm:v0.0.9a
     ports:
       - "3000:3000"
     volumes:
@@ -14,6 +14,16 @@ services:
       - DEFAULT_ADMIN_EMAIL=admin@example.com
       - DEFAULT_ADMIN_PASSWORD=Admin123!
       - DEFAULT_ADMIN_NAME=Administrator
+      - ORCASLICER_URL=http://orcaslicer:8090
+    depends_on:
+      - orcaslicer
+
+  orcaslicer:
+    build:
+      context: ./docker/orcaslicer
+    volumes:
+      - ./uploads:/data/uploads
+    restart: unless-stopped
 
 volumes:
   mck3dprintfarm_v7_data:

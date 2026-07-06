@@ -23,6 +23,11 @@ import {
     AlertDialogTrigger 
 } from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/usePermissions";
+import { toast } from "sonner";
+import { SlicerSettingsTabs } from "@/components/slicer-settings-tabs";
+import { SlicerSettingCategory } from "@/lib/slicer-setting-categories";
+
+type SettingsByCategory = Record<SlicerSettingCategory, Record<string, unknown>>;
 
 interface User {
   id: string;
@@ -68,6 +73,39 @@ interface BackupFile {
   size: number;
   modifiedTime: string; // ISO string
   modifiedTimeFormatted: string; // User-friendly string
+}
+
+interface MachineProfile {
+  id: string;
+  name: string;
+  description: string | null;
+  filename: string;
+  createdAt: string;
+  _count: { printers: number };
+  // Empty = unrestricted (any Slicing Profile in the library is usable).
+  allowedSlicingProfiles: { id: string }[];
+}
+
+interface FilamentProfile {
+  id: string;
+  name: string;
+  description: string | null;
+  filename: string;
+  createdAt: string;
+}
+
+interface FilamentCandidate {
+  name: string;
+  filename: string;
+  json: string;
+}
+
+interface SlicingProfile {
+  id: string;
+  name: string;
+  description: string | null;
+  filename: string;
+  createdAt: string;
 }
 
 interface DatabaseStats {
@@ -207,6 +245,42 @@ export default function SettingsPage() {
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
 
+  const [machineProfiles, setMachineProfiles] = useState<MachineProfile[]>([]);
+  const [filamentProfiles, setFilamentProfiles] = useState<FilamentProfile[]>([]);
+  const [slicingProfiles, setSlicingProfiles] = useState<SlicingProfile[]>([]);
+  const [loadingSlicerProfiles, setLoadingSlicerProfiles] = useState(true);
+  const [slicerProfilesError, setSlicerProfilesError] = useState<string | null>(null);
+  const [isImportBundleModalOpen, setIsImportBundleModalOpen] = useState(false);
+  const [bundleFile, setBundleFile] = useState<File | null>(null);
+  const [isImportingBundle, setIsImportingBundle] = useState(false);
+  const [importBundleError, setImportBundleError] = useState<string | null>(null);
+
+  // Post-import "which filaments to keep" modal
+  const [isFilamentSelectionModalOpen, setIsFilamentSelectionModalOpen] = useState(false);
+  const [filamentCandidates, setFilamentCandidates] = useState<FilamentCandidate[]>([]);
+  const [selectedFilamentNames, setSelectedFilamentNames] = useState<Set<string>>(new Set());
+  const [isImportingFilaments, setIsImportingFilaments] = useState(false);
+  const [importFilamentsError, setImportFilamentsError] = useState<string | null>(null);
+
+  // Per-machine "which Slicing Profiles are allowed" modal
+  const [managingAllowListFor, setManagingAllowListFor] = useState<MachineProfile | null>(null);
+  const [allowListSelectedIds, setAllowListSelectedIds] = useState<Set<string>>(new Set());
+  const [isSavingAllowList, setIsSavingAllowList] = useState(false);
+  const [allowListError, setAllowListError] = useState<string | null>(null);
+
+  // "Create Slicing Profile" modal (clone an existing profile + edit curated fields)
+  const [isCreateProfileModalOpen, setIsCreateProfileModalOpen] = useState(false);
+  const [newProfileBaseId, setNewProfileBaseId] = useState("");
+  const [newProfileMachineId, setNewProfileMachineId] = useState("");
+  const [newProfileFilamentId, setNewProfileFilamentId] = useState("");
+  const [newProfileName, setNewProfileName] = useState("");
+  const [newProfileDescription, setNewProfileDescription] = useState("");
+  const [newProfileValues, setNewProfileValues] = useState<SettingsByCategory | null>(null);
+  const [isPreviewingProfile, setIsPreviewingProfile] = useState(false);
+  const [previewProfileError, setPreviewProfileError] = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [createProfileError, setCreateProfileError] = useState<string | null>(null);
+
   // Add state for conditional rendering
   const [isReady, setIsReady] = useState(false);
 
@@ -341,6 +415,31 @@ export default function SettingsPage() {
     }
   }, [isAdmin]);
 
+  const fetchSlicerProfiles = useCallback(async () => {
+    if (!isAdmin) return;
+    console.log("Fetching slicer profile libraries...");
+    setLoadingSlicerProfiles(true);
+    setSlicerProfilesError(null);
+    try {
+      const [machineRes, filamentRes, slicingRes] = await Promise.all([
+        fetch("/api/machine-profiles"),
+        fetch("/api/filament-profiles"),
+        fetch("/api/slicing-profiles"),
+      ]);
+      if (!machineRes.ok) throw new Error("Failed to fetch machine profiles");
+      if (!filamentRes.ok) throw new Error("Failed to fetch filament profiles");
+      if (!slicingRes.ok) throw new Error("Failed to fetch slicing profiles");
+      setMachineProfiles(await machineRes.json());
+      setFilamentProfiles(await filamentRes.json());
+      setSlicingProfiles(await slicingRes.json());
+    } catch (err) {
+      console.error("Error in fetchSlicerProfiles:", err);
+      setSlicerProfilesError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoadingSlicerProfiles(false);
+    }
+  }, [isAdmin]);
+
   // --- useEffect for Initial Data Fetching (Using useRef Flag, minimal deps) ---
   useEffect(() => {
     if (status === 'authenticated') {
@@ -360,6 +459,7 @@ export default function SettingsPage() {
                     fetchRoles();
                     fetchBackups();
                     fetchDbStats();
+                    fetchSlicerProfiles();
                 }
                 hasFetchedData.current = true; 
                 if (!isReady) setIsReady(true); // Set ready after fetch completes
@@ -883,7 +983,262 @@ export default function SettingsPage() {
     }
   };
 
-  // --- Conditional Rendering Logic --- 
+  const openImportBundleModal = () => {
+    setBundleFile(null);
+    setImportBundleError(null);
+    setIsImportBundleModalOpen(true);
+  };
+
+  const handleImportBundle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bundleFile) {
+      setImportBundleError("A .orca_printer bundle file is required.");
+      return;
+    }
+    setIsImportingBundle(true);
+    setImportBundleError(null);
+    try {
+      const formData = new FormData();
+      formData.append("bundle", bundleFile);
+
+      const response = await fetch("/api/slicer-profiles/import", { method: "POST", body: formData });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to import bundle");
+      }
+      const result = await response.json();
+      toast.success(
+        `Imported ${result.machineProfiles.length} machine and ${result.slicingProfiles.length} slicing profile(s).`
+      );
+      setIsImportBundleModalOpen(false);
+      fetchSlicerProfiles();
+
+      // Filaments aren't auto-imported - hand off to the selection modal if
+      // the bundle actually contained any.
+      if (result.filamentCandidates?.length > 0) {
+        setFilamentCandidates(result.filamentCandidates);
+        setSelectedFilamentNames(new Set(result.filamentCandidates.map((f: FilamentCandidate) => f.name)));
+        setImportFilamentsError(null);
+        setIsFilamentSelectionModalOpen(true);
+      }
+    } catch (err) {
+      setImportBundleError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsImportingBundle(false);
+    }
+  };
+
+  const toggleFilamentCandidate = (name: string, checked: boolean) => {
+    setSelectedFilamentNames((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(name);
+      else next.delete(name);
+      return next;
+    });
+  };
+
+  const handleConfirmFilamentImport = async () => {
+    const selected = filamentCandidates.filter((f) => selectedFilamentNames.has(f.name));
+    if (selected.length === 0) {
+      setIsFilamentSelectionModalOpen(false);
+      return;
+    }
+    setIsImportingFilaments(true);
+    setImportFilamentsError(null);
+    try {
+      const response = await fetch("/api/slicer-profiles/import/filaments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filaments: selected }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to import filaments");
+      }
+      const result = await response.json();
+      toast.success(`Imported ${result.filamentProfiles.length} filament profile(s).`);
+      setIsFilamentSelectionModalOpen(false);
+      fetchSlicerProfiles();
+    } catch (err) {
+      setImportFilamentsError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsImportingFilaments(false);
+    }
+  };
+
+  const handleDeleteMachineProfile = async (profile: MachineProfile) => {
+    if (!window.confirm(`Delete machine profile "${profile.name}"?`)) return;
+    setSlicerProfilesError(null);
+    try {
+      const response = await fetch(`/api/machine-profiles/${profile.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete machine profile");
+      }
+      setMachineProfiles((prev) => prev.filter((p) => p.id !== profile.id));
+    } catch (err) {
+      setSlicerProfilesError(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
+
+  const handleDeleteFilamentProfile = async (profile: FilamentProfile) => {
+    if (!window.confirm(`Delete filament profile "${profile.name}"?`)) return;
+    setSlicerProfilesError(null);
+    try {
+      const response = await fetch(`/api/filament-profiles/${profile.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete filament profile");
+      }
+      setFilamentProfiles((prev) => prev.filter((p) => p.id !== profile.id));
+    } catch (err) {
+      setSlicerProfilesError(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
+
+  const handleDeleteSlicingProfile = async (profile: SlicingProfile) => {
+    if (!window.confirm(`Delete slicing profile "${profile.name}"?`)) return;
+    setSlicerProfilesError(null);
+    try {
+      const response = await fetch(`/api/slicing-profiles/${profile.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete slicing profile");
+      }
+      setSlicingProfiles((prev) => prev.filter((p) => p.id !== profile.id));
+    } catch (err) {
+      setSlicerProfilesError(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
+
+  const openAllowListModal = async (profile: MachineProfile) => {
+    setManagingAllowListFor(profile);
+    setAllowListError(null);
+    try {
+      const response = await fetch(`/api/machine-profiles/${profile.id}`);
+      if (!response.ok) throw new Error("Failed to fetch machine profile detail");
+      const detail = await response.json();
+      setAllowListSelectedIds(new Set(detail.allowedSlicingProfiles.map((p: { id: string }) => p.id)));
+    } catch (err) {
+      setAllowListError(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
+
+  const toggleAllowListProfile = (id: string, checked: boolean) => {
+    setAllowListSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleSaveAllowList = async () => {
+    if (!managingAllowListFor) return;
+    setIsSavingAllowList(true);
+    setAllowListError(null);
+    try {
+      const response = await fetch(`/api/machine-profiles/${managingAllowListFor.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowedSlicingProfileIds: Array.from(allowListSelectedIds) }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save allow-list");
+      }
+      toast.success(`Updated allowed slicing profiles for "${managingAllowListFor.name}".`);
+      setManagingAllowListFor(null);
+      fetchSlicerProfiles();
+    } catch (err) {
+      setAllowListError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsSavingAllowList(false);
+    }
+  };
+
+  const openCreateProfileModal = () => {
+    setNewProfileBaseId("");
+    setNewProfileMachineId("");
+    setNewProfileFilamentId("");
+    setNewProfileName("");
+    setNewProfileDescription("");
+    setNewProfileValues(null);
+    setPreviewProfileError(null);
+    setCreateProfileError(null);
+    setIsCreateProfileModalOpen(true);
+  };
+
+  // Re-preview whenever the base/machine/filament selection is complete.
+  useEffect(() => {
+    if (!isCreateProfileModalOpen || !newProfileBaseId || !newProfileMachineId || !newProfileFilamentId) {
+      return;
+    }
+    let cancelled = false;
+    setIsPreviewingProfile(true);
+    setPreviewProfileError(null);
+    (async () => {
+      try {
+        const response = await fetch("/api/slicing-profiles/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            baseSlicingProfileId: newProfileBaseId,
+            machineProfileId: newProfileMachineId,
+            filamentProfileId: newProfileFilamentId,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Failed to preview settings");
+        if (cancelled) return;
+        setNewProfileValues(data.categories);
+      } catch (err) {
+        if (!cancelled) setPreviewProfileError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        if (!cancelled) setIsPreviewingProfile(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isCreateProfileModalOpen, newProfileBaseId, newProfileMachineId, newProfileFilamentId]);
+
+  const handleNewProfileFieldChange = (category: SlicerSettingCategory, field: string, value: string) => {
+    setNewProfileValues((prev) => ({
+      Quality: {}, Strength: {}, Supports: {}, Other: {},
+      ...prev,
+      [category]: { ...(prev?.[category] || {}), [field]: value },
+    }));
+  };
+
+  const handleCreateProfile = async () => {
+    if (!newProfileBaseId || !newProfileName || !newProfileValues) return;
+    setIsSavingProfile(true);
+    setCreateProfileError(null);
+    try {
+      const response = await fetch("/api/slicing-profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseSlicingProfileId: newProfileBaseId,
+          name: newProfileName,
+          description: newProfileDescription || undefined,
+          overrides: newProfileValues,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create slicing profile");
+      }
+      toast.success(`Created slicing profile "${newProfileName}".`);
+      setIsCreateProfileModalOpen(false);
+      fetchSlicerProfiles();
+    } catch (err) {
+      setCreateProfileError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // --- Conditional Rendering Logic ---
   if (!isReady) {
      console.log("SettingsPage: Rendering loading state (isReady=false).");
   return (
@@ -899,10 +1254,11 @@ export default function SettingsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-6' : 'grid-cols-3'}`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-7' : 'grid-cols-3'}`}>
           <TabsTrigger value="general">General</TabsTrigger>
           {isAdmin && <TabsTrigger value="users">Users</TabsTrigger>}
           {isAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="slicerProfiles">Slicer Profiles</TabsTrigger>}
           <TabsTrigger value="sso">SSO</TabsTrigger>
           {isAdmin && <TabsTrigger value="database">Database</TabsTrigger>}
           <TabsTrigger value="updates">Updates</TabsTrigger>
@@ -1104,6 +1460,154 @@ export default function SettingsPage() {
         </TabsContent>
         )}
         
+        {isAdmin && (
+          <TabsContent value="slicerProfiles" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Slicer Profiles</CardTitle>
+                    <CardDescription>
+                      Import an OrcaSlicer "Export Config Bundle" (.orca_printer) to populate the machine,
+                      filament, and Slicing Profile libraries below. Assign a Machine Profile to a printer
+                      (on the Printers page); filament and Slicing Profile are chosen per-slice on the Files
+                      page - curate which Slicing Profiles a Machine Profile allows with "Manage Slicing
+                      Profiles" below.
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={openImportBundleModal} variant="outline" size="sm">
+                      <PlusIcon className="h-4 w-4 mr-1" /> Import Bundle
+                    </Button>
+                    <Button onClick={openCreateProfileModal} variant="outline" size="sm" disabled={slicingProfiles.length === 0}>
+                      <PlusIcon className="h-4 w-4 mr-1" /> Create Slicing Profile
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {slicerProfilesError && (
+                  <div className="mb-4 text-sm text-red-600 bg-red-100 border border-red-300 rounded p-3">
+                    Error: {slicerProfilesError}
+                  </div>
+                )}
+                {loadingSlicerProfiles ? (
+                  <p>Loading slicer profiles...</p>
+                ) : (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-sm font-semibold mb-2">Machine Profiles</h3>
+                      {machineProfiles.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">None imported yet.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>File</TableHead>
+                              <TableHead>Printers Using It</TableHead>
+                              <TableHead>Allowed Slicing Profiles</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {machineProfiles.map((profile) => (
+                              <TableRow key={profile.id}>
+                                <TableCell className="font-medium">{profile.name}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{profile.filename}</TableCell>
+                                <TableCell>{profile._count.printers}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {profile.allowedSlicingProfiles.length === 0
+                                    ? "All (unrestricted)"
+                                    : `${profile.allowedSlicingProfiles.length} selected`}
+                                </TableCell>
+                                <TableCell className="text-right space-x-2">
+                                  <Button variant="outline" size="sm" onClick={() => openAllowListModal(profile)}>
+                                    Manage Slicing Profiles
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDeleteMachineProfile(profile)}
+                                    disabled={profile._count.printers > 0}
+                                    title={profile._count.printers > 0 ? `In use by ${profile._count.printers} printer(s)` : 'Delete Profile'}
+                                  >
+                                    Delete
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold mb-2">Filament Profiles</h3>
+                      {filamentProfiles.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">None imported yet.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>File</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filamentProfiles.map((profile) => (
+                              <TableRow key={profile.id}>
+                                <TableCell className="font-medium">{profile.name}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{profile.filename}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button variant="destructive" size="sm" onClick={() => handleDeleteFilamentProfile(profile)}>
+                                    Delete
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold mb-2">Slicing Profiles</h3>
+                      {slicingProfiles.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">None yet - import a bundle that includes one.</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>File</TableHead>
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {slicingProfiles.map((profile) => (
+                              <TableRow key={profile.id}>
+                                <TableCell className="font-medium">{profile.name}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{profile.filename}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button variant="destructive" size="sm" onClick={() => handleDeleteSlicingProfile(profile)}>
+                                    Delete
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
         {isAdmin && (
           <TabsContent value="sso" className="space-y-4">
           <Card>
@@ -1567,6 +2071,205 @@ export default function SettingsPage() {
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={isImportBundleModalOpen} onOpenChange={setIsImportBundleModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Slicer Profile Bundle</DialogTitle>
+            <DialogDescription>
+              Export a config bundle from OrcaSlicer's GUI (File → Export → Export Config Bundle) and
+              upload the resulting .orca_printer file here. Its machine and Slicing Profiles are added to
+              the libraries above automatically - profiles with the same name are updated in place. If it
+              includes filament profiles, you'll be asked which ones to keep next.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleImportBundle} className="space-y-4">
+            {importBundleError && <p className="text-sm text-red-600">{importBundleError}</p>}
+            <div>
+              <Label htmlFor="bundle-file">Config bundle (.orca_printer)</Label>
+              <Input
+                id="bundle-file"
+                type="file"
+                accept=".orca_printer"
+                onChange={(e) => setBundleFile(e.target.files?.[0] || null)}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsImportBundleModalOpen(false)} disabled={isImportingBundle}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isImportingBundle}>
+                {isImportingBundle ? <><ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" /> Importing...</> : 'Import Bundle'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post-import: pick which filaments to actually keep */}
+      <Dialog open={isFilamentSelectionModalOpen} onOpenChange={setIsFilamentSelectionModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Filaments to Import</DialogTitle>
+            <DialogDescription>
+              The bundle included {filamentCandidates.length} filament profile(s). Choose which to add to
+              your library.
+            </DialogDescription>
+          </DialogHeader>
+          {importFilamentsError && <p className="text-sm text-red-600">{importFilamentsError}</p>}
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {filamentCandidates.map((candidate) => (
+              <div key={candidate.name} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`filament-candidate-${candidate.name}`}
+                  checked={selectedFilamentNames.has(candidate.name)}
+                  onCheckedChange={(checked) => toggleFilamentCandidate(candidate.name, checked === true)}
+                />
+                <Label htmlFor={`filament-candidate-${candidate.name}`} className="font-normal">
+                  {candidate.name}
+                </Label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsFilamentSelectionModalOpen(false)} disabled={isImportingFilaments}>
+              Skip
+            </Button>
+            <Button onClick={handleConfirmFilamentImport} disabled={isImportingFilaments || selectedFilamentNames.size === 0}>
+              {isImportingFilaments ? <><ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" /> Importing...</> : `Import ${selectedFilamentNames.size} Selected`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Per-machine "which Slicing Profiles are allowed" checklist */}
+      <Dialog open={!!managingAllowListFor} onOpenChange={(open) => !open && setManagingAllowListFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Slicing Profiles for "{managingAllowListFor?.name}"</DialogTitle>
+            <DialogDescription>
+              Leave everything unchecked to allow the whole library. Check specific profiles to restrict
+              this machine to only those when slicing.
+            </DialogDescription>
+          </DialogHeader>
+          {allowListError && <p className="text-sm text-red-600">{allowListError}</p>}
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {slicingProfiles.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No Slicing Profiles in your library yet.</p>
+            ) : (
+              slicingProfiles.map((profile) => (
+                <div key={profile.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`allow-list-${profile.id}`}
+                    checked={allowListSelectedIds.has(profile.id)}
+                    onCheckedChange={(checked) => toggleAllowListProfile(profile.id, checked === true)}
+                  />
+                  <Label htmlFor={`allow-list-${profile.id}`} className="font-normal">
+                    {profile.name}
+                  </Label>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setManagingAllowListFor(null)} disabled={isSavingAllowList}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveAllowList} disabled={isSavingAllowList}>
+              {isSavingAllowList ? <><ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create a new Slicing Profile by cloning an existing one and editing the curated fields */}
+      <Dialog open={isCreateProfileModalOpen} onOpenChange={setIsCreateProfileModalOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Slicing Profile</DialogTitle>
+            <DialogDescription>
+              Clone an existing Slicing Profile and edit the settings below - everything else (the
+              hundreds of fields OrcaSlicer needs beyond these) comes from the profile you're cloning.
+            </DialogDescription>
+          </DialogHeader>
+          {createProfileError && <p className="text-sm text-red-600">{createProfileError}</p>}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="new-profile-base">Base Profile</Label>
+                <select
+                  id="new-profile-base"
+                  value={newProfileBaseId}
+                  onChange={(e) => setNewProfileBaseId(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">-- Select Base Profile --</option>
+                  {slicingProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>{profile.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="new-profile-machine">Machine Profile</Label>
+                <select
+                  id="new-profile-machine"
+                  value={newProfileMachineId}
+                  onChange={(e) => setNewProfileMachineId(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">-- Select Machine --</option>
+                  {machineProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>{profile.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="new-profile-filament">Filament Profile</Label>
+                <select
+                  id="new-profile-filament"
+                  value={newProfileFilamentId}
+                  onChange={(e) => setNewProfileFilamentId(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">-- Select Filament --</option>
+                  {filamentProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>{profile.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="new-profile-name">Name</Label>
+                <Input id="new-profile-name" value={newProfileName} onChange={(e) => setNewProfileName(e.target.value)} required />
+              </div>
+              <div>
+                <Label htmlFor="new-profile-description">Description (optional)</Label>
+                <Input id="new-profile-description" value={newProfileDescription} onChange={(e) => setNewProfileDescription(e.target.value)} />
+              </div>
+            </div>
+
+            {previewProfileError && <p className="text-sm text-red-600">Error: {previewProfileError}</p>}
+            {isPreviewingProfile && <p className="text-sm text-muted-foreground">Resolving starting values...</p>}
+            {newProfileValues && (
+              <SlicerSettingsTabs categories={newProfileValues} editable onFieldChange={handleNewProfileFieldChange} />
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsCreateProfileModalOpen(false)} disabled={isSavingProfile}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateProfile}
+              disabled={isSavingProfile || !newProfileBaseId || !newProfileName || !newProfileValues}
+            >
+              {isSavingProfile ? <><ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" /> Creating...</> : 'Create Profile'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-} 
+}

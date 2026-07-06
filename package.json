@@ -41,6 +41,7 @@
     "@tabler/icons-react": "^3.6.0",
     "@types/bcryptjs": "^2.4.6",
     "abort-controller": "3.0.0",
+    "adm-zip": "0.5.18",
     "autoprefixer": "^10.4.17",
     "axios": "1.8.4",
     "bcryptjs": "^3.0.2",
@@ -67,6 +68,7 @@
     "three": "^0.165.0"
   },
   "devDependencies": {
+    "@types/adm-zip": "0.5.8",
     "@types/form-data": "^2.2.1",
     "@types/node": "^20.11.16",
     "@types/node-fetch": "^2.6.12",

@@ -92,7 +92,7 @@ export function PrusaLinkDiagnostic({ printerId, printerName }: PrusaLinkDiagnos
                       <summary className="text-sm font-medium cursor-pointer">
                         Response Data
                       </summary>
-                      <pre className="mt-2 bg-gray-100 p-2 rounded text-xs overflow-auto max-h-40">
+                      <pre className="mt-2 bg-muted p-2 rounded text-xs overflow-auto max-h-40">
                         {JSON.stringify(result.data, null, 2)}
                       </pre>
                     </details>

@@ -39,10 +39,10 @@ export default function SignIn() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-foreground">
             Sign in to your account
           </h2>
         </div>
@@ -72,7 +72,7 @@ export default function SignIn() {
                 type="email"
                 autoComplete="email"
                 required
-                className="relative block w-full rounded-t-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
+                className="relative block w-full rounded-t-md border-0 py-1.5 text-foreground bg-background ring-1 ring-inset ring-border placeholder:text-muted-foreground focus:z-10 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
                 placeholder="Email address"
               />
             </div>
@@ -86,7 +86,7 @@ export default function SignIn() {
                 type="password"
                 autoComplete="current-password"
                 required
-                className="relative block w-full rounded-b-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
+                className="relative block w-full rounded-b-md border-0 py-1.5 text-foreground bg-background ring-1 ring-inset ring-border placeholder:text-muted-foreground focus:z-10 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
                 placeholder="Password"
               />
             </div>

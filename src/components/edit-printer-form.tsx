@@ -120,14 +120,14 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="type" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="type" className="block text-sm font-medium text-foreground">
             Type
           </label>
           <select
             id="type"
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             required
           >
             <option value="moonraker">Moonraker</option>
@@ -136,7 +136,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
           </select>
         </div>
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="name" className="block text-sm font-medium text-foreground">
             Name
           </label>
           <input
@@ -144,13 +144,13 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             required
           />
         </div>
 
         <div>
-          <label htmlFor="apiUrl" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="apiUrl" className="block text-sm font-medium text-foreground">
             {type === "bambulab" ? "Printer IP Address" : "API URL"}
           </label>
           <input
@@ -159,14 +159,14 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
             value={apiUrl}
             onChange={(e) => setApiUrl(e.target.value)}
             placeholder={type === "bambulab" ? "192.168.0.123" : "http://printer.local"}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             required
           />
         </div>
 
         {type === "bambulab" && (
           <div>
-            <label htmlFor="serialNumber" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="serialNumber" className="block text-sm font-medium text-foreground">
               Printer Serial Number
             </label>
             <div className="relative mt-1">
@@ -176,13 +176,13 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
                 value={serialNumber}
                 onChange={(e) => setSerialNumber(e.target.value)}
                 placeholder="ABCDEFG123456"
-                className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
+                className="block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowSerialNumber(!showSerialNumber)}
-                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground hover:text-foreground"
               >
                 {showSerialNumber ? (
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -200,7 +200,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
         )}
 
         <div>
-          <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="apiKey" className="block text-sm font-medium text-foreground">
             {type === "bambulab" ? "Access Code" : type === "prusalink" ? "API Key" : "API Key (optional)"}
           </label>
           <div className="relative mt-1">
@@ -209,13 +209,13 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
               id="apiKey"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
+              className="block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 pr-10"
               required={type === "prusalink" || type === "bambulab"}
             />
             <button
               type="button"
               onClick={() => setShowApiKey(!showApiKey)}
-              className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+              className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground hover:text-foreground"
             >
               {showApiKey ? (
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -232,7 +232,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
         </div>
 
         <div>
-          <label htmlFor="webcamUrl" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="webcamUrl" className="block text-sm font-medium text-foreground">
             Custom Webcam URL (optional)
           </label>
           <input
@@ -240,19 +240,19 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
             id="webcamUrl"
             value={webcamUrl}
             onChange={(e) => setWebcamUrl(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
         <div>
-          <label htmlFor="status" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="status" className="block text-sm font-medium text-foreground">
             Status
           </label>
           <select
             id="status"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             required
           >
             <option value="active">Active</option>
@@ -262,14 +262,14 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
         </div>
 
         <div>
-          <label htmlFor="groupId" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="groupId" className="block text-sm font-medium text-foreground">
             Group (optional)
           </label>
           <select
             id="groupId"
             value={groupId}
             onChange={(e) => setGroupId(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="">No Group</option>
             {groups.map((group) => (
@@ -281,14 +281,14 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
         </div>
 
         <div>
-          <label htmlFor="machineProfileId" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="machineProfileId" className="block text-sm font-medium text-foreground">
             Machine Profile (optional)
           </label>
           <select
             id="machineProfileId"
             value={machineProfileId}
             onChange={(e) => setMachineProfileId(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             <option value="">No Profile Assigned</option>
             {machineProfiles.map((profile) => (
@@ -297,7 +297,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             Required to slice files for this printer from the Files page.
           </p>
         </div>
@@ -308,7 +308,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
             Delete Printer
           </Button>
           <div className="flex gap-2">
-            <Button type="button" onClick={onCancel} disabled={isSubmitting} className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            <Button type="button" onClick={onCancel} disabled={isSubmitting} className="inline-flex items-center px-3 py-2 border border-border shadow-sm text-sm font-medium rounded-md text-foreground bg-card hover:bg-accent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
               <XMarkIcon className="h-4 w-4 mr-1" />
               Cancel
             </Button>
@@ -325,7 +325,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
       </form>
 
       {onToggleJobHistory && (
-        <div className="pt-6 border-t border-gray-200">
+        <div className="pt-6 border-t border-border">
           <Button type="button" variant="link" onClick={onToggleJobHistory} className="text-blue-600">
             {showJobHistory ? "Hide" : "Show"} Job History
           </Button>

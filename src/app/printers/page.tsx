@@ -377,7 +377,7 @@ export default function PrintersPage() {
     }
     return (
       <div className="flex items-center gap-1 text-xs">
-        <span className="text-gray-500">{label}:</span>
+        <span className="text-muted-foreground">{label}:</span>
         <span className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${bgColor} ${textColor}`}>
           {value || 'N/A'}
         </span>
@@ -405,7 +405,7 @@ export default function PrintersPage() {
             className="w-full pl-10"
           />
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+            <svg className="h-5 w-5 text-muted-foreground" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
             </svg>
           </div>
@@ -415,9 +415,9 @@ export default function PrintersPage() {
       {error && !isModalOpen && !deletingPrinter && <p className="text-red-600 mb-4">Error: {error}</p>}
 
       {loading ? (
-        <div className="py-10 text-center text-gray-500">Loading printers...</div>
+        <div className="py-10 text-center text-muted-foreground">Loading printers...</div>
       ) : !error && filteredPrinters.length === 0 ? (
-        <div className="text-center py-10 border rounded-lg bg-gray-50">
+        <div className="text-center py-10 border rounded-lg bg-muted">
           <p className="text-muted-foreground mb-4">
             No printers found{searchQuery ? ` matching "${searchQuery}"` : ""}.
           </p>
@@ -466,13 +466,13 @@ export default function PrintersPage() {
                   {printer.operationalStatus === 'printing' || printer.operationalStatus === 'paused' ? (
                     <div className="flex flex-col space-y-1">
                       {/* TODO: Add progress bar when data is available */}
-                       <span className="text-sm font-medium text-gray-800 truncate" title={printer.currentJobFilename ?? 'N/A'}>
+                       <span className="text-sm font-medium text-foreground truncate" title={printer.currentJobFilename ?? 'N/A'}>
                            {printer.currentJobFilename || 'N/A'}
                        </span>
-                       <span className="text-xs text-gray-500">Time Left: {formatTime(printer.printTimeRemaining)}</span>
+                       <span className="text-xs text-muted-foreground">Time Left: {formatTime(printer.printTimeRemaining)}</span>
                      </div>
                   ) : (
-                    <span className="text-sm text-gray-400">-</span>
+                    <span className="text-sm text-muted-foreground">-</span>
                   )}
                 </TableCell>
                 {/* Col 6: Actions */}
@@ -481,7 +481,7 @@ export default function PrintersPage() {
                     {/* Pause/Resume Button */}
                     {printer.operationalStatus === 'paused' ? (
                       <Button
-                        className="bg-green-100 text-green-800 hover:bg-green-200 disabled:bg-gray-100 disabled:text-gray-400"
+                        className="bg-green-100 text-green-800 hover:bg-green-200 disabled:bg-muted disabled:text-muted-foreground"
                         size="sm"
                         onClick={() => handlePrinterAction(printer.id, 'resume')}
                         disabled={isSubmitting || printer.status !== 'active'}
@@ -492,7 +492,7 @@ export default function PrintersPage() {
                       </Button>
                     ) : (
                       <Button
-                        className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 disabled:bg-gray-100 disabled:text-gray-400"
+                        className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 disabled:bg-muted disabled:text-muted-foreground"
                         size="sm"
                         onClick={() => handlePrinterAction(printer.id, 'pause')}
                         disabled={isSubmitting || printer.status !== 'active' || printer.operationalStatus !== 'printing'}

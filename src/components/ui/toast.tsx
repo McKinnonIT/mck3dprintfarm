@@ -38,7 +38,7 @@ export function Toast({
   return (
     <ToastPrimitives.Root
       {...props}
-      className={`bg-white dark:bg-gray-800 rounded-md shadow-lg p-4 ${className}`}
+      className={`bg-card rounded-md shadow-lg p-4 ${className}`}
     >
       {children || (
         <>

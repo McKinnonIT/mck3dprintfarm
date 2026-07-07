@@ -53,7 +53,7 @@ export default function DebugPage() {
       {printers.map((printer) => (
         <div key={printer.id} className="mb-12 border p-6 rounded-lg">
           <h2 className="text-2xl font-bold">{printer.name}</h2>
-          <div className="text-sm text-gray-600 mb-4">
+          <div className="text-sm text-muted-foreground mb-4">
             <p>Printer type: {printer.type}</p>
             <p>API URL: {printer.apiUrl}</p>
             <p>Webcam URL (stored): {printer.webcamUrl || "None"}</p>
@@ -66,7 +66,7 @@ export default function DebugPage() {
               <h3 className="text-xl font-semibold mb-2">Moonraker API Debug Info</h3>
               {debugInfo[printer.id] ? (
                 <div className="space-y-4">
-                  <div className="bg-gray-100 p-4 rounded">
+                  <div className="bg-muted p-4 rounded">
                     <h4 className="font-bold">Webcam Info from Moonraker:</h4>
                     {debugInfo[printer.id].webcamInfo ? (
                       <div>
@@ -85,14 +85,14 @@ export default function DebugPage() {
                     )}
                   </div>
                   
-                  <div className="bg-gray-100 p-4 rounded">
+                  <div className="bg-muted p-4 rounded">
                     <h4 className="font-bold">Stream URL Check:</h4>
                     <pre className="whitespace-pre-wrap text-sm">
                       {JSON.stringify(debugInfo[printer.id].streamCheckResult, null, 2)}
                     </pre>
                   </div>
                   
-                  <div className="bg-gray-100 p-4 rounded">
+                  <div className="bg-muted p-4 rounded">
                     <h4 className="font-bold">Snapshot URL Check:</h4>
                     <pre className="whitespace-pre-wrap text-sm">
                       {JSON.stringify(debugInfo[printer.id].snapshotCheckResult, null, 2)}
@@ -102,8 +102,8 @@ export default function DebugPage() {
                   {debugInfo[printer.id].webcamInfo?.streamUrl && (
                     <div>
                       <h4 className="font-bold mb-2">Stream Test (iframe):</h4>
-                      <div className="aspect-video bg-gray-200 rounded overflow-hidden">
-                        <iframe 
+                      <div className="aspect-video bg-muted rounded overflow-hidden">
+                        <iframe
                           src={debugInfo[printer.id].webcamInfo.streamUrl}
                           className="w-full h-full border-0"
                           title="Stream test"
@@ -115,8 +115,8 @@ export default function DebugPage() {
                   {debugInfo[printer.id].webcamInfo?.streamUrl && (
                     <div>
                       <h4 className="font-bold mb-2">Stream Test (img):</h4>
-                      <div className="aspect-video bg-gray-200 rounded overflow-hidden">
-                        <img 
+                      <div className="aspect-video bg-muted rounded overflow-hidden">
+                        <img
                           src={debugInfo[printer.id].webcamInfo.streamUrl}
                           alt="Stream test"
                           className="w-full h-full object-cover"
@@ -128,8 +128,8 @@ export default function DebugPage() {
                   {debugInfo[printer.id].webcamInfo?.snapshotUrl && (
                     <div>
                       <h4 className="font-bold mb-2">Snapshot Test:</h4>
-                      <div className="aspect-video bg-gray-200 rounded overflow-hidden">
-                        <img 
+                      <div className="aspect-video bg-muted rounded overflow-hidden">
+                        <img
                           src={`${debugInfo[printer.id].webcamInfo.snapshotUrl}?t=${Date.now()}`}
                           alt="Snapshot test"
                           className="w-full h-full object-cover"
@@ -146,7 +146,7 @@ export default function DebugPage() {
           
           <div className="mt-6">
             <h3 className="text-xl font-semibold mb-2">Current Webcam Display</h3>
-            <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+            <div className="aspect-video bg-muted rounded-lg overflow-hidden">
               {printer.webcamUrl ? (
                 <img
                   src={printer.webcamUrl}
@@ -154,7 +154,7 @@ export default function DebugPage() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                   No webcam URL configured
                 </div>
               )}

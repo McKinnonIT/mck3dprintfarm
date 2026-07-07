@@ -471,7 +471,7 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
             id="slice-printer"
             value={selectedSlicePrinterId}
             onChange={(e) => setSelectedSlicePrinterId(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={isSlicing || loadingProfiles}
           >
             <option value="">-- Select Printer --</option>
@@ -491,7 +491,7 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
             id="slice-filament"
             value={selectedFilamentProfileId}
             onChange={(e) => setSelectedFilamentProfileId(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={isSlicing || loadingProfiles}
           >
             <option value="">-- Select Filament --</option>
@@ -509,7 +509,7 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
             id="slice-slicing-profile"
             value={selectedSlicingProfileSelection}
             onChange={(e) => handleSlicingProfileSelectionChange(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={isSlicing || availableSlicingProfiles.length === 0}
           >
             <option value="">-- Select Slicing Profile --</option>

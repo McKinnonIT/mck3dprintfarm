@@ -35,7 +35,7 @@ export function DeletePrinterDialog({ printerName, onConfirm, onCancel, isSubmit
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="confirmation" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="confirmation" className="block text-sm font-medium text-foreground">
             Type DELETE to confirm
           </label>
           <input
@@ -44,7 +44,7 @@ export function DeletePrinterDialog({ printerName, onConfirm, onCancel, isSubmit
             value={confirmation}
             onChange={(e) => setConfirmation(e.target.value)}
             placeholder="DELETE"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 px-3 py-2 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-2 border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"
             required
           />
           {error && <p className="mt-1 text-sm text-red-600">{error}</p>}

@@ -202,7 +202,7 @@ export default function UsersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-foreground"></div>
       </div>
     );
   }
@@ -237,37 +237,37 @@ export default function UsersPage() {
         </button>
       </div>
       
-      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-card shadow-sm rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-border">
+          <thead className="bg-muted">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Name
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Email
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Role
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-card divide-y divide-border">
             {users.map((user) => (
               <tr key={user.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-medium text-foreground">
                     {user.name || "N/A"}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{user.email}</div>
+                  <div className="text-sm text-foreground">{user.email}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900 capitalize">{user.role}</div>
+                  <div className="text-sm text-foreground capitalize">{user.role}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex items-center space-x-2">
@@ -306,34 +306,34 @@ export default function UsersPage() {
       {/* Add User Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg w-96">
+          <div className="bg-card p-6 rounded-lg w-96">
             <h2 className="text-xl font-bold mb-4">Add New User</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <label className="block text-sm font-medium text-foreground">Email</label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-border bg-background text-foreground shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <label className="block text-sm font-medium text-foreground">Name</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-border bg-background text-foreground shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Role</label>
+                <label className="block text-sm font-medium text-foreground">Role</label>
                 <select
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-border bg-background text-foreground shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 >
                   <option value="admin">Admin</option>
                   <option value="teacher">Teacher</option>
@@ -341,12 +341,12 @@ export default function UsersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Password</label>
+                <label className="block text-sm font-medium text-foreground">Password</label>
                 <input
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-border bg-background text-foreground shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -354,7 +354,7 @@ export default function UsersPage() {
             <div className="mt-6 flex justify-end space-x-3">
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                className="px-4 py-2 text-foreground hover:text-foreground"
               >
                 Cancel
               </button>
@@ -372,34 +372,34 @@ export default function UsersPage() {
       {/* Edit User Modal */}
       {isEditModalOpen && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg w-96">
+          <div className="bg-card p-6 rounded-lg w-96">
             <h2 className="text-xl font-bold mb-4">Edit User</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <label className="block text-sm font-medium text-foreground">Email</label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-border bg-background text-foreground shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <label className="block text-sm font-medium text-foreground">Name</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-border bg-background text-foreground shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Role</label>
+                <label className="block text-sm font-medium text-foreground">Role</label>
                 <select
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-border bg-background text-foreground shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 >
                   <option value="admin">Admin</option>
                   <option value="teacher">Teacher</option>
@@ -410,7 +410,7 @@ export default function UsersPage() {
             <div className="mt-6 flex justify-end space-x-3">
               <button
                 onClick={() => setIsEditModalOpen(false)}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                className="px-4 py-2 text-foreground hover:text-foreground"
               >
                 Cancel
               </button>
@@ -428,16 +428,16 @@ export default function UsersPage() {
       {/* Reset Password Modal */}
       {isResetPasswordModalOpen && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg w-96">
+          <div className="bg-card p-6 rounded-lg w-96">
             <h2 className="text-xl font-bold mb-4">Reset Password</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">New Password</label>
+                <label className="block text-sm font-medium text-foreground">New Password</label>
                 <input
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 block w-full rounded-md border border-border bg-background text-foreground shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -445,7 +445,7 @@ export default function UsersPage() {
             <div className="mt-6 flex justify-end space-x-3">
               <button
                 onClick={() => setIsResetPasswordModalOpen(false)}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                className="px-4 py-2 text-foreground hover:text-foreground"
               >
                 Cancel
               </button>

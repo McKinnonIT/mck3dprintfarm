@@ -46,11 +46,11 @@ export default function SimpleWebcamPage() {
         {printers.map((printer) => (
           <div key={printer.id} className="border rounded-lg p-4">
             <h2 className="text-2xl font-bold">{printer.name}</h2>
-            <p className="text-sm text-gray-600">Status: {printer.operationalStatus}</p>
-            
+            <p className="text-sm text-muted-foreground">Status: {printer.operationalStatus}</p>
+
             <div className="mt-4">
               <h3 className="font-semibold">Direct Image:</h3>
-              <div className="aspect-video bg-gray-100 mt-2 rounded overflow-hidden">
+              <div className="aspect-video bg-muted mt-2 rounded overflow-hidden">
                 {printer.webcamUrl ? (
                   <img 
                     src={printer.webcamUrl}
@@ -67,7 +67,7 @@ export default function SimpleWebcamPage() {
             
             <div className="mt-4">
               <h3 className="font-semibold">Proxy Image:</h3>
-              <div className="aspect-video bg-gray-100 mt-2 rounded overflow-hidden">
+              <div className="aspect-video bg-muted mt-2 rounded overflow-hidden">
                 {printer.webcamUrl ? (
                   <img 
                     src={`/api/webcam-proxy?url=${encodeURIComponent(printer.webcamUrl)}&t=${timestamp}`}
@@ -83,7 +83,7 @@ export default function SimpleWebcamPage() {
             </div>
             
             <div className="mt-2">
-              <p className="text-xs text-gray-500 break-all">
+              <p className="text-xs text-muted-foreground break-all">
                 Webcam URL: {printer.webcamUrl || "None"}
               </p>
             </div>

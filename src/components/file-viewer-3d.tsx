@@ -452,7 +452,7 @@ export function FileViewer3D({
   const fileExtension = fileName?.split('.').pop()?.toLowerCase();
 
   return (
-    <div className="w-full h-[500px] bg-gray-200 rounded">
+    <div className="w-full h-[500px] bg-muted rounded">
       <Canvas camera={{ position: [0, 100, 150], fov: 50 }}>
         <ambientLight intensity={0.8} />
         <directionalLight position={[10, 10, 5]} intensity={0.5} />

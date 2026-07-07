@@ -435,7 +435,7 @@ export default function FilesPage() {
       {/* Search Bar */}
       <div className="mb-6">
         <div className="relative">
-          <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search files by name..."

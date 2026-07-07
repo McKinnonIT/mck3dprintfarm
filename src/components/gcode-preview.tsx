@@ -677,8 +677,8 @@ export function GcodePreview({ gcodeUrl, fileName, fileId }: GcodePreviewProps) 
               &#8203;
             </span>
 
-            <div className="inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-4/5 sm:max-w-[85vw] sm:align-middle">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="inline-block transform overflow-hidden rounded-lg bg-card text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-4/5 sm:max-w-[85vw] sm:align-middle">
+              <div className="bg-card px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                   <h2 className="text-xl font-semibold">{fileName}</h2>
@@ -722,7 +722,7 @@ export function GcodePreview({ gcodeUrl, fileName, fileId }: GcodePreviewProps) 
                     </button>
                   <button
                     onClick={() => setShowModal(false)}
-                    className="rounded-md bg-gray-100 px-3 py-1 text-sm text-gray-700 hover:bg-gray-200"
+                    className="rounded-md bg-muted px-3 py-1 text-sm text-foreground hover:bg-accent"
                   >
                     Close
                   </button>
@@ -732,13 +732,13 @@ export function GcodePreview({ gcodeUrl, fileName, fileId }: GcodePreviewProps) 
                 <div className="h-[70vh] w-full relative">
                   {/* Loading spinner */}
                   {(isLoading || loadingError) && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
                       <div className="flex flex-col items-center max-w-md text-center">
                         {!loadingError ? (
                           <>
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
-                            <p className="text-gray-600 mb-6">
-                              {fileName.toLowerCase().endsWith('.stl') 
+                            <p className="text-muted-foreground mb-6">
+                              {fileName.toLowerCase().endsWith('.stl')
                                 ? "Kiri:Moto is loading. Choose a loading method from the top." 
                                 : "Loading 3D viewer..."}
                             </p>
@@ -758,8 +758,8 @@ export function GcodePreview({ gcodeUrl, fileName, fileId }: GcodePreviewProps) 
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to load 3D viewer</h3>
-                            <p className="text-gray-600 mb-6">
+                            <h3 className="text-lg font-medium text-foreground mb-2">Failed to load 3D viewer</h3>
+                            <p className="text-muted-foreground mb-6">
                               {kirimotoBaseUrl === LOCAL_KIRI_URL 
                                 ? "We couldn't connect to the local Kiri:Moto server." 
                                 : "We couldn't load the 3D viewer."}

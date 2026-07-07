@@ -36,7 +36,7 @@ export default function AboutPage() {
     <div className="container mx-auto py-12 px-4 max-w-5xl">
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold mb-4 text-blue-800">{settings.printFarmTitle}</h1>
-        <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+        <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
           A state-of-the-art 3D printing facility powering innovation and creativity.
         </p>
         <div className="mt-4 inline-block bg-blue-100 px-3 py-1 rounded-full text-blue-800">
@@ -55,36 +55,36 @@ export default function AboutPage() {
       </div>
       
       <div className="grid md:grid-cols-2 gap-8 mb-12">
-        <div className="bg-white rounded-xl shadow-lg p-8 transform transition-all hover:scale-105">
+        <div className="bg-card rounded-xl shadow-lg p-8 transform transition-all hover:scale-105">
           <div className="rounded-full bg-blue-100 w-12 h-12 flex items-center justify-center mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
           <h2 className="text-2xl font-bold mb-4 text-blue-800">Our Mission</h2>
-          <p className="text-gray-700 mb-4 leading-relaxed">
-            The {settings.printFarmTitle} provides streamlined access to 3D printing technology 
+          <p className="text-foreground mb-4 leading-relaxed">
+            The {settings.printFarmTitle} provides streamlined access to 3D printing technology
             for educational, research, and innovative projects.
           </p>
-          <p className="text-gray-700 leading-relaxed">
-            We aim to democratize access to advanced manufacturing technologies, enabling 
+          <p className="text-foreground leading-relaxed">
+            We aim to democratize access to advanced manufacturing technologies, enabling
             the creation of innovative projects and fostering technical skills development.
           </p>
         </div>
-        
-        <div className="bg-white rounded-xl shadow-lg p-8 transform transition-all hover:scale-105">
+
+        <div className="bg-card rounded-xl shadow-lg p-8 transform transition-all hover:scale-105">
           <div className="rounded-full bg-blue-100 w-12 h-12 flex items-center justify-center mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
           </div>
           <h2 className="text-2xl font-bold mb-4 text-blue-800">About {settings.organizationName}</h2>
-          <p className="text-gray-700 mb-4 leading-relaxed">
-            {settings.organizationName} is committed to providing quality education and 
+          <p className="text-foreground mb-4 leading-relaxed">
+            {settings.organizationName} is committed to providing quality education and
             fostering innovation through cutting-edge technology and research.
           </p>
-          <p className="text-gray-700 mb-4 leading-relaxed">
-            Our focus on technology and practical skills helps prepare students and 
+          <p className="text-foreground mb-4 leading-relaxed">
+            Our focus on technology and practical skills helps prepare students and
             researchers for the challenges of advanced manufacturing.
           </p>
           <a 

@@ -1731,7 +1731,7 @@ export default function SettingsPage() {
                         {/* Section 3: Existing Backups */}
                         <div className="space-y-3">
                             <h3 className="text-lg font-medium">Existing Backups</h3>
-                             <p className="text-sm text-gray-600"> 
+                             <p className="text-sm text-muted-foreground">
                                 Manage your existing database backups. You can download or restore from these files (Restore function coming soon).
                              </p>
                              {isLoadingBackups && <p>Loading backups...</p>}
@@ -1822,7 +1822,7 @@ export default function SettingsPage() {
             <Input name="name" placeholder="Name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
             <Input name="email" type="email" placeholder="Email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
             <Input name="password" type="password" placeholder="Password" value={formData.password || ""} onChange={(e) => setFormData({...formData, password: e.target.value})} />
-            <select name="roleId" value={formData.roleId ?? ''} onChange={(e) => setFormData({...formData, roleId: e.target.value || null})} className="w-full p-2 border rounded">
+            <select name="roleId" value={formData.roleId ?? ''} onChange={(e) => setFormData({...formData, roleId: e.target.value || null})} className="w-full p-2 border border-border bg-background text-foreground rounded">
                 <option value="">-- Select Role --</option>
                 {roles.map(role => (
                     <option key={role.id} value={role.id}>{role.name}</option>
@@ -1847,7 +1847,7 @@ export default function SettingsPage() {
             {usersError && <p className="text-red-600">Error: {usersError}</p>}
             <Input name="name" placeholder="Name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
             <Input name="email" type="email" placeholder="Email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
-             <select name="roleId" value={formData.roleId ?? ''} onChange={(e) => setFormData({...formData, roleId: e.target.value || null})} className="w-full p-2 border rounded">
+             <select name="roleId" value={formData.roleId ?? ''} onChange={(e) => setFormData({...formData, roleId: e.target.value || null})} className="w-full p-2 border border-border bg-background text-foreground rounded">
                  <option value="">-- Select Role --</option>
                  {roles.map(role => (
                     <option key={role.id} value={role.id}>{role.name}</option>
@@ -2202,7 +2202,7 @@ export default function SettingsPage() {
                   id="new-profile-base"
                   value={newProfileBaseId}
                   onChange={(e) => setNewProfileBaseId(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="">-- Select Base Profile --</option>
                   {slicingProfiles.map((profile) => (
@@ -2216,7 +2216,7 @@ export default function SettingsPage() {
                   id="new-profile-machine"
                   value={newProfileMachineId}
                   onChange={(e) => setNewProfileMachineId(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="">-- Select Machine --</option>
                   {machineProfiles.map((profile) => (
@@ -2230,7 +2230,7 @@ export default function SettingsPage() {
                   id="new-profile-filament"
                   value={newProfileFilamentId}
                   onChange={(e) => setNewProfileFilamentId(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="">-- Select Filament --</option>
                   {filamentProfiles.map((profile) => (

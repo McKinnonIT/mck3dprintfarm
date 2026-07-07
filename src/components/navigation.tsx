@@ -7,6 +7,7 @@ import { ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
 import { BellIcon, CogIcon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // Helper function to check page access
 const canAccessPage = (allowedPages: string[] | undefined | null, pagePath: string): boolean => {
@@ -72,8 +73,8 @@ export function Navigation() {
     return cn(
         'rounded-md px-3 py-2 text-sm font-medium',
         isActive
-            ? "bg-gray-100 text-gray-900"
-            : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+            ? "bg-accent text-foreground"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground"
     );
   };
 
@@ -82,17 +83,17 @@ export function Navigation() {
      return cn(
         'rounded-md p-2',
          isActive
-            ? "bg-gray-100 text-gray-900"
-            : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+            ? "bg-accent text-foreground"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground"
      );
   };
 
   return (
-    <nav className="bg-white shadow-sm">
+    <nav className="bg-card border-b border-border shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <span className="text-xl font-bold text-gray-900">
+            <span className="text-xl font-bold text-foreground">
               {printFarmTitle === null ? "Loading..." : printFarmTitle}
             </span>
           </div>
@@ -140,6 +141,9 @@ export function Navigation() {
               </>
             )}
 
+            {/* Appearance toggle - always available regardless of session */}
+            <ThemeToggle />
+
             {/* Icons and Sign Out/In - only render if user is logged in */}
             {session && (
               <>
@@ -147,7 +151,7 @@ export function Navigation() {
                 <Link href="#" className={getIconLinkClassName('#')} title="Notifications">
                   <BellIcon className="h-5 w-5" />
                 </Link>
-                
+
                 {/* Settings Icon Link */}
                 {canAccessPage(allowedPages, '/settings') && (
                     <Link href="/settings" className={getIconLinkClassName('/settings')} title="Settings">
@@ -161,7 +165,7 @@ export function Navigation() {
             {session ? (
               <Link
                 href="/api/auth/signout"
-                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-destructive-foreground bg-destructive hover:bg-destructive/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-destructive"
               >
                 <ArrowRightOnRectangleIcon className="h-4 w-4 mr-1" />
                 Sign Out

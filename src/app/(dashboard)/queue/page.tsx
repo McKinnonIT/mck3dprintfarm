@@ -25,15 +25,15 @@ export default function QueuePage() {
       <h1 className="mb-8 text-3xl font-bold">Print Queue</h1>
       
       {mockQueue.length === 0 ? (
-        <div className="rounded-lg border bg-white p-6 shadow-sm">
-          <p className="text-gray-600">No print jobs in queue.</p>
+        <div className="rounded-lg border bg-card p-6 shadow-sm">
+          <p className="text-muted-foreground">No print jobs in queue.</p>
         </div>
       ) : (
         <div className="space-y-4">
           {mockQueue.map((job) => (
             <div
               key={job.id}
-              className="rounded-lg border bg-white p-6 shadow-sm"
+              className="rounded-lg border bg-card p-6 shadow-sm"
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold">{job.name}</h2>
@@ -47,10 +47,10 @@ export default function QueuePage() {
                   {job.status}
                 </span>
               </div>
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-sm text-muted-foreground">
                 Added by: {job.user}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Added: {job.createdAt.toLocaleString()}
               </p>
             </div>

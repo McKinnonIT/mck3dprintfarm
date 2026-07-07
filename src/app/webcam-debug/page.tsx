@@ -95,7 +95,7 @@ export default function WebcamDebugPage() {
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Select Printer</label>
             <select
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border border-border bg-background text-foreground rounded"
               value={selectedPrinter?.id || ""}
               onChange={(e) => {
                 const printer = printers.find(p => p.id === e.target.value);
@@ -112,7 +112,7 @@ export default function WebcamDebugPage() {
           </div>
           
           {selectedPrinter && (
-            <div className="mb-4 p-4 bg-gray-50 rounded-md">
+            <div className="mb-4 p-4 bg-muted rounded-md">
               <h3 className="font-medium mb-2">Printer Info</h3>
               <p>Name: {selectedPrinter.name}</p>
               <p>Type: {selectedPrinter.type}</p>
@@ -125,7 +125,7 @@ export default function WebcamDebugPage() {
             <label className="block text-sm font-medium mb-1">Custom Webcam URL (overrides printer selection)</label>
             <input
               type="text"
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border border-border bg-background text-foreground rounded"
               value={customWebcamUrl}
               onChange={(e) => setCustomWebcamUrl(e.target.value)}
               placeholder="e.g., http://192.168.1.100:8080/webcam/?action=stream"
@@ -158,14 +158,14 @@ export default function WebcamDebugPage() {
           
           <div className="mt-6">
             <h3 className="font-medium mb-2">URL Being Used:</h3>
-            <div className="bg-gray-100 p-2 rounded-md break-all text-sm">
+            <div className="bg-muted p-2 rounded-md break-all text-sm">
               {displayedWebcamUrl || "No URL configured"}
             </div>
           </div>
           
           <div className="mt-6">
             <h3 className="font-medium mb-2">Display URL:</h3>
-            <div className="bg-gray-100 p-2 rounded-md break-all text-sm">
+            <div className="bg-muted p-2 rounded-md break-all text-sm">
               {getDisplayUrl() || "No URL configured"}
             </div>
           </div>
@@ -282,7 +282,7 @@ export default function WebcamDebugPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-gray-100 rounded-md p-8 flex items-center justify-center text-gray-500">
+            <div className="bg-muted rounded-md p-8 flex items-center justify-center text-muted-foreground">
               No webcam URL configured
             </div>
           )}

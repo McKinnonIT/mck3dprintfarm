@@ -87,11 +87,11 @@ function PrinterTile({
   onOpenWebcam: (printer: Printer) => void;
 }) {
   return (
-    <div className="rounded-lg border bg-white p-6 shadow-sm">
+    <div className="rounded-lg border bg-card p-6 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">{printer.name}</h3>
-          <p className="text-sm text-gray-500">{printer.type}</p>
+          <p className="text-sm text-muted-foreground">{printer.type}</p>
         </div>
         <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusBadgeClass(printer.operationalStatus)}`}>
           {printer.operationalStatus}
@@ -101,39 +101,39 @@ function PrinterTile({
       <div className="mt-4 space-y-2">
         {printer.operationalStatus === "printing" ? (
           <>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div className="w-full bg-muted rounded-full h-2.5">
               <div
                 className="h-2.5 rounded-full bg-green-600 transition-all duration-500"
                 style={{ width: `${calculateProgress(printer.printTimeElapsed, printer.printTimeRemaining)}%` }}
               />
             </div>
             {printer.currentJobFilename && (
-              <p className="text-sm text-gray-600 truncate">{printer.currentJobFilename}</p>
+              <p className="text-sm text-muted-foreground truncate">{printer.currentJobFilename}</p>
             )}
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Elapsed:</span>
+              <span className="text-muted-foreground">Elapsed:</span>
               <span>{formatDuration(printer.printTimeElapsed)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Remaining:</span>
+              <span className="text-muted-foreground">Remaining:</span>
               <span>{formatDuration(printer.printTimeRemaining)}</span>
             </div>
           </>
         ) : (
-          <div className="py-2 text-center text-sm text-gray-600">
+          <div className="py-2 text-center text-sm text-muted-foreground">
             {printer.operationalStatus === "idle" ? "Ready to print" : printer.operationalStatus === "offline" ? "Offline" : printer.operationalStatus}
           </div>
         )}
 
         {printer.operationalStatus !== "offline" && (
           <div className="pt-2 border-t mt-2 flex justify-between text-sm">
-            <span className="text-gray-600">Bed: {printer.bedTemp != null ? `${printer.bedTemp}°C` : "N/A"}</span>
-            <span className="text-gray-600">Tool: {printer.toolTemp != null ? `${printer.toolTemp}°C` : "N/A"}</span>
+            <span className="text-muted-foreground">Bed: {printer.bedTemp != null ? `${printer.bedTemp}°C` : "N/A"}</span>
+            <span className="text-muted-foreground">Tool: {printer.toolTemp != null ? `${printer.toolTemp}°C` : "N/A"}</span>
           </div>
         )}
       </div>
 
-      <div className="mt-4 aspect-video relative bg-gray-100 rounded-lg overflow-hidden">
+      <div className="mt-4 aspect-video relative bg-muted rounded-lg overflow-hidden">
         {printer.webcamUrl ? (
           <div onClick={() => onOpenWebcam(printer)} className="w-full h-full cursor-pointer relative group">
             <img
@@ -159,11 +159,11 @@ function PrinterTile({
             }}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400">No preview available</div>
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground">No preview available</div>
         )}
       </div>
 
-      <p className="mt-2 text-sm text-gray-600">Last seen: {new Date(printer.lastSeen).toLocaleString()}</p>
+      <p className="mt-2 text-sm text-muted-foreground">Last seen: {new Date(printer.lastSeen).toLocaleString()}</p>
     </div>
   );
 }
@@ -234,11 +234,11 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-3xl font-bold">Print Farm Dashboard</h1>
           <div className="flex items-center gap-4 mt-1">
-            <p className="text-sm text-gray-600">Last updated: {lastUpdate.toLocaleTimeString()}</p>
+            <p className="text-sm text-muted-foreground">Last updated: {lastUpdate.toLocaleTimeString()}</p>
             <select
               value={refreshInterval}
               onChange={(e) => setRefreshInterval(Number(e.target.value))}
-              className="text-sm border rounded px-2 py-1 bg-white text-gray-700"
+              className="text-sm border rounded px-2 py-1 bg-background text-foreground"
             >
               {REFRESH_INTERVALS.map((interval) => (
                 <option key={interval.value} value={interval.value}>
@@ -257,7 +257,7 @@ export default function DashboardPage() {
             <Link href="/printers" className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">
               Add Printer
             </Link>
-            <Link href="/groups" className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200">
+            <Link href="/groups" className="px-3 py-2 bg-muted text-foreground rounded-md text-sm hover:bg-accent">
               Manage Groups
             </Link>
           </div>
@@ -265,9 +265,9 @@ export default function DashboardPage() {
       </div>
 
       {loading && isEmpty ? (
-        <div className="rounded-lg border bg-white p-6 shadow-sm text-center text-gray-600">Checking printers...</div>
+        <div className="rounded-lg border bg-card p-6 shadow-sm text-center text-muted-foreground">Checking printers...</div>
       ) : isEmpty ? (
-        <div className="rounded-lg border bg-white p-6 shadow-sm text-gray-600">
+        <div className="rounded-lg border bg-card p-6 shadow-sm text-muted-foreground">
           No active printers found.
           {isAdmin && (
             <>
@@ -282,7 +282,7 @@ export default function DashboardPage() {
             <div key={group.id} className="space-y-4">
               <div className="flex items-center gap-2">
                 <h2 className="text-2xl font-bold">{group.name}</h2>
-                {group.description && <span className="text-sm text-gray-600">({group.description})</span>}
+                {group.description && <span className="text-sm text-muted-foreground">({group.description})</span>}
               </div>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {group.printers.map((printer) => (

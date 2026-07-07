@@ -88,7 +88,7 @@ export function UploadFileForm({
       )}
 
       <div>
-        <label htmlFor="file" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="file" className="block text-sm font-medium text-foreground">
           Select File
         </label>
         <input
@@ -96,7 +96,7 @@ export function UploadFileForm({
           id="file"
           onChange={handleFileChange}
           accept={acceptString}
-          className="mt-1 block w-full text-sm text-gray-500
+          className="mt-1 block w-full text-sm text-muted-foreground
             file:mr-4 file:py-2 file:px-4
             file:rounded-md file:border-0
             file:text-sm file:font-semibold
@@ -105,7 +105,7 @@ export function UploadFileForm({
           required
         />
         {file && (
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Selected file: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
           </p>
         )}

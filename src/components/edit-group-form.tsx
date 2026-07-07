@@ -74,7 +74,7 @@ export function EditGroupForm({ group, onSave, onCancel, onDelete }: EditGroupFo
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="name" className="block text-sm font-medium text-foreground">
             Name
           </label>
           <input
@@ -82,26 +82,26 @@ export function EditGroupForm({ group, onSave, onCancel, onDelete }: EditGroupFo
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             required
           />
         </div>
 
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="description" className="block text-sm font-medium text-foreground">
             Description
           </label>
           <textarea
             id="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             rows={3}
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-foreground mb-2">
             Select Printers
           </label>
           <div className="space-y-2">
@@ -118,11 +118,11 @@ export function EditGroupForm({ group, onSave, onCancel, onDelete }: EditGroupFo
                       setSelectedPrinters(selectedPrinters.filter((id) => id !== printer.id));
                     }
                   }}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="h-4 w-4 rounded border-border text-blue-600 focus:ring-blue-500"
                 />
                 <label
                   htmlFor={`printer-${printer.id}`}
-                  className="ml-2 block text-sm text-gray-900"
+                  className="ml-2 block text-sm text-foreground"
                 >
                   {printer.name} ({printer.operationalStatus})
                 </label>
@@ -143,7 +143,7 @@ export function EditGroupForm({ group, onSave, onCancel, onDelete }: EditGroupFo
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="inline-flex items-center px-3 py-2 border border-border shadow-sm text-sm font-medium rounded-md text-foreground bg-card hover:bg-accent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             <XMarkIcon className="h-4 w-4 mr-1" />
             Cancel

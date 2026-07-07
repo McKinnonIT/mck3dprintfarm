@@ -194,9 +194,9 @@ export function PrintFileDialog({ fileName, fileId, onClose }: PrintFileDialogPr
 
   return (
     <div className="space-y-4">
-      <div className="border-b border-gray-200 pb-4">
+      <div className="border-b border-border pb-4">
         <h2 className="text-xl font-semibold">Print Options</h2>
-        <p className="text-sm text-gray-500 mt-1">{fileName}</p>
+        <p className="text-sm text-muted-foreground mt-1">{fileName}</p>
       </div>
 
       {success ? (
@@ -225,14 +225,14 @@ export function PrintFileDialog({ fileName, fileId, onClose }: PrintFileDialogPr
           )}
 
           <div>
-            <label htmlFor="printer" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="printer" className="block text-sm font-medium text-foreground">
               Select Printer
             </label>
             <select
               id="printer"
               value={selectedPrinterId}
               onChange={handlePrinterChange}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               required
             >
               {printers.length === 0 ? (
@@ -269,7 +269,7 @@ export function PrintFileDialog({ fileName, fileId, onClose }: PrintFileDialogPr
             )}
           </div>
 
-          <div className="flex justify-between pt-4 border-t border-gray-200">
+          <div className="flex justify-between pt-4 border-t border-border">
             <div className="space-x-2">
               <button
                 type="submit"
@@ -283,7 +283,7 @@ export function PrintFileDialog({ fileName, fileId, onClose }: PrintFileDialogPr
                 type="button"
                 onClick={handleUploadToPrinter}
                 disabled={loading || printers.length === 0 || hasFilePrinterMismatch}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                className="inline-flex items-center px-3 py-2 border border-border text-sm font-medium rounded-md text-foreground bg-card hover:bg-accent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
                 Upload to Printer
               </button>
@@ -292,7 +292,7 @@ export function PrintFileDialog({ fileName, fileId, onClose }: PrintFileDialogPr
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="inline-flex items-center p-2 border border-transparent text-sm font-medium rounded-md text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+              className="inline-flex items-center p-2 border border-transparent text-sm font-medium rounded-md text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-border disabled:opacity-50"
             >
               <XMarkIcon className="h-5 w-5" />
             </button>

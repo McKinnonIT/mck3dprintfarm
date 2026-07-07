@@ -39,39 +39,39 @@ function GroupFormFields({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700">Name</label>
+        <label className="block text-sm font-medium text-foreground">Name</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
-          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="mt-1 w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700">Description (optional)</label>
+        <label className="block text-sm font-medium text-foreground">Description (optional)</label>
         <input
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="mt-1 w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Printers in this group</label>
-        <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 divide-y">
+        <label className="block text-sm font-medium text-foreground mb-2">Printers in this group</label>
+        <div className="max-h-48 overflow-y-auto rounded-md border border-border divide-y">
           {allPrinters.length === 0 ? (
-            <p className="text-sm text-gray-500 p-3">No printers yet.</p>
+            <p className="text-sm text-muted-foreground p-3">No printers yet.</p>
           ) : (
             allPrinters.map((printer) => (
-              <label key={printer.id} className="flex items-center gap-2 p-2 text-sm hover:bg-gray-50">
+              <label key={printer.id} className="flex items-center gap-2 p-2 text-sm hover:bg-accent">
                 <input
                   type="checkbox"
                   checked={selectedPrinterIds.has(printer.id)}
                   onChange={() => togglePrinter(printer.id)}
                 />
                 <span>{printer.name}</span>
-                <span className="text-gray-400">({printer.type})</span>
+                <span className="text-muted-foreground">({printer.type})</span>
               </label>
             ))
           )}
@@ -212,13 +212,13 @@ export default function GroupsPage() {
   };
 
   if (status === "loading") {
-    return <div className="p-6 text-center text-gray-500">Loading...</div>;
+    return <div className="p-6 text-center text-muted-foreground">Loading...</div>;
   }
 
   if (status === "unauthenticated") {
     return (
       <div className="p-6 text-center">
-        <p className="text-gray-600 mb-4">Please sign in to manage groups.</p>
+        <p className="text-muted-foreground mb-4">Please sign in to manage groups.</p>
         <Link href="/auth/signin" className="text-blue-600 hover:underline">Sign in</Link>
       </div>
     );
@@ -227,7 +227,7 @@ export default function GroupsPage() {
   if (!isAdmin) {
     return (
       <div className="p-6 text-center">
-        <p className="text-gray-600">Only admins can manage groups.</p>
+        <p className="text-muted-foreground">Only admins can manage groups.</p>
         <Link href="/dashboard" className="text-blue-600 hover:underline">Back to dashboard</Link>
       </div>
     );
@@ -250,20 +250,20 @@ export default function GroupsPage() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">Loading groups...</p>
+        <p className="text-muted-foreground">Loading groups...</p>
       ) : groups.length === 0 ? (
-        <div className="rounded-lg border bg-white p-6 text-center text-gray-500">
+        <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
           No groups yet. Create one to organize printers on the dashboard.
         </div>
       ) : (
         <div className="space-y-4">
           {groups.map((group, index) => (
-            <div key={group.id} className="rounded-lg border bg-white p-6 shadow-sm">
+            <div key={group.id} className="rounded-lg border bg-card p-6 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-lg font-semibold">{group.name}</h2>
-                  {group.description && <p className="text-sm text-gray-500">{group.description}</p>}
-                  <p className="text-sm text-gray-600 mt-2">
+                  {group.description && <p className="text-sm text-muted-foreground">{group.description}</p>}
+                  <p className="text-sm text-muted-foreground mt-2">
                     {group.printers.length === 0
                       ? "No printers assigned"
                       : group.printers.map((p) => p.name).join(", ")}
@@ -273,7 +273,7 @@ export default function GroupsPage() {
                   <button
                     onClick={() => moveGroup(group.id, "up")}
                     disabled={index === 0}
-                    className="p-1.5 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40"
+                    className="p-1.5 rounded bg-muted hover:bg-accent disabled:opacity-40"
                     title="Move up"
                   >
                     ↑
@@ -281,14 +281,14 @@ export default function GroupsPage() {
                   <button
                     onClick={() => moveGroup(group.id, "down")}
                     disabled={index === groups.length - 1}
-                    className="p-1.5 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-40"
+                    className="p-1.5 rounded bg-muted hover:bg-accent disabled:opacity-40"
                     title="Move down"
                   >
                     ↓
                   </button>
                   <button
                     onClick={() => openEdit(group)}
-                    className="px-3 py-1.5 rounded bg-gray-100 text-sm hover:bg-gray-200"
+                    className="px-3 py-1.5 rounded bg-muted text-sm hover:bg-accent"
                   >
                     Edit
                   </button>
@@ -309,7 +309,7 @@ export default function GroupsPage() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-screen items-center justify-center px-4">
             <div className="fixed inset-0 bg-gray-500 opacity-75" onClick={() => setShowCreateForm(false)} />
-            <div className="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+            <div className="relative bg-card rounded-lg shadow-xl p-6 w-full max-w-lg">
               <h2 className="text-xl font-semibold mb-4">Create Group</h2>
               <form onSubmit={handleCreate}>
                 <GroupFormFields
@@ -328,7 +328,7 @@ export default function GroupsPage() {
                   <button
                     type="button"
                     onClick={() => setShowCreateForm(false)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
+                    className="flex-1 px-3 py-2 border border-border rounded-md text-sm hover:bg-accent"
                   >
                     Cancel
                   </button>
@@ -343,7 +343,7 @@ export default function GroupsPage() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-screen items-center justify-center px-4">
             <div className="fixed inset-0 bg-gray-500 opacity-75" onClick={() => setEditingGroup(null)} />
-            <div className="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+            <div className="relative bg-card rounded-lg shadow-xl p-6 w-full max-w-lg">
               <h2 className="text-xl font-semibold mb-4">Edit Group</h2>
               <form onSubmit={handleSaveEdit}>
                 <GroupFormFields
@@ -362,7 +362,7 @@ export default function GroupsPage() {
                   <button
                     type="button"
                     onClick={() => setEditingGroup(null)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
+                    className="flex-1 px-3 py-2 border border-border rounded-md text-sm hover:bg-accent"
                   >
                     Cancel
                   </button>
@@ -377,9 +377,9 @@ export default function GroupsPage() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-screen items-center justify-center px-4">
             <div className="fixed inset-0 bg-gray-500 opacity-75" onClick={() => setDeletingGroup(null)} />
-            <div className="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <div className="relative bg-card rounded-lg shadow-xl p-6 w-full max-w-md">
               <h2 className="text-xl font-semibold text-red-600 mb-4">Delete Group</h2>
-              <p className="text-sm text-gray-600 mb-6">
+              <p className="text-sm text-muted-foreground mb-6">
                 Delete "{deletingGroup.name}"? Printers in this group will become ungrouped, not deleted.
               </p>
               <div className="flex gap-2">
@@ -388,7 +388,7 @@ export default function GroupsPage() {
                 </button>
                 <button
                   onClick={() => setDeletingGroup(null)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
+                  className="flex-1 px-3 py-2 border border-border rounded-md text-sm hover:bg-accent"
                 >
                   Cancel
                 </button>

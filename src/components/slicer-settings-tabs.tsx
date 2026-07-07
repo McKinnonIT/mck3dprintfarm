@@ -42,7 +42,7 @@ export function SlicerSettingsTabs({ categories, editable = false, onFieldChange
                     type="text"
                     value={value === undefined || value === null ? "" : String(value)}
                     onChange={(e) => onFieldChange?.(category, field, e.target.value)}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="rounded-md border border-border bg-background text-foreground px-3 py-1.5 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 ) : (
                   <span className="text-sm">{value === undefined || value === null ? "-" : String(value)}</span>

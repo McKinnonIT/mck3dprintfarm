@@ -97,7 +97,7 @@ export function PrintJobHistory({ printerId, printerType, apiUrl, apiKey }: Prin
   }
 
   if (jobs.length === 0) {
-    return <div className="text-center py-4 text-gray-600">No print jobs found</div>;
+    return <div className="text-center py-4 text-muted-foreground">No print jobs found</div>;
   }
 
   return (
@@ -107,16 +107,16 @@ export function PrintJobHistory({ printerId, printerType, apiUrl, apiKey }: Prin
         {jobs.map((job) => (
           <div
             key={job.id}
-            className="rounded-lg border bg-white p-4 shadow-sm"
+            className="rounded-lg border bg-card p-4 shadow-sm"
           >
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-medium">{job.file.name}</h4>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Started: {job.startTime.toLocaleString()}
                 </p>
                 {job.endTime && (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     Ended: {job.endTime.toLocaleString()}
                   </p>
                 )}
@@ -136,7 +136,7 @@ export function PrintJobHistory({ printerId, printerType, apiUrl, apiKey }: Prin
                   {job.status}
                 </span>
                 {job.duration && (
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Duration: {formatDuration(job.duration)}
                   </p>
                 )}

@@ -44,12 +44,12 @@ export function WebcamModal({ printerName, webcamUrl, onClose }: WebcamModalProp
 
   return (
     <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-75 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-card rounded-lg max-w-6xl w-full max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b">
           <h3 className="text-xl font-semibold">{printerName} - Live Camera</h3>
-          <button 
-            onClick={onClose} 
-            className="rounded-full p-1 hover:bg-gray-200 transition-colors"
+          <button
+            onClick={onClose}
+            className="rounded-full p-1 hover:bg-accent transition-colors"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
@@ -65,7 +65,7 @@ export function WebcamModal({ printerName, webcamUrl, onClose }: WebcamModalProp
           </div>
         </div>
         
-        <div className="p-4 border-t text-sm text-gray-600">
+        <div className="p-4 border-t text-sm text-muted-foreground">
           <p>Click outside or press ESC to close</p>
         </div>
       </div>

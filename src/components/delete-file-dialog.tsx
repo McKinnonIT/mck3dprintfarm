@@ -21,7 +21,7 @@ export function DeleteFileDialog({
       <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
 
-        <div className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+        <div className="relative transform overflow-hidden rounded-lg bg-card px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
           <div className="sm:flex sm:items-start">
             <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
               <svg
@@ -40,15 +40,15 @@ export function DeleteFileDialog({
               </svg>
             </div>
             <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-              <h3 className="text-base font-semibold leading-6 text-gray-900">
+              <h3 className="text-base font-semibold leading-6 text-foreground">
                 Delete File
               </h3>
               <div className="mt-2">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   Are you sure you want to delete "{fileName}"? This action cannot be undone.
                 </p>
                 <div className="mt-4">
-                  <label htmlFor="confirm" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="confirm" className="block text-sm font-medium text-foreground">
                     Type "DELETE" to confirm
                   </label>
                   <input
@@ -57,7 +57,7 @@ export function DeleteFileDialog({
                     value={confirmText}
                     onChange={(e) => setConfirmText(e.target.value)}
                     placeholder="DELETE"
-                    className="mt-1 block w-full rounded-md border-2 border-gray-400 px-3 py-2 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"
+                    className="mt-1 block w-full rounded-md border-2 border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"
                   />
                 </div>
               </div>
@@ -76,7 +76,7 @@ export function DeleteFileDialog({
             <button
               type="button"
               onClick={onCancel}
-              className="mt-3 inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="mt-3 inline-flex items-center justify-center rounded-md bg-card px-3 py-2 text-sm font-semibold text-foreground shadow-sm ring-1 ring-inset ring-border hover:bg-accent sm:mt-0 sm:w-auto focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               <XMarkIcon className="h-4 w-4 mr-1" />
               Cancel

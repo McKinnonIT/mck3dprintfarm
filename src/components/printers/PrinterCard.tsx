@@ -30,13 +30,13 @@ export function PrinterCard({
   const isDisabled = status === "disabled";
   
   return (
-    <Card className={`w-full h-full ${isDisabled ? "bg-gray-50 opacity-75" : ""}`}>
+    <Card className={`w-full h-full ${isDisabled ? "bg-muted opacity-75" : ""}`}>
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
           <span>{name}</span>
           <div className="flex gap-2">
             {isDisabled && (
-              <span className="text-sm font-normal bg-gray-200 text-gray-700 px-2 py-1 rounded">
+              <span className="text-sm font-normal bg-accent text-accent-foreground px-2 py-1 rounded">
                 Disabled
               </span>
             )}
@@ -49,20 +49,20 @@ export function PrinterCard({
       <CardContent>
         <div className="space-y-2">
           <div className="flex justify-between">
-            <span className="text-gray-500">Status:</span>
-            <span className={`font-medium ${isDisabled ? "text-gray-500" : ""}`}>
+            <span className="text-muted-foreground">Status:</span>
+            <span className={`font-medium ${isDisabled ? "text-muted-foreground" : ""}`}>
               {isDisabled ? "Disabled" : status}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Operational Status:</span>
+            <span className="text-muted-foreground">Operational Status:</span>
             <span className="font-medium">
               {isDisabled ? "N/A" : operationalStatus}
             </span>
           </div>
           {lastSeen && (
             <div className="flex justify-between">
-              <span className="text-gray-500">Last Seen:</span>
+              <span className="text-muted-foreground">Last Seen:</span>
               <span className="font-medium">
                 {new Date(lastSeen).toLocaleString()}
               </span>

@@ -39,7 +39,7 @@ export function Footer() {
   return (
     <footer className="w-full py-4 mt-10 border-t">
       <div className="container mx-auto px-4">
-        <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-600">
+        <div className="flex flex-col md:flex-row justify-between items-center text-sm text-muted-foreground">
           <div>
             {/* Display name or loading/error state */}
             &copy; {currentYear} {organizationName === null ? "Loading..." : organizationName}. All rights reserved.

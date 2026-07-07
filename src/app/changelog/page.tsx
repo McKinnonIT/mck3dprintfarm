@@ -16,13 +16,55 @@ export default function ChangelogPage() {
       <h1 className="text-3xl font-bold mb-6">Changelog</h1>
       
       <div className="space-y-8">
+        {/* START: v0.0.9a Entry */}
+        <section className="border-b pb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-2xl font-semibold" id="v0.0.9a">Version 0.0.9a</h2>
+            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">Released: 2026-07-07</p>
+
+          <div className="prose prose-blue max-w-none">
+            <h3 className="text-lg font-medium mt-4 mb-2">Added</h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>Built-in slicing via OrcaSlicer:</strong>
+                <ul className="list-disc pl-4">
+                  <li>New headless OrcaSlicer sidecar container - upload a model and slice it to gcode directly in the app, no external tool needed.</li>
+                  <li>Import Machine, Filament, and Slicing Profiles from OrcaSlicer bundles on the Settings page, and assign a Machine Profile to each printer.</li>
+                  <li>Per-printer Slicing Profile allow-lists, plus a "Custom Settings" option to override individual values before slicing.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Interactive build plate:</strong>
+                <ul className="list-disc pl-4">
+                  <li>The Slice panel now shows a live 3D build plate sized to the selected printer, with a height wireframe.</li>
+                  <li>Drag to move or rotate a model on the plate (full 3-axis rotation), with "Place on Face" to rest it exactly flat on a chosen surface.</li>
+                  <li>Add multiple models to the same plate - each gets its own colour and is combined into one slice job. Models that hang off the edge of the plate are highlighted red and blocked from slicing.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Standalone Slicer page:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Replaced the old external Kiri:Moto handoff - the Slicer page now opens directly on a blank Prusa build plate, ready to add files from your library.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Appearance:</strong>
+                <ul className="list-disc pl-4">
+                  <li>New light / dim / dark theme toggle in the navigation bar, applied across the whole app.</li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </section>
+
         {/* START: v0.0.6a Entry */}
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.0.6a">Version 0.0.6a</h2>
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
           </div>
-          <p className="text-sm text-gray-500 mb-4">Released: 2025-04-12</p>
+          <p className="text-sm text-muted-foreground mb-4">Released: 2025-04-12</p>
           
           <div className="prose prose-blue max-w-none">
             <h3 className="text-lg font-medium mt-4 mb-2">Fixed</h3>
@@ -104,7 +146,7 @@ export default function ChangelogPage() {
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.0.5a">Version 0.0.5a</h2>
           </div>
-          <p className="text-sm text-gray-500 mb-4">Released: 2025-04-10</p>
+          <p className="text-sm text-muted-foreground mb-4">Released: 2025-04-10</p>
           
           <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>
           <ul className="list-disc pl-6 space-y-2">
@@ -139,7 +181,7 @@ export default function ChangelogPage() {
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.0.4a">Version 0.0.4a</h2>
           </div>
-          <p className="text-sm text-gray-500 mb-4">Released: 2024-06-11</p>
+          <p className="text-sm text-muted-foreground mb-4">Released: 2024-06-11</p>
           
           <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>
           <ul className="list-disc pl-6 space-y-2">
@@ -179,7 +221,7 @@ export default function ChangelogPage() {
            <div className="flex items-center gap-4 mb-4">
              <h2 className="text-2xl font-semibold" id="v0.0.3a">Version 0.0.3a</h2>
            </div>
-          <p className="text-sm text-gray-500 mb-4">Released: May 14, 2024</p>
+          <p className="text-sm text-muted-foreground mb-4">Released: May 14, 2024</p>
           
           <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>
           <ul className="list-disc pl-6 space-y-2">
@@ -215,7 +257,7 @@ export default function ChangelogPage() {
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.0.2a">Version 0.0.2a</h2>
           </div>
-          <p className="text-sm text-gray-500 mb-4">Released: June 2023</p>
+          <p className="text-sm text-muted-foreground mb-4">Released: June 2023</p>
           
           <h3 className="text-lg font-medium mt-4 mb-2">Features</h3>
           <ul className="list-disc pl-6 space-y-2">
@@ -245,7 +287,7 @@ export default function ChangelogPage() {
         
         <section className="border-b pb-6">
           <h2 className="text-2xl font-semibold mb-4" id="v0.0.1a">Version 0.0.1a</h2>
-          <p className="text-sm text-gray-500 mb-4">Released: April 2023</p>
+          <p className="text-sm text-muted-foreground mb-4">Released: April 2023</p>
           
           <h3 className="text-lg font-medium mt-4 mb-2">Initial Release</h3>
           <ul className="list-disc pl-6 space-y-2">

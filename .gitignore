@@ -56,7 +56,8 @@ prisma/dev.db-journal
 
 # external repos
 /grid-host/
-/docker/
+/docker/*
+!/docker/orcaslicer/
 
 # Docker test environment data
 docker-tests/data/

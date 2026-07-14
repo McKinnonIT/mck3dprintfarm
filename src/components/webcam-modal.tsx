@@ -2,28 +2,30 @@
 
 import React, { useEffect, useState } from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { getMediamtxHlsPageUrl } from "@/lib/camera-utils";
+import { getActiveCameraStreamUrl } from "@/lib/camera-utils";
 
 interface WebcamModalProps {
   printerName: string;
   webcamUrl?: string | null;
-  rtspUrl?: string | null;
+  hlsUrl?: string | null;
+  webrtcUrl?: string | null;
+  cameraStreamMode?: string | null;
   onClose: () => void;
 }
 
-export function WebcamModal({ printerName, webcamUrl, rtspUrl, onClose }: WebcamModalProps) {
+export function WebcamModal({ printerName, webcamUrl, hlsUrl, webrtcUrl, cameraStreamMode, onClose }: WebcamModalProps) {
   const [timestamp, setTimestamp] = useState(Date.now());
-  const hlsPageUrl = getMediamtxHlsPageUrl(rtspUrl);
+  const streamPageUrl = getActiveCameraStreamUrl({ hlsUrl, webrtcUrl, cameraStreamMode });
 
   // Refresh the stream every 5 seconds to prevent stale content
   // (only relevant to the MJPEG/snapshot path below)
   useEffect(() => {
-    if (hlsPageUrl) return;
+    if (streamPageUrl) return;
     const interval = setInterval(() => {
       setTimestamp(Date.now());
     }, 5000);
     return () => clearInterval(interval);
-  }, [hlsPageUrl]);
+  }, [streamPageUrl]);
   
   // Close the modal when Escape key is pressed
   useEffect(() => {
@@ -62,9 +64,9 @@ export function WebcamModal({ printerName, webcamUrl, rtspUrl, onClose }: Webcam
         
         <div className="flex-grow overflow-hidden p-4">
           <div className="aspect-video bg-black rounded-lg overflow-hidden w-full">
-            {hlsPageUrl ? (
+            {streamPageUrl ? (
               <iframe
-                src={hlsPageUrl}
+                src={streamPageUrl}
                 title={`${printerName} Live Camera`}
                 className="w-full h-full border-0"
                 allow="autoplay"

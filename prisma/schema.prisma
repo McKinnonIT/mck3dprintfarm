@@ -58,7 +58,9 @@ model Printer {
   printTimeElapsed   Float?
   printTimeRemaining Float?
   webcamUrl          String?
-  rtspUrl            String?
+  hlsUrl             String?
+  webrtcUrl          String?
+  cameraStreamMode   String     @default("hls")
   printImageUrl      String?
   printJobName       String?
   bedTemp            Float?

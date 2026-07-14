@@ -13,7 +13,9 @@ type Printer = {
   operationalStatus: string;
   lastSeen: string;
   webcamUrl?: string | null;
-  rtspUrl?: string | null;
+  hlsUrl?: string | null;
+  webrtcUrl?: string | null;
+  cameraStreamMode?: string | null;
   printImageUrl?: string | null;
   bedTemp?: number | null;
   toolTemp?: number | null;
@@ -149,7 +151,7 @@ function PrinterTile({
               <span className="text-white px-3 py-1 bg-black bg-opacity-70 rounded-full text-sm">View Livestream</span>
             </div>
           </div>
-        ) : printer.rtspUrl ? (
+        ) : (printer.hlsUrl || printer.webrtcUrl) ? (
           <div onClick={() => onOpenWebcam(printer)} className="w-full h-full cursor-pointer flex items-center justify-center bg-black group">
             <span className="text-white px-3 py-1 bg-black bg-opacity-70 rounded-full text-sm group-hover:bg-opacity-90 transition-opacity">
               View Live Camera
@@ -185,7 +187,13 @@ export default function DashboardPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [refreshInterval, setRefreshInterval] = useState<number>(60000);
   const [timestamp, setTimestamp] = useState<number>(0);
-  const [activeWebcam, setActiveWebcam] = useState<{ printerName: string; webcamUrl?: string | null; rtspUrl?: string | null } | null>(null);
+  const [activeWebcam, setActiveWebcam] = useState<{
+    printerName: string;
+    webcamUrl?: string | null;
+    hlsUrl?: string | null;
+    webrtcUrl?: string | null;
+    cameraStreamMode?: string | null;
+  } | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -297,7 +305,16 @@ export default function DashboardPage() {
                     key={printer.id}
                     printer={printer}
                     timestamp={timestamp}
-                    onOpenWebcam={(p) => (p.webcamUrl || p.rtspUrl) && setActiveWebcam({ printerName: p.name, webcamUrl: p.webcamUrl, rtspUrl: p.rtspUrl })}
+                    onOpenWebcam={(p) =>
+                      (p.webcamUrl || p.hlsUrl || p.webrtcUrl) &&
+                      setActiveWebcam({
+                        printerName: p.name,
+                        webcamUrl: p.webcamUrl,
+                        hlsUrl: p.hlsUrl,
+                        webrtcUrl: p.webrtcUrl,
+                        cameraStreamMode: p.cameraStreamMode,
+                      })
+                    }
                   />
                 ))}
               </div>
@@ -313,7 +330,16 @@ export default function DashboardPage() {
                     key={printer.id}
                     printer={printer}
                     timestamp={timestamp}
-                    onOpenWebcam={(p) => (p.webcamUrl || p.rtspUrl) && setActiveWebcam({ printerName: p.name, webcamUrl: p.webcamUrl, rtspUrl: p.rtspUrl })}
+                    onOpenWebcam={(p) =>
+                      (p.webcamUrl || p.hlsUrl || p.webrtcUrl) &&
+                      setActiveWebcam({
+                        printerName: p.name,
+                        webcamUrl: p.webcamUrl,
+                        hlsUrl: p.hlsUrl,
+                        webrtcUrl: p.webrtcUrl,
+                        cameraStreamMode: p.cameraStreamMode,
+                      })
+                    }
                   />
                 ))}
               </div>
@@ -326,7 +352,9 @@ export default function DashboardPage() {
         <WebcamModal
           printerName={activeWebcam.printerName}
           webcamUrl={activeWebcam.webcamUrl}
-          rtspUrl={activeWebcam.rtspUrl}
+          hlsUrl={activeWebcam.hlsUrl}
+          webrtcUrl={activeWebcam.webrtcUrl}
+          cameraStreamMode={activeWebcam.cameraStreamMode}
           onClose={() => setActiveWebcam(null)}
         />
       )}

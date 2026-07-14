@@ -22,5 +22,7 @@ export interface Printer {
   printStatus?: string;
   currentFile?: string;
   webcamUrl?: string | null;
-  rtspUrl?: string | null;
+  hlsUrl?: string | null;
+  webrtcUrl?: string | null;
+  cameraStreamMode?: string | null;
 }

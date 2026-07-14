@@ -80,13 +80,19 @@ function getSnapshotUrl(url: string, timestamp: number): string {
   return `/api/webcam-proxy?url=${encodeURIComponent(snapshotUrl)}&snapshot=true&t=${timestamp}`;
 }
 
+function getHlsSnapshotUrl(hlsUrl: string, timestamp: number): string {
+  return `/api/camera-snapshot?url=${encodeURIComponent(hlsUrl)}&t=${timestamp}`;
+}
+
 function PrinterTile({
   printer,
   timestamp,
+  cameraSnapshotTimestamp,
   onOpenWebcam,
 }: {
   printer: Printer;
   timestamp: number;
+  cameraSnapshotTimestamp: number;
   onOpenWebcam: (printer: Printer) => void;
 }) {
   return (
@@ -151,7 +157,21 @@ function PrinterTile({
               <span className="text-white px-3 py-1 bg-black bg-opacity-70 rounded-full text-sm">View Livestream</span>
             </div>
           </div>
-        ) : (printer.hlsUrl || printer.webrtcUrl) ? (
+        ) : printer.hlsUrl ? (
+          <div onClick={() => onOpenWebcam(printer)} className="w-full h-full cursor-pointer relative group">
+            <img
+              src={getHlsSnapshotUrl(printer.hlsUrl, cameraSnapshotTimestamp)}
+              alt="Printer Camera"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).alt = "Camera unavailable";
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black bg-opacity-50 transition-opacity">
+              <span className="text-white px-3 py-1 bg-black bg-opacity-70 rounded-full text-sm">View Livestream</span>
+            </div>
+          </div>
+        ) : printer.webrtcUrl ? (
           <div onClick={() => onOpenWebcam(printer)} className="w-full h-full cursor-pointer flex items-center justify-center bg-black group">
             <span className="text-white px-3 py-1 bg-black bg-opacity-70 rounded-full text-sm group-hover:bg-opacity-90 transition-opacity">
               View Live Camera
@@ -187,6 +207,7 @@ export default function DashboardPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [refreshInterval, setRefreshInterval] = useState<number>(60000);
   const [timestamp, setTimestamp] = useState<number>(0);
+  const [cameraSnapshotTimestamp, setCameraSnapshotTimestamp] = useState<number>(0);
   const [activeWebcam, setActiveWebcam] = useState<{
     printerName: string;
     webcamUrl?: string | null;
@@ -239,6 +260,14 @@ export default function DashboardPage() {
     setTimestamp(Date.now());
     const webcamTimer = setInterval(() => setTimestamp(Date.now()), 5000);
     return () => clearInterval(webcamTimer);
+  }, []);
+
+  useEffect(() => {
+    // Each refresh spawns an ffmpeg process per HLS camera tile, so this
+    // runs much less often than the MJPEG snapshot polling above.
+    setCameraSnapshotTimestamp(Date.now());
+    const cameraTimer = setInterval(() => setCameraSnapshotTimestamp(Date.now()), 30000);
+    return () => clearInterval(cameraTimer);
   }, []);
 
   const isEmpty = groups.every((g) => g.printers.length === 0) && ungroupedPrinters.length === 0;
@@ -305,6 +334,7 @@ export default function DashboardPage() {
                     key={printer.id}
                     printer={printer}
                     timestamp={timestamp}
+                    cameraSnapshotTimestamp={cameraSnapshotTimestamp}
                     onOpenWebcam={(p) =>
                       (p.webcamUrl || p.hlsUrl || p.webrtcUrl) &&
                       setActiveWebcam({
@@ -330,6 +360,7 @@ export default function DashboardPage() {
                     key={printer.id}
                     printer={printer}
                     timestamp={timestamp}
+                    cameraSnapshotTimestamp={cameraSnapshotTimestamp}
                     onOpenWebcam={(p) =>
                       (p.webcamUrl || p.hlsUrl || p.webrtcUrl) &&
                       setActiveWebcam({

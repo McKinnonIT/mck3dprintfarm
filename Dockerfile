@@ -54,10 +54,12 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/package.json ./package.json
 
-# Install sqlite3 for direct db access, plus Python for the Bambu Lab
+# Install sqlite3 for direct db access, ffmpeg for grabbing camera
+# snapshot frames from HLS streams, plus Python for the Bambu Lab
 # bridge (the only remaining printer integration that still needs it -
 # PrusaLink and Moonraker talk native HTTP now, no Python required).
 RUN apk add --no-cache sqlite && \
+    apk add --no-cache ffmpeg && \
     apk add --no-cache python3 py3-pip && \
     mkdir -p /tmp/npm-tmp && \
     npm config set cache /tmp/npm-tmp && \

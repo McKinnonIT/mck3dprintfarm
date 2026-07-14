@@ -58,6 +58,7 @@ model Printer {
   printTimeElapsed   Float?
   printTimeRemaining Float?
   webcamUrl          String?
+  rtspUrl            String?
   printImageUrl      String?
   printJobName       String?
   bedTemp            Float?

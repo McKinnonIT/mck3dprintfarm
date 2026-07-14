@@ -19,6 +19,7 @@ type Printer = {
   printTimeElapsed?: number;
   printTimeRemaining?: number;
   webcamUrl?: string;
+  rtspUrl?: string;
   printImageUrl?: string;
   groupId?: string;
   machineProfileId?: string | null;
@@ -52,6 +53,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
   const [apiKey, setApiKey] = useState(printer.apiKey || "");
   const [serialNumber, setSerialNumber] = useState(printer.serialNumber || "");
   const [webcamUrl, setWebcamUrl] = useState(printer.webcamUrl || "");
+  const [rtspUrl, setRtspUrl] = useState(printer.rtspUrl || "");
   const [status, setStatus] = useState(printer.status);
   const [groupId, setGroupId] = useState(printer.groupId || "");
   const [groups, setGroups] = useState<Group[]>([]);
@@ -67,6 +69,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
     setApiKey(printer.apiKey || "");
     setSerialNumber(printer.serialNumber || "");
     setWebcamUrl(printer.webcamUrl || "");
+    setRtspUrl(printer.rtspUrl || "");
     setStatus(printer.status);
     setGroupId(printer.groupId || "");
     setMachineProfileId(printer.machineProfileId || "");
@@ -108,6 +111,7 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
       apiKey,
       serialNumber: type === "bambulab" ? serialNumber : undefined,
       webcamUrl,
+      rtspUrl,
       status,
       groupId: groupId || undefined,
       // Explicit null (not undefined) so the API actually clears an
@@ -242,6 +246,23 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
             onChange={(e) => setWebcamUrl(e.target.value)}
             className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
+        </div>
+
+        <div>
+          <label htmlFor="rtspUrl" className="block text-sm font-medium text-foreground">
+            RTSP Camera URL (optional)
+          </label>
+          <input
+            type="text"
+            id="rtspUrl"
+            value={rtspUrl}
+            onChange={(e) => setRtspUrl(e.target.value)}
+            placeholder="rtsp://172.22.50.60:8554/camera-name"
+            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Live camera stream via a mediamtx RTSP source. Shown as a live view instead of the webcam snapshot.
+          </p>
         </div>
 
         <div>

@@ -26,6 +26,7 @@ export async function PUT(
           printTimeRemaining: body.printTimeRemaining,
           printImageUrl: body.printImageUrl,
           webcamUrl: body.webcamUrl,
+          rtspUrl: body.rtspUrl,
           lastSeen: new Date(),
         },
         include: {
@@ -50,6 +51,7 @@ export async function PUT(
           apiUrl: body.apiUrl,
           apiKey: body.apiKey,
           webcamUrl: body.webcamUrl,
+          rtspUrl: body.rtspUrl,
           status: body.status, // This is the management status (active/disabled/maintenance)
           groupId: body.groupId,
           machineProfileId: body.machineProfileId,
@@ -75,6 +77,7 @@ export async function PUT(
         apiUrl: body.apiUrl,
         apiKey: body.apiKey,
         webcamUrl: body.webcamUrl,
+        rtspUrl: body.rtspUrl,
         status: body.status,
         operationalStatus: body.operationalStatus,
         printStartTime: body.printStartTime,

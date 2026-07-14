@@ -16,11 +16,34 @@ export default function ChangelogPage() {
       <h1 className="text-3xl font-bold mb-6">Changelog</h1>
       
       <div className="space-y-8">
+        {/* START: v0.1.0a Entry */}
+        <section className="border-b pb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-2xl font-semibold" id="v0.1.0a">Version 0.1.0a</h2>
+            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">Released: 2026-07-14</p>
+
+          <div className="prose prose-blue max-w-none">
+            <h3 className="text-lg font-medium mt-4 mb-2">Added</h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>RTSP camera support:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Printers can now have an RTSP Camera URL (e.g. from a mediamtx bridge) in addition to the existing MJPEG/snapshot webcam URL.</li>
+                  <li>The live camera modal plays the RTSP-backed stream via the bridge's HLS output, with no extra client-side video library required.</li>
+                  <li>Dashboard tiles show a "View Live Camera" tile for printers with only an RTSP camera configured.</li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </section>
+        {/* END: v0.1.0a Entry */}
+
         {/* START: v0.0.9a Entry */}
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.0.9a">Version 0.0.9a</h2>
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
           </div>
           <p className="text-sm text-muted-foreground mb-4">Released: 2026-07-07</p>
 

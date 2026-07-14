@@ -2,23 +2,28 @@
 
 import React, { useEffect, useState } from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
+import { getMediamtxHlsPageUrl } from "@/lib/camera-utils";
 
 interface WebcamModalProps {
   printerName: string;
-  webcamUrl: string;
+  webcamUrl?: string | null;
+  rtspUrl?: string | null;
   onClose: () => void;
 }
 
-export function WebcamModal({ printerName, webcamUrl, onClose }: WebcamModalProps) {
+export function WebcamModal({ printerName, webcamUrl, rtspUrl, onClose }: WebcamModalProps) {
   const [timestamp, setTimestamp] = useState(Date.now());
-  
+  const hlsPageUrl = getMediamtxHlsPageUrl(rtspUrl);
+
   // Refresh the stream every 5 seconds to prevent stale content
+  // (only relevant to the MJPEG/snapshot path below)
   useEffect(() => {
+    if (hlsPageUrl) return;
     const interval = setInterval(() => {
       setTimestamp(Date.now());
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hlsPageUrl]);
   
   // Close the modal when Escape key is pressed
   useEffect(() => {
@@ -32,7 +37,7 @@ export function WebcamModal({ printerName, webcamUrl, onClose }: WebcamModalProp
   // Create proxy URL for the stream
   const getStreamUrl = () => {
     // Make sure we're using the stream URL, not a snapshot
-    let streamUrl = webcamUrl;
+    let streamUrl = webcamUrl || "";
     if (streamUrl.includes('snapshot')) {
       streamUrl = streamUrl.replace('snapshot', 'stream');
     } else if (streamUrl.includes('screenshot')) {
@@ -57,11 +62,20 @@ export function WebcamModal({ printerName, webcamUrl, onClose }: WebcamModalProp
         
         <div className="flex-grow overflow-hidden p-4">
           <div className="aspect-video bg-black rounded-lg overflow-hidden w-full">
-            <img 
-              src={getStreamUrl()}
-              alt={`${printerName} Webcam Stream`}
-              className="w-full h-full object-contain"
-            />
+            {hlsPageUrl ? (
+              <iframe
+                src={hlsPageUrl}
+                title={`${printerName} Live Camera`}
+                className="w-full h-full border-0"
+                allow="autoplay"
+              />
+            ) : (
+              <img
+                src={getStreamUrl()}
+                alt={`${printerName} Webcam Stream`}
+                className="w-full h-full object-contain"
+              />
+            )}
           </div>
         </div>
         

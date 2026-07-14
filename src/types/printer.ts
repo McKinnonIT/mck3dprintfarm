@@ -21,4 +21,6 @@ export interface Printer {
   progress?: number;
   printStatus?: string;
   currentFile?: string;
-} 
+  webcamUrl?: string | null;
+  rtspUrl?: string | null;
+}

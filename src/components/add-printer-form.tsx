@@ -11,6 +11,7 @@ type Printer = {
   apiKey?: string;
   serialNumber?: string;
   webcamUrl?: string;
+  rtspUrl?: string;
   status: string;
   groupId?: string;
   machineProfileId?: string;
@@ -40,6 +41,7 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
   const [apiKey, setApiKey] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [webcamUrl, setWebcamUrl] = useState("");
+  const [rtspUrl, setRtspUrl] = useState("");
   const [status, setStatus] = useState("active");
   const [groupId, setGroupId] = useState("");
   const [groups, setGroups] = useState<Group[]>([]);
@@ -96,6 +98,7 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
       apiKey: (type === "prusalink" || type === "bambulab") ? apiKey : undefined,
       serialNumber: type === "bambulab" ? serialNumber : undefined,
       webcamUrl: webcamUrl || undefined,
+      rtspUrl: rtspUrl || undefined,
       status: "active",
       groupId: groupId || undefined,
       machineProfileId: machineProfileId || undefined,
@@ -227,6 +230,23 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
           onChange={(e) => setWebcamUrl(e.target.value)}
           className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
+      </div>
+
+      <div>
+        <label htmlFor="rtspUrl" className="block text-sm font-medium text-foreground">
+          RTSP Camera URL (Optional)
+        </label>
+        <input
+          type="text"
+          id="rtspUrl"
+          value={rtspUrl}
+          onChange={(e) => setRtspUrl(e.target.value)}
+          placeholder="rtsp://172.22.50.60:8554/camera-name"
+          className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Live camera stream via a mediamtx RTSP source. Shown as a live view instead of the webcam snapshot.
+        </p>
       </div>
 
       <div>

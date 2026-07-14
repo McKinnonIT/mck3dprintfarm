@@ -11,6 +11,7 @@ export const PUBLIC_PRINTER_SELECT = {
   operationalStatus: true,
   lastSeen: true,
   webcamUrl: true,
+  rtspUrl: true,
   printImageUrl: true,
   printJobName: true,
   currentJobFilename: true,

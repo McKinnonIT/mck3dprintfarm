@@ -12,8 +12,6 @@ type Printer = {
   serialNumber?: string;
   webcamUrl?: string;
   hlsUrl?: string;
-  webrtcUrl?: string;
-  cameraStreamMode?: string;
   status: string;
   groupId?: string;
   machineProfileId?: string;
@@ -44,8 +42,6 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
   const [serialNumber, setSerialNumber] = useState("");
   const [webcamUrl, setWebcamUrl] = useState("");
   const [hlsUrl, setHlsUrl] = useState("");
-  const [webrtcUrl, setWebrtcUrl] = useState("");
-  const [cameraStreamMode, setCameraStreamMode] = useState("hls");
   const [status, setStatus] = useState("active");
   const [groupId, setGroupId] = useState("");
   const [groups, setGroups] = useState<Group[]>([]);
@@ -103,8 +99,6 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
       serialNumber: type === "bambulab" ? serialNumber : undefined,
       webcamUrl: webcamUrl || undefined,
       hlsUrl: hlsUrl || undefined,
-      webrtcUrl: webrtcUrl || undefined,
-      cameraStreamMode,
       status: "active",
       groupId: groupId || undefined,
       machineProfileId: machineProfileId || undefined,
@@ -250,41 +244,12 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
           placeholder="http://172.22.50.60:8888/camera-name"
           className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
-      </div>
-
-      <div>
-        <label htmlFor="webrtcUrl" className="block text-sm font-medium text-foreground">
-          WebRTC Camera URL (Optional)
-        </label>
-        <input
-          type="text"
-          id="webrtcUrl"
-          value={webrtcUrl}
-          onChange={(e) => setWebrtcUrl(e.target.value)}
-          placeholder="http://172.22.50.60:8889/camera-name"
-          className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-        />
         <p className="mt-1 text-xs text-muted-foreground">
-          Live camera stream from a mediamtx bridge. Shown as a live view instead of the webcam snapshot.
+          Live camera stream from a mediamtx bridge on the camera VLAN. Only the server
+          ever connects to this address - it's pulled through the camera-proxy sidecar
+          and republished for viewers, so this URL is never sent to their browsers.
         </p>
       </div>
-
-      {(hlsUrl || webrtcUrl) && (
-        <div>
-          <label htmlFor="cameraStreamMode" className="block text-sm font-medium text-foreground">
-            Preferred Live Stream
-          </label>
-          <select
-            id="cameraStreamMode"
-            value={cameraStreamMode}
-            onChange={(e) => setCameraStreamMode(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="hls">HLS</option>
-            <option value="webrtc">WebRTC (lower latency)</option>
-          </select>
-        </div>
-      )}
 
       <div>
         <label htmlFor="groupId" className="block text-sm font-medium text-foreground">

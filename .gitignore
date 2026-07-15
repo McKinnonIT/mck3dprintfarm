@@ -58,6 +58,9 @@ prisma/dev.db-journal
 /grid-host/
 /docker/*
 !/docker/orcaslicer/
+!/docker/camera-proxy/
+# Self-signed certs are generated per-deployment, not shared via git.
+/docker/camera-proxy/certs/
 
 # Docker test environment data
 docker-tests/data/

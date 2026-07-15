@@ -12,10 +12,8 @@ type Printer = {
   status: string;
   operationalStatus: string;
   lastSeen: string;
-  webcamUrl?: string | null;
-  hlsUrl?: string | null;
-  webrtcUrl?: string | null;
-  cameraStreamMode?: string | null;
+  hasWebcam?: boolean;
+  cameraPathName?: string | null;
   printImageUrl?: string | null;
   bedTemp?: number | null;
   toolTemp?: number | null;
@@ -70,18 +68,12 @@ function statusBadgeClass(status: string): string {
   }
 }
 
-function getSnapshotUrl(url: string, timestamp: number): string {
-  let snapshotUrl = url;
-  if (snapshotUrl.includes("stream")) {
-    snapshotUrl = snapshotUrl.replace("stream", "snapshot");
-  } else if (snapshotUrl.includes("webcam") && !snapshotUrl.includes("snapshot")) {
-    snapshotUrl = snapshotUrl.replace("webcam", "snapshot");
-  }
-  return `/api/webcam-proxy?url=${encodeURIComponent(snapshotUrl)}&snapshot=true&t=${timestamp}`;
+function getSnapshotUrl(printerId: string, timestamp: number): string {
+  return `/api/webcam-proxy?printerId=${printerId}&snapshot=true&t=${timestamp}`;
 }
 
-function getHlsSnapshotUrl(hlsUrl: string, timestamp: number): string {
-  return `/api/camera-snapshot?url=${encodeURIComponent(hlsUrl)}&t=${timestamp}`;
+function getHlsSnapshotUrl(printerId: string, timestamp: number): string {
+  return `/api/camera-snapshot?printerId=${printerId}&t=${timestamp}`;
 }
 
 function PrinterTile({
@@ -143,10 +135,10 @@ function PrinterTile({
       </div>
 
       <div className="mt-4 aspect-video relative bg-muted rounded-lg overflow-hidden">
-        {printer.webcamUrl ? (
+        {printer.hasWebcam ? (
           <div onClick={() => onOpenWebcam(printer)} className="w-full h-full cursor-pointer relative group">
             <img
-              src={getSnapshotUrl(printer.webcamUrl, timestamp)}
+              src={getSnapshotUrl(printer.id, timestamp)}
               alt="Printer Webcam"
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -157,10 +149,10 @@ function PrinterTile({
               <span className="text-white px-3 py-1 bg-black bg-opacity-70 rounded-full text-sm">View Livestream</span>
             </div>
           </div>
-        ) : printer.hlsUrl ? (
+        ) : printer.cameraPathName ? (
           <div onClick={() => onOpenWebcam(printer)} className="w-full h-full cursor-pointer relative group">
             <img
-              src={getHlsSnapshotUrl(printer.hlsUrl, cameraSnapshotTimestamp)}
+              src={getHlsSnapshotUrl(printer.id, cameraSnapshotTimestamp)}
               alt="Printer Camera"
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -171,15 +163,9 @@ function PrinterTile({
               <span className="text-white px-3 py-1 bg-black bg-opacity-70 rounded-full text-sm">View Livestream</span>
             </div>
           </div>
-        ) : printer.webrtcUrl ? (
-          <div onClick={() => onOpenWebcam(printer)} className="w-full h-full cursor-pointer flex items-center justify-center bg-black group">
-            <span className="text-white px-3 py-1 bg-black bg-opacity-70 rounded-full text-sm group-hover:bg-opacity-90 transition-opacity">
-              View Live Camera
-            </span>
-          </div>
         ) : printer.printImageUrl ? (
           <img
-            src={`/api/webcam-proxy?url=${encodeURIComponent(printer.printImageUrl)}&t=${timestamp}`}
+            src={`/api/webcam-proxy?printerId=${printer.id}&field=printImageUrl&t=${timestamp}`}
             alt="Print Preview"
             className="w-full h-full object-contain"
             onError={(e) => {
@@ -209,11 +195,9 @@ export default function DashboardPage() {
   const [timestamp, setTimestamp] = useState<number>(0);
   const [cameraSnapshotTimestamp, setCameraSnapshotTimestamp] = useState<number>(0);
   const [activeWebcam, setActiveWebcam] = useState<{
+    printerId: string;
     printerName: string;
-    webcamUrl?: string | null;
-    hlsUrl?: string | null;
-    webrtcUrl?: string | null;
-    cameraStreamMode?: string | null;
+    cameraPathName?: string | null;
   } | null>(null);
 
   const fetchDashboard = useCallback(async () => {
@@ -336,13 +320,11 @@ export default function DashboardPage() {
                     timestamp={timestamp}
                     cameraSnapshotTimestamp={cameraSnapshotTimestamp}
                     onOpenWebcam={(p) =>
-                      (p.webcamUrl || p.hlsUrl || p.webrtcUrl) &&
+                      (p.hasWebcam || p.cameraPathName) &&
                       setActiveWebcam({
+                        printerId: p.id,
                         printerName: p.name,
-                        webcamUrl: p.webcamUrl,
-                        hlsUrl: p.hlsUrl,
-                        webrtcUrl: p.webrtcUrl,
-                        cameraStreamMode: p.cameraStreamMode,
+                        cameraPathName: p.cameraPathName,
                       })
                     }
                   />
@@ -362,13 +344,11 @@ export default function DashboardPage() {
                     timestamp={timestamp}
                     cameraSnapshotTimestamp={cameraSnapshotTimestamp}
                     onOpenWebcam={(p) =>
-                      (p.webcamUrl || p.hlsUrl || p.webrtcUrl) &&
+                      (p.hasWebcam || p.cameraPathName) &&
                       setActiveWebcam({
+                        printerId: p.id,
                         printerName: p.name,
-                        webcamUrl: p.webcamUrl,
-                        hlsUrl: p.hlsUrl,
-                        webrtcUrl: p.webrtcUrl,
-                        cameraStreamMode: p.cameraStreamMode,
+                        cameraPathName: p.cameraPathName,
                       })
                     }
                   />
@@ -381,11 +361,9 @@ export default function DashboardPage() {
 
       {activeWebcam && (
         <WebcamModal
+          printerId={activeWebcam.printerId}
           printerName={activeWebcam.printerName}
-          webcamUrl={activeWebcam.webcamUrl}
-          hlsUrl={activeWebcam.hlsUrl}
-          webrtcUrl={activeWebcam.webrtcUrl}
-          cameraStreamMode={activeWebcam.cameraStreamMode}
+          cameraPathName={activeWebcam.cameraPathName}
           onClose={() => setActiveWebcam(null)}
         />
       )}

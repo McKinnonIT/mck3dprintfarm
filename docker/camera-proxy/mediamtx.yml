@@ -1,0 +1,60 @@
+# camera-proxy: local mediamtx sidecar that restreams printer cameras.
+#
+# Browsers talk to this instance only - never to the origin mediamtx
+# server on the camera VLAN. Each camera is registered at runtime as a
+# path via the Control API (see src/lib/camera-proxy-client.ts), which
+# pulls the feed from the origin over RTSP and republishes it as HLS/WebRTC.
+#
+# `paths` is intentionally empty with no `all_others` fallback: only
+# paths explicitly registered through the API may exist, so this sidecar
+# can't be used to proxy arbitrary RTSP sources.
+
+logLevel: info
+logDestinations: [stdout]
+
+api: yes
+apiAddress: :9997
+
+# mediamtx's default auth config restricts the "api" action to requests
+# from 127.0.0.1/::1 - but the app container calls this over the docker
+# network, not localhost. The API isn't published to the host (see the
+# compose files - only 8888/8889/8189 are), so it's only ever reachable
+# from other containers on this stack's own network; safe to allow.
+authInternalUsers:
+  - user: any
+    ips: []
+    permissions:
+      - action: publish
+      - action: read
+      - action: playback
+      - action: api
+
+rtsp: no
+rtmp: no
+srt: no
+
+# TLS with a self-signed cert (see generate-cert.sh): the app is served
+# over https, and browsers block an http:// live-view iframe embedded in
+# an https page as mixed content. There's no real CA-signed cert available
+# for this sidecar, so self-signed is the only option - each browser needs
+# to accept the "not trusted" warning once by visiting https://<host>:8888/
+# and https://<host>:8889/ directly before the embedded iframe will load.
+hls: yes
+hlsAddress: :8888
+hlsAllowOrigins: ['*']
+hlsEncryption: yes
+hlsServerKey: /certs/server.key
+hlsServerCert: /certs/server.crt
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+webrtcEncryption: yes
+webrtcServerKey: /certs/server.key
+webrtcServerCert: /certs/server.crt
+# Set via MTX_WEBRTCADDITIONALHOSTS in the compose environment - must be
+# the hostname/IP browsers use to reach this container, or ICE candidates
+# won't resolve and WebRTC playback will fail to connect.
+webrtcAdditionalHosts: []
+
+paths: {}

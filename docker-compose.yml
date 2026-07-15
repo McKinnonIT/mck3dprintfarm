@@ -22,14 +22,32 @@ services:
       - DEFAULT_ADMIN_PASSWORD=Admin123!
       - DEFAULT_ADMIN_NAME=Administrator
       - ORCASLICER_URL=http://orcaslicer:8090
+      - CAMERA_PROXY_API_URL=http://camera-proxy:9997
       # Add other environment variables as needed
     depends_on:
       - orcaslicer
+      - camera-proxy
 
   orcaslicer:
     image: alastairtech/mck3dprintfarm-orcaslicer:latest
     volumes:
       - ../uploads:/data/uploads
+    restart: unless-stopped
+
+  camera-proxy:
+    image: bluenviron/mediamtx:latest
+    volumes:
+      - ../docker/camera-proxy/mediamtx.yml:/mediamtx.yml
+      # Run docker/camera-proxy/generate-cert.sh once before first deploy.
+      - ../docker/camera-proxy/certs:/certs
+    ports:
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+    environment:
+      # Hostname/IP users' browsers use to reach this box - change this to
+      # your actual public hostname, or WebRTC camera streams won't connect.
+      - MTX_WEBRTCADDITIONALHOSTS=localhost
     restart: unless-stopped
 
 # Named volumes for data persistence

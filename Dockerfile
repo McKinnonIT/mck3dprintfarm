@@ -84,6 +84,11 @@ RUN echo '#!/bin/sh' > /app/docker-entrypoint.sh && \
     echo 'cd /app && sh /app/prisma/run-ensure-tables.sh' >> /app/docker-entrypoint.sh && \
     echo 'echo "Checking and creating admin user if needed..."' >> /app/docker-entrypoint.sh && \
     echo 'cd /app && node scripts/create-admin-user.js' >> /app/docker-entrypoint.sh && \
+    # Sync any printer camera URLs missing a camera-proxy path (e.g. after
+    # upgrading from a version predating the sidecar). Non-fatal, so a
+    # not-yet-ready sidecar doesn't block the app from starting.
+    echo 'echo "Syncing printer camera paths with camera-proxy..."' >> /app/docker-entrypoint.sh && \
+    echo 'cd /app && node scripts/backfill-camera-paths.js || true' >> /app/docker-entrypoint.sh && \
     echo 'echo "Starting application..."' >> /app/docker-entrypoint.sh && \
     echo 'node server.js' >> /app/docker-entrypoint.sh
 

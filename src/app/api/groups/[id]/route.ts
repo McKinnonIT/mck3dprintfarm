@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { PUBLIC_PRINTER_SELECT } from '@/lib/public-printer-fields'
+import { PUBLIC_PRINTER_SELECT, toPublicPrinter } from '@/lib/public-printer-fields'
 
 export async function GET(
   request: Request,
@@ -20,7 +20,7 @@ export async function GET(
     if (!group) {
       return NextResponse.json({ error: 'Group not found' }, { status: 404 })
     }
-    return NextResponse.json(group)
+    return NextResponse.json({ ...group, printers: group.printers.map(toPublicPrinter) })
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch group' }, { status: 500 })
   }
@@ -93,7 +93,7 @@ export async function PUT(
       return NextResponse.json(updatedGroup);
     }
 
-    return NextResponse.json(group)
+    return NextResponse.json({ ...group, printers: group.printers.map(toPublicPrinter) })
   } catch (error) {
     console.error("PUT /api/groups/[id] Error:", error);
     return NextResponse.json({ error: 'Failed to update group' }, { status: 500 })

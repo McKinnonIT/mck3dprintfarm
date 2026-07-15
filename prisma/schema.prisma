@@ -61,6 +61,7 @@ model Printer {
   hlsUrl             String?
   webrtcUrl          String?
   cameraStreamMode   String     @default("hls")
+  cameraPathName     String?    @unique
   printImageUrl      String?
   printJobName       String?
   bedTemp            Float?

@@ -14,4 +14,21 @@ services:
       - ./public:/app/public  # Map the local public directory
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=file:./prisma/dev.db 
+      - DATABASE_URL=file:./prisma/dev.db
+      - CAMERA_PROXY_API_URL=http://camera-proxy:9997
+    depends_on:
+      - camera-proxy
+
+  camera-proxy:
+    image: bluenviron/mediamtx:latest
+    volumes:
+      - ./docker/camera-proxy/mediamtx.yml:/mediamtx.yml
+      # Run docker/camera-proxy/generate-cert.sh once before first deploy.
+      - ./docker/camera-proxy/certs:/certs
+    ports:
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+    environment:
+      - MTX_WEBRTCADDITIONALHOSTS=localhost
+    restart: unless-stopped

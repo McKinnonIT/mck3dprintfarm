@@ -5,17 +5,15 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import { getActiveCameraStreamUrl } from "@/lib/camera-utils";
 
 interface WebcamModalProps {
+  printerId: string;
   printerName: string;
-  webcamUrl?: string | null;
-  hlsUrl?: string | null;
-  webrtcUrl?: string | null;
-  cameraStreamMode?: string | null;
+  cameraPathName?: string | null;
   onClose: () => void;
 }
 
-export function WebcamModal({ printerName, webcamUrl, hlsUrl, webrtcUrl, cameraStreamMode, onClose }: WebcamModalProps) {
+export function WebcamModal({ printerId, printerName, cameraPathName, onClose }: WebcamModalProps) {
   const [timestamp, setTimestamp] = useState(Date.now());
-  const streamPageUrl = getActiveCameraStreamUrl({ hlsUrl, webrtcUrl, cameraStreamMode });
+  const streamPageUrl = getActiveCameraStreamUrl({ cameraPathName });
 
   // Refresh the stream every 5 seconds to prevent stale content
   // (only relevant to the MJPEG/snapshot path below)
@@ -36,18 +34,9 @@ export function WebcamModal({ printerName, webcamUrl, hlsUrl, webrtcUrl, cameraS
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // Create proxy URL for the stream
-  const getStreamUrl = () => {
-    // Make sure we're using the stream URL, not a snapshot
-    let streamUrl = webcamUrl || "";
-    if (streamUrl.includes('snapshot')) {
-      streamUrl = streamUrl.replace('snapshot', 'stream');
-    } else if (streamUrl.includes('screenshot')) {
-      streamUrl = streamUrl.replace('screenshot', 'stream');
-    }
-    
-    return `/api/webcam-proxy?url=${encodeURIComponent(streamUrl)}&t=${timestamp}`;
-  };
+  // Proxy URL for the legacy MJPEG/snapshot webcam - resolved server-side
+  // from the printer's stored webcamUrl, never sent to the browser.
+  const getStreamUrl = () => `/api/webcam-proxy?printerId=${printerId}&t=${timestamp}`;
 
   return (
     <div className="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-75 flex items-center justify-center p-4">

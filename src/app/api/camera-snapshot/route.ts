@@ -1,24 +1,36 @@
 import { NextResponse } from "next/server";
 import { spawn } from "child_process";
+import { prisma } from "@/lib/prisma";
+import { internalHlsPlaylistUrl } from "@/lib/camera-proxy-client";
 
 const SNAPSHOT_TIMEOUT_MS = 8000;
 
 // Grabs a single JPEG frame from a live HLS stream via a short-lived ffmpeg
 // process. mediamtx has no built-in snapshot endpoint, so this is the only
-// way to get a still image out of an HLS-backed camera.
+// way to get a still image out of an HLS-backed camera. Always reads from
+// the camera-proxy sidecar's local restream, never the origin mediamtx
+// server on the camera VLAN.
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const hlsUrl = searchParams.get("url");
+  const printerId = searchParams.get("printerId");
 
-  if (!hlsUrl) {
-    return NextResponse.json({ error: "No URL provided" }, { status: 400 });
+  if (!printerId) {
+    return NextResponse.json({ error: "printerId is required" }, { status: 400 });
   }
 
-  if (!hlsUrl.startsWith("http://") && !hlsUrl.startsWith("https://")) {
-    return NextResponse.json({ error: "Only http(s) URLs are supported" }, { status: 400 });
+  const printer = await prisma.printer.findUnique({
+    where: { id: printerId },
+    select: { cameraPathName: true },
+  });
+
+  if (!printer?.cameraPathName) {
+    return NextResponse.json({ error: "Printer has no camera path registered" }, { status: 404 });
   }
 
-  const playlistUrl = `${hlsUrl.replace(/\/+$/, "")}/index.m3u8`;
+  const playlistUrl = internalHlsPlaylistUrl(printer.cameraPathName);
+  if (!playlistUrl) {
+    return NextResponse.json({ error: "Camera proxy is not configured" }, { status: 503 });
+  }
 
   try {
     const jpeg = await grabFrame(playlistUrl);
@@ -29,7 +41,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error: any) {
-    console.error(`Camera snapshot error for ${playlistUrl}:`, error?.message || error);
+    console.error(`Camera snapshot error for printer ${printerId}:`, error?.message || error);
     return NextResponse.json({ error: "Failed to grab camera snapshot" }, { status: 502 });
   }
 }
@@ -39,6 +51,9 @@ function grabFrame(playlistUrl: string): Promise<Buffer> {
     const ffmpeg = spawn("ffmpeg", [
       "-y",
       "-protocol_whitelist", "http,https,tcp,tls,crypto",
+      // The sidecar's HLS listener uses a self-signed cert (see
+      // docker/camera-proxy/generate-cert.sh) - nothing to verify it against.
+      "-tls_verify", "0",
       "-i", playlistUrl,
       "-frames:v", "1",
       "-f", "mjpeg",

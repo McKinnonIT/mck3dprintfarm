@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { PUBLIC_PRINTER_SELECT } from '@/lib/public-printer-fields'
+import { PUBLIC_PRINTER_SELECT, toPublicPrinter } from '@/lib/public-printer-fields'
 
 // Define the request body type
 type GroupOrderUpdate = {
@@ -60,7 +60,7 @@ export async function PATCH(req: Request) {
     // Sort manually instead of using orderBy
     groups.sort((a, b) => a.order - b.order);
 
-    return NextResponse.json(groups);
+    return NextResponse.json(groups.map((group) => ({ ...group, printers: group.printers.map(toPublicPrinter) })));
   } catch (error) {
     console.error('Error updating group order:', error)
     return NextResponse.json(

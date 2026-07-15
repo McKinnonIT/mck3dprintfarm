@@ -1,11 +1,23 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 // Re-add auth imports for POST/PUT
-import { getServerSession } from 'next-auth' 
+import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { isValidOriginUrl } from '@/lib/camera-proxy-client'
+import { syncCameraProxyPath } from '@/lib/camera-path-sync'
 // Remove unused auth imports if session check is removed
-// import { getServerSession } from 'next-auth' 
+// import { getServerSession } from 'next-auth'
 // import { authOptions } from '@/lib/auth'
+
+function validateCameraUrls(body: { webcamUrl?: string; hlsUrl?: string; webrtcUrl?: string }): string | null {
+  for (const field of ['webcamUrl', 'hlsUrl', 'webrtcUrl'] as const) {
+    const value = body[field]
+    if (value && !isValidOriginUrl(value)) {
+      return `${field} must be a valid http(s) URL`
+    }
+  }
+  return null
+}
 
 export async function GET() {
   try {
@@ -38,7 +50,12 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    
+
+    const validationError = validateCameraUrls(body)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
+
     const printer = await prisma.printer.create({
       data: {
         name: body.name,
@@ -63,6 +80,7 @@ export async function POST(request: Request) {
         },
       },
     })
+    await syncCameraProxyPath(printer)
     return NextResponse.json(printer)
   } catch (error) {
     console.error("POST /api/printers Error:", error);
@@ -88,7 +106,12 @@ export async function PUT(request: Request) {
     if (!body.id) {
         return NextResponse.json({ error: 'Printer ID required for update.' }, { status: 400 });
     }
-    
+
+    const validationError = validateCameraUrls(body)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
+
     const printer = await prisma.printer.update({
       where: { id: body.id },
       data: {
@@ -109,6 +132,7 @@ export async function PUT(request: Request) {
         printImageUrl: body.printImageUrl,
       },
     })
+    await syncCameraProxyPath(printer)
     return NextResponse.json(printer)
   } catch (error) {
      console.error("PUT /api/printers Error:", error);

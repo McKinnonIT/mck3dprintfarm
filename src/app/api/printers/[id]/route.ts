@@ -2,6 +2,18 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { isValidOriginUrl, removeCameraPath } from '@/lib/camera-proxy-client'
+import { syncCameraProxyPath } from '@/lib/camera-path-sync'
+
+function validateCameraUrls(body: { webcamUrl?: string; hlsUrl?: string; webrtcUrl?: string }): string | null {
+  for (const field of ['webcamUrl', 'hlsUrl', 'webrtcUrl'] as const) {
+    const value = body[field]
+    if (value && !isValidOriginUrl(value)) {
+      return `${field} must be a valid http(s) URL`
+    }
+  }
+  return null
+}
 
 export async function PUT(
   request: Request,
@@ -14,7 +26,12 @@ export async function PUT(
     }
 
     const body = await request.json()
-    
+
+    const validationError = validateCameraUrls(body)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
+
     // If we're only updating operational status (from status check)
     if (body.operationalStatus !== undefined && !body.status) {
       const printer = await prisma.printer.update({
@@ -40,9 +57,10 @@ export async function PUT(
           },
         },
       })
+      await syncCameraProxyPath(printer)
       return NextResponse.json(printer)
     }
-    
+
     // If we're updating management status (from edit form)
     if (body.status !== undefined) {
       const printer = await prisma.printer.update({
@@ -69,6 +87,7 @@ export async function PUT(
           },
         },
       })
+      await syncCameraProxyPath(printer)
       return NextResponse.json(printer)
     }
 
@@ -103,6 +122,7 @@ export async function PUT(
         },
       },
     })
+    await syncCameraProxyPath(printer)
     return NextResponse.json(printer)
   } catch (error) {
     console.error("PUT /api/printers/[id] Error:", error);
@@ -120,9 +140,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden: Admin access required.' }, { status: 403 })
     }
 
-    await prisma.printer.delete({
+    const deleted = await prisma.printer.delete({
       where: { id: params.id },
     })
+    if (deleted.cameraPathName) {
+      await removeCameraPath(deleted.cameraPathName)
+    }
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("DELETE /api/printers/[id] Error:", error);
@@ -167,7 +190,12 @@ export async function PATCH(
     }
 
     const data = await request.json();
-    
+
+    const validationError = validateCameraUrls(data)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
+
     // Validate the data
     if (data.printTimeElapsed !== undefined && typeof data.printTimeElapsed !== 'number' && data.printTimeElapsed !== null) {
       return NextResponse.json(
@@ -202,6 +230,10 @@ export async function PATCH(
       where: { id: params.id },
       data,
     });
+
+    if ('hlsUrl' in data || 'webrtcUrl' in data || 'cameraPathName' in data) {
+      await syncCameraProxyPath(updatedPrinter)
+    }
 
     return NextResponse.json(updatedPrinter);
   } catch (error: any) {

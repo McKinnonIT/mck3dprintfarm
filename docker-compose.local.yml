@@ -1,6 +1,6 @@
 services:
   mck3dprintfarm:
-    image: mck3dprintfarm:v0.0.9a
+    image: mck3dprintfarm:v0.2.0a
     ports:
       - "3000:3000"
     volumes:
@@ -9,20 +9,37 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - NEXTAUTH_URL=http://localhost:3000
-      - NEXTAUTH_SECRET=your-super-secret-random-string-here-please-change-this
-      - DEFAULT_ADMIN_EMAIL=admin@example.com
-      - DEFAULT_ADMIN_PASSWORD=Admin123!
-      - DEFAULT_ADMIN_NAME=Administrator
+      - NEXTAUTH_URL=https://3dprint.mckinnon.sc
+      # Real values live in .env (untracked, never committed) - see .env.example.
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - DEFAULT_ADMIN_EMAIL=tech@mckinnonsc.vic.edu.au
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
+      - DEFAULT_ADMIN_NAME=Admin
       - ORCASLICER_URL=http://orcaslicer:8090
+      - CAMERA_PROXY_API_URL=http://camera-proxy:9997
     depends_on:
       - orcaslicer
+      - camera-proxy
 
   orcaslicer:
     build:
       context: ./docker/orcaslicer
     volumes:
       - ./uploads:/data/uploads
+    restart: unless-stopped
+
+  camera-proxy:
+    image: bluenviron/mediamtx:latest
+    volumes:
+      - ./docker/camera-proxy/mediamtx.yml:/mediamtx.yml
+      # Run docker/camera-proxy/generate-cert.sh once before first deploy.
+      - ./docker/camera-proxy/certs:/certs
+    ports:
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+    environment:
+      - MTX_WEBRTCADDITIONALHOSTS=3dprint.mckinnon.sc
     restart: unless-stopped
 
 volumes:

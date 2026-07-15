@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getPrinterDriver } from "@/lib/drivers";
-import { PUBLIC_PRINTER_SELECT } from "@/lib/public-printer-fields";
+import { PUBLIC_PRINTER_SELECT, toPublicPrinter } from "@/lib/public-printer-fields";
 
 // Keep track of offline printers with a backoff mechanism so a dead printer
 // doesn't eat a connection slot on every poll.
@@ -112,7 +112,7 @@ export async function GET() {
     );
 
     const updatedPrinters = await prisma.printer.findMany({ select: PUBLIC_PRINTER_SELECT });
-    return NextResponse.json(updatedPrinters);
+    return NextResponse.json(updatedPrinters.map(toPublicPrinter));
   } catch (error) {
     console.error("Failed to update printer statuses:", error);
     return NextResponse.json({ error: "Failed to update printer statuses" }, { status: 500 });

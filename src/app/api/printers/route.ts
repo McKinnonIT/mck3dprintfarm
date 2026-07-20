@@ -19,6 +19,18 @@ function validateCameraUrls(body: { webcamUrl?: string; hlsUrl?: string; webrtcU
   return null
 }
 
+function validateOnvifFields(body: { onvifHost?: string; onvifPort?: number }): string | null {
+  if (body.onvifHost !== undefined && body.onvifHost !== null && !body.onvifHost.trim()) {
+    return 'onvifHost cannot be blank'
+  }
+  if (body.onvifPort !== undefined && body.onvifPort !== null) {
+    if (!Number.isInteger(body.onvifPort) || body.onvifPort < 1 || body.onvifPort > 65535) {
+      return 'onvifPort must be an integer between 1 and 65535'
+    }
+  }
+  return null
+}
+
 export async function GET() {
   try {
     // Remove session check
@@ -51,7 +63,7 @@ export async function POST(request: Request) {
 
     const body = await request.json()
 
-    const validationError = validateCameraUrls(body)
+    const validationError = validateCameraUrls(body) || validateOnvifFields(body)
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 })
     }
@@ -67,6 +79,10 @@ export async function POST(request: Request) {
         hlsUrl: body.hlsUrl,
         webrtcUrl: body.webrtcUrl,
         cameraStreamMode: body.cameraStreamMode,
+        onvifHost: body.onvifHost,
+        onvifPort: body.onvifPort,
+        onvifUsername: body.onvifUsername,
+        onvifPassword: body.onvifPassword,
         status: body.status || "active",
         operationalStatus: body.operationalStatus || "idle",
         groupId: body.groupId,
@@ -107,7 +123,7 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: 'Printer ID required for update.' }, { status: 400 });
     }
 
-    const validationError = validateCameraUrls(body)
+    const validationError = validateCameraUrls(body) || validateOnvifFields(body)
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 })
     }
@@ -124,6 +140,10 @@ export async function PUT(request: Request) {
         hlsUrl: body.hlsUrl,
         webrtcUrl: body.webrtcUrl,
         cameraStreamMode: body.cameraStreamMode,
+        onvifHost: body.onvifHost,
+        onvifPort: body.onvifPort,
+        onvifUsername: body.onvifUsername,
+        onvifPassword: body.onvifPassword,
         status: body.status,
         operationalStatus: body.operationalStatus,
         printStartTime: body.printStartTime,

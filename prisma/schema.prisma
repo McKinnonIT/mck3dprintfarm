@@ -62,6 +62,10 @@ model Printer {
   webrtcUrl          String?
   cameraStreamMode   String     @default("hls")
   cameraPathName     String?    @unique
+  onvifHost          String?
+  onvifPort          Int?
+  onvifUsername      String?
+  onvifPassword      String?
   printImageUrl      String?
   printJobName       String?
   bedTemp            Float?

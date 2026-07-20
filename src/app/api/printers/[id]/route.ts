@@ -15,6 +15,18 @@ function validateCameraUrls(body: { webcamUrl?: string; hlsUrl?: string; webrtcU
   return null
 }
 
+function validateOnvifFields(body: { onvifHost?: string; onvifPort?: number }): string | null {
+  if (body.onvifHost !== undefined && body.onvifHost !== null && !body.onvifHost.trim()) {
+    return 'onvifHost cannot be blank'
+  }
+  if (body.onvifPort !== undefined && body.onvifPort !== null) {
+    if (!Number.isInteger(body.onvifPort) || body.onvifPort < 1 || body.onvifPort > 65535) {
+      return 'onvifPort must be an integer between 1 and 65535'
+    }
+  }
+  return null
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
@@ -27,7 +39,7 @@ export async function PUT(
 
     const body = await request.json()
 
-    const validationError = validateCameraUrls(body)
+    const validationError = validateCameraUrls(body) || validateOnvifFields(body)
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 })
     }
@@ -46,6 +58,10 @@ export async function PUT(
           hlsUrl: body.hlsUrl,
           webrtcUrl: body.webrtcUrl,
           cameraStreamMode: body.cameraStreamMode,
+          onvifHost: body.onvifHost,
+          onvifPort: body.onvifPort,
+          onvifUsername: body.onvifUsername,
+          onvifPassword: body.onvifPassword,
           lastSeen: new Date(),
         },
         include: {
@@ -74,6 +90,10 @@ export async function PUT(
           hlsUrl: body.hlsUrl,
           webrtcUrl: body.webrtcUrl,
           cameraStreamMode: body.cameraStreamMode,
+          onvifHost: body.onvifHost,
+          onvifPort: body.onvifPort,
+          onvifUsername: body.onvifUsername,
+          onvifPassword: body.onvifPassword,
           status: body.status, // This is the management status (active/disabled/maintenance)
           groupId: body.groupId,
           machineProfileId: body.machineProfileId,
@@ -103,6 +123,10 @@ export async function PUT(
         hlsUrl: body.hlsUrl,
         webrtcUrl: body.webrtcUrl,
         cameraStreamMode: body.cameraStreamMode,
+        onvifHost: body.onvifHost,
+        onvifPort: body.onvifPort,
+        onvifUsername: body.onvifUsername,
+        onvifPassword: body.onvifPassword,
         status: body.status,
         operationalStatus: body.operationalStatus,
         printStartTime: body.printStartTime,
@@ -191,7 +215,7 @@ export async function PATCH(
 
     const data = await request.json();
 
-    const validationError = validateCameraUrls(data)
+    const validationError = validateCameraUrls(data) || validateOnvifFields(data)
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 })
     }
@@ -231,7 +255,7 @@ export async function PATCH(
       data,
     });
 
-    if ('hlsUrl' in data || 'webrtcUrl' in data || 'cameraPathName' in data) {
+    if ('hlsUrl' in data || 'webrtcUrl' in data || 'cameraPathName' in data || 'onvifHost' in data) {
       await syncCameraProxyPath(updatedPrinter)
     }
 

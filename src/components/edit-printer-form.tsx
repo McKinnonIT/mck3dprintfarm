@@ -18,8 +18,12 @@ type Printer = {
   printStartTime?: Date;
   printTimeElapsed?: number;
   printTimeRemaining?: number;
-  webcamUrl?: string;
-  hlsUrl?: string;
+  webcamUrl?: string | null;
+  hlsUrl?: string | null;
+  onvifHost?: string | null;
+  onvifPort?: number | null;
+  onvifUsername?: string | null;
+  onvifPassword?: string | null;
   printImageUrl?: string;
   groupId?: string;
   machineProfileId?: string | null;
@@ -54,6 +58,16 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
   const [serialNumber, setSerialNumber] = useState(printer.serialNumber || "");
   const [webcamUrl, setWebcamUrl] = useState(printer.webcamUrl || "");
   const [hlsUrl, setHlsUrl] = useState(printer.hlsUrl || "");
+  const [cameraSourceType, setCameraSourceType] = useState<"none" | "bridge" | "onvif">(
+    printer.onvifHost ? "onvif" : (printer.hlsUrl || printer.webcamUrl) ? "bridge" : "none"
+  );
+  const [onvifHost, setOnvifHost] = useState(printer.onvifHost || "");
+  const [onvifPort, setOnvifPort] = useState(printer.onvifPort ? String(printer.onvifPort) : "2020");
+  const [onvifUsername, setOnvifUsername] = useState(printer.onvifUsername || "");
+  const [onvifPassword, setOnvifPassword] = useState(printer.onvifPassword || "");
+  const [onvifTestState, setOnvifTestState] = useState<
+    { status: "idle" } | { status: "testing" } | { status: "success"; streamUri: string; deviceInfo?: { manufacturer?: string; model?: string } } | { status: "error"; message: string }
+  >({ status: "idle" });
   const [status, setStatus] = useState(printer.status);
   const [groupId, setGroupId] = useState(printer.groupId || "");
   const [groups, setGroups] = useState<Group[]>([]);
@@ -70,6 +84,11 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
     setSerialNumber(printer.serialNumber || "");
     setWebcamUrl(printer.webcamUrl || "");
     setHlsUrl(printer.hlsUrl || "");
+    setCameraSourceType(printer.onvifHost ? "onvif" : (printer.hlsUrl || printer.webcamUrl) ? "bridge" : "none");
+    setOnvifHost(printer.onvifHost || "");
+    setOnvifPort(printer.onvifPort ? String(printer.onvifPort) : "2020");
+    setOnvifUsername(printer.onvifUsername || "");
+    setOnvifPassword(printer.onvifPassword || "");
     setStatus(printer.status);
     setGroupId(printer.groupId || "");
     setMachineProfileId(printer.machineProfileId || "");
@@ -102,6 +121,30 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
     fetchMachineProfiles();
   }, []);
 
+  const handleTestOnvif = async () => {
+    setOnvifTestState({ status: "testing" });
+    try {
+      const response = await fetch("/api/cameras/onvif-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          host: onvifHost,
+          port: onvifPort ? Number(onvifPort) : undefined,
+          username: onvifUsername,
+          password: onvifPassword,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setOnvifTestState({ status: "success", streamUri: data.streamUri, deviceInfo: data.deviceInfo });
+      } else {
+        setOnvifTestState({ status: "error", message: data.message || "Failed to connect to camera" });
+      }
+    } catch (err) {
+      setOnvifTestState({ status: "error", message: "Failed to reach the server" });
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
@@ -110,8 +153,15 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
       apiUrl,
       apiKey,
       serialNumber: type === "bambulab" ? serialNumber : undefined,
-      webcamUrl,
-      hlsUrl,
+      // Explicit null (not undefined) for whichever camera source isn't
+      // selected, so switching source types actually clears the old one -
+      // Prisma skips undefined fields on update.
+      webcamUrl: cameraSourceType === "bridge" ? (webcamUrl || undefined) : null,
+      hlsUrl: cameraSourceType === "bridge" ? (hlsUrl || undefined) : null,
+      onvifHost: cameraSourceType === "onvif" ? (onvifHost || undefined) : null,
+      onvifPort: cameraSourceType === "onvif" && onvifPort ? Number(onvifPort) : null,
+      onvifUsername: cameraSourceType === "onvif" ? (onvifUsername || undefined) : null,
+      onvifPassword: cameraSourceType === "onvif" ? (onvifPassword || undefined) : null,
       status,
       groupId: groupId || undefined,
       // Explicit null (not undefined) so the API actually clears an
@@ -236,36 +286,136 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
         </div>
 
         <div>
-          <label htmlFor="webcamUrl" className="block text-sm font-medium text-foreground">
-            Custom Webcam URL (optional)
+          <label htmlFor="cameraSourceType" className="block text-sm font-medium text-foreground">
+            Camera (optional)
           </label>
-          <input
-            type="url"
-            id="webcamUrl"
-            value={webcamUrl}
-            onChange={(e) => setWebcamUrl(e.target.value)}
+          <select
+            id="cameraSourceType"
+            value={cameraSourceType}
+            onChange={(e) => setCameraSourceType(e.target.value as "none" | "bridge" | "onvif")}
             className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          >
+            <option value="none">No camera</option>
+            <option value="onvif">ONVIF Camera (e.g. Tapo)</option>
+            <option value="bridge">mediamtx Bridge (HLS URL)</option>
+          </select>
         </div>
 
-        <div>
-          <label htmlFor="hlsUrl" className="block text-sm font-medium text-foreground">
-            HLS Camera URL (optional)
-          </label>
-          <input
-            type="text"
-            id="hlsUrl"
-            value={hlsUrl}
-            onChange={(e) => setHlsUrl(e.target.value)}
-            placeholder="http://172.22.50.60:8888/camera-name"
-            className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Live camera stream from a mediamtx bridge on the camera VLAN. Only the server
-            ever connects to this address - it's pulled through the camera-proxy sidecar
-            and republished for viewers, so this URL is never sent to their browsers.
-          </p>
-        </div>
+        {cameraSourceType === "bridge" && (
+          <>
+            <div>
+              <label htmlFor="webcamUrl" className="block text-sm font-medium text-foreground">
+                Custom Webcam URL (optional)
+              </label>
+              <input
+                type="url"
+                id="webcamUrl"
+                value={webcamUrl}
+                onChange={(e) => setWebcamUrl(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="hlsUrl" className="block text-sm font-medium text-foreground">
+                HLS Camera URL
+              </label>
+              <input
+                type="text"
+                id="hlsUrl"
+                value={hlsUrl}
+                onChange={(e) => setHlsUrl(e.target.value)}
+                placeholder="http://172.22.50.60:8888/camera-name"
+                className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Live camera stream from a mediamtx bridge on the camera VLAN. Only the server
+                ever connects to this address - it's pulled through the camera-proxy sidecar
+                and republished for viewers, so this URL is never sent to their browsers.
+              </p>
+            </div>
+          </>
+        )}
+
+        {cameraSourceType === "onvif" && (
+          <>
+            <div>
+              <label htmlFor="onvifHost" className="block text-sm font-medium text-foreground">
+                Camera IP Address
+              </label>
+              <input
+                type="text"
+                id="onvifHost"
+                value={onvifHost}
+                onChange={(e) => { setOnvifHost(e.target.value); setOnvifTestState({ status: "idle" }); }}
+                placeholder="192.168.1.50"
+                className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="onvifPort" className="block text-sm font-medium text-foreground">
+                ONVIF Port
+              </label>
+              <input
+                type="text"
+                id="onvifPort"
+                value={onvifPort}
+                onChange={(e) => { setOnvifPort(e.target.value); setOnvifTestState({ status: "idle" }); }}
+                placeholder="2020"
+                className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">2020 is Tapo's default ONVIF port.</p>
+            </div>
+            <div>
+              <label htmlFor="onvifUsername" className="block text-sm font-medium text-foreground">
+                Camera Account Username
+              </label>
+              <input
+                type="text"
+                id="onvifUsername"
+                value={onvifUsername}
+                onChange={(e) => { setOnvifUsername(e.target.value); setOnvifTestState({ status: "idle" }); }}
+                className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="onvifPassword" className="block text-sm font-medium text-foreground">
+                Camera Account Password
+              </label>
+              <input
+                type="password"
+                id="onvifPassword"
+                value={onvifPassword}
+                onChange={(e) => { setOnvifPassword(e.target.value); setOnvifTestState({ status: "idle" }); }}
+                className="mt-1 block w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Tapo cameras need a separate "camera account" set up in the Tapo app
+                (Advanced Settings) - not your TP-Link cloud login - used for both ONVIF and RTSP.
+              </p>
+            </div>
+
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTestOnvif}
+                disabled={onvifTestState.status === "testing" || !onvifHost || !onvifUsername || !onvifPassword}
+              >
+                {onvifTestState.status === "testing" ? "Testing..." : "Test Connection"}
+              </Button>
+              {onvifTestState.status === "success" && (
+                <p className="mt-2 text-xs text-green-600">
+                  Connected{onvifTestState.deviceInfo?.model ? ` to ${onvifTestState.deviceInfo.manufacturer || ""} ${onvifTestState.deviceInfo.model}`.trim() : ""} -
+                  stream: {onvifTestState.streamUri.replace(/\/\/[^@]*@/, "//***@")}
+                </p>
+              )}
+              {onvifTestState.status === "error" && (
+                <p className="mt-2 text-xs text-red-600">{onvifTestState.message}</p>
+              )}
+            </div>
+          </>
+        )}
 
         <div>
           <label htmlFor="status" className="block text-sm font-medium text-foreground">

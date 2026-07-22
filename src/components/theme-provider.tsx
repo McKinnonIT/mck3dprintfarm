@@ -23,10 +23,20 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 // Reads the class the inline boot script (see layout.tsx) already applied
 // before hydration, rather than defaulting to "light" and flashing - the
 // script and this provider must agree on the same storage key/classes.
+// Falls back to localStorage directly (and re-applies the class) in case
+// the boot script didn't run for some reason - e.g. blocked by a browser/
+// device policy - so a saved preference still wins over the "light"
+// default instead of silently appearing to reset on every refresh.
 function readInitialTheme(): Theme {
   if (typeof document === "undefined") return "light";
   if (document.documentElement.classList.contains("dark")) return "dark";
   if (document.documentElement.classList.contains("dim")) return "dim";
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored === "dark" || stored === "dim") return stored;
+  } catch {
+    // Storage inaccessible (locked-down browser/device policy) - fall through to "light".
+  }
   return "light";
 }
 
@@ -34,7 +44,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(readInitialTheme);
 
   useEffect(() => {
-    setThemeState(readInitialTheme());
+    const initial = readInitialTheme();
+    setThemeState(initial);
+    applyThemeClass(initial);
   }, []);
 
   const setTheme = useCallback((next: Theme) => {

@@ -67,6 +67,7 @@ async function pollPrinter(printer: any, now: Date) {
     if (status.toolTemp !== undefined) updateData.toolTemp = status.toolTemp;
     if (status.printTimeElapsed !== undefined) updateData.printTimeElapsed = status.printTimeElapsed;
     if (status.printTimeRemaining !== undefined) updateData.printTimeRemaining = status.printTimeRemaining;
+    if (status.fileName !== undefined) updateData.currentJobFilename = status.fileName;
     if (status.state === "printing" && status.printTimeElapsed !== undefined) {
       updateData.printStartTime = new Date(now.getTime() - status.printTimeElapsed * 1000);
     }

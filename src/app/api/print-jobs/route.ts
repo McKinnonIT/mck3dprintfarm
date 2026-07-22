@@ -92,9 +92,9 @@ export async function POST(request: Request) {
     const is3MF = fileExt === '.3mf';
     
     // --- File Type Compatibility Checks ---
-    if (isPrusaLink && !isBGCode) {
-       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "FAILED", errorMessage: "PrusaLink printers currently only support .bgcode files via this interface." } });
-       return NextResponse.json({ error: "PrusaLink printers currently only support .bgcode files via this interface.", jobId: printJob.id }, { status: 400 });
+    if (isPrusaLink && !isBGCode && !isGCode) {
+       await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "FAILED", errorMessage: "PrusaLink printers only support .gcode or .bgcode files via this interface." } });
+       return NextResponse.json({ error: "PrusaLink printers only support .gcode or .bgcode files via this interface.", jobId: printJob.id }, { status: 400 });
     }
     if (isMoonraker && !isGCode) {
        await prisma.printJob.update({ where: { id: printJob.id }, data: { status: "FAILED", errorMessage: "Moonraker printers only support .gcode files." } });

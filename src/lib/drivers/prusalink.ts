@@ -76,24 +76,44 @@ export class PrusaLinkDriver implements PrinterDriver {
     if (status.state === "printing" || status.state === "paused") {
       const job = await this.tryGetJob();
       if (job) {
-        const completion = job.progress?.completion;
-        status.progress = typeof completion === "number" ? completion / 100 : undefined;
-        status.printTimeElapsed = numberOrUndefined(job.progress?.printTime);
-        status.printTimeRemaining = numberOrUndefined(job.progress?.printTimeLeft);
-        status.fileName = job.job?.file?.name;
+        status.progress = typeof job.progress === "number" ? job.progress / 100 : undefined;
+        status.printTimeElapsed = numberOrUndefined(job.time_printing);
+        status.printTimeRemaining = numberOrUndefined(job.time_remaining);
+        status.fileName = job.file?.display_name ?? job.file?.name;
       }
     }
 
     return status;
   }
 
+  // The legacy /api/files/local/* and /api/job write endpoints return 403 on
+  // this fleet's firmware (confirmed empirically) - it only has USB storage
+  // mounted, no internal "local" storage, and only accepts writes through
+  // the newer /api/v1 API. Reads (/api/version, /api/printer) still work
+  // fine on the legacy API, so those are left alone.
   private async tryGetJob(): Promise<any | undefined> {
     try {
-      const res = await fetchWithTimeout(this.url("/api/job"), { headers: this.headers }, 8000);
+      const res = await fetchWithTimeout(this.url("/api/v1/job"), { headers: this.headers }, 8000);
+      if (res.status === 204) return undefined;
       return res.ok ? await res.json() : undefined;
     } catch {
       return undefined;
     }
+  }
+
+  /** Storage location name (e.g. "usb" or "local") - varies by printer, so ask rather than assume. */
+  private async resolveStorage(): Promise<string> {
+    const res = await fetchWithTimeout(this.url("/api/v1/storage"), { headers: this.headers }, 8000);
+    if (!res.ok) {
+      throw new PrinterDriverError(`PrusaLink returned ${res.status} ${res.statusText} for /api/v1/storage`);
+    }
+    const data = await res.json();
+    const list: Array<{ name: string; available?: boolean }> = data.storage_list ?? [];
+    const storage = list.find((s) => s.available) ?? list[0];
+    if (!storage) {
+      throw new PrinterDriverError("PrusaLink reports no storage available to upload to");
+    }
+    return storage.name;
   }
 
   async uploadFile(
@@ -101,8 +121,9 @@ export class PrusaLinkDriver implements PrinterDriver {
     fileName: string,
     opts: { printAfterUpload?: boolean } = {}
   ): Promise<UploadResult> {
+    const storage = await this.resolveStorage();
     const res = await fetchWithTimeout(
-      this.url(`/api/files/local/${encodeURIComponent(fileName)}`),
+      this.url(`/api/v1/files/${storage}/${encodeURIComponent(fileName)}`),
       {
         method: "PUT",
         headers: {
@@ -119,17 +140,14 @@ export class PrusaLinkDriver implements PrinterDriver {
       const text = await res.text().catch(() => "");
       throw new PrinterDriverError(`PrusaLink upload failed: ${res.status} ${res.statusText} ${text}`);
     }
-    return { remotePath: `local/${fileName}` };
+    return { remotePath: `${storage}/${fileName}` };
   }
 
   async startPrint(fileName: string): Promise<void> {
+    const storage = await this.resolveStorage();
     const res = await fetchWithTimeout(
-      this.url(`/api/files/local/${encodeURIComponent(fileName)}`),
-      {
-        method: "POST",
-        headers: { ...this.headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ command: "select", print: true }),
-      },
+      this.url(`/api/v1/files/${storage}/${encodeURIComponent(fileName)}`),
+      { method: "POST", headers: this.headers },
       10000
     );
     if (!res.ok) {
@@ -138,29 +156,34 @@ export class PrusaLinkDriver implements PrinterDriver {
   }
 
   pausePrint(): Promise<void> {
-    return this.jobCommand("pause", "pause");
+    return this.jobAction("pause");
   }
 
   resumePrint(): Promise<void> {
-    return this.jobCommand("pause", "resume");
+    return this.jobAction("resume");
   }
 
-  stopPrint(): Promise<void> {
-    return this.jobCommand("cancel");
-  }
-
-  private async jobCommand(command: string, action?: string): Promise<void> {
-    const res = await fetchWithTimeout(
-      this.url("/api/job"),
-      {
-        method: "POST",
-        headers: { ...this.headers, "Content-Type": "application/json" },
-        body: JSON.stringify(action ? { command, action } : { command }),
-      },
-      10000
-    );
+  async stopPrint(): Promise<void> {
+    const id = await this.getJobId();
+    const res = await fetchWithTimeout(this.url(`/api/v1/job/${id}`), { method: "DELETE", headers: this.headers }, 10000);
     if (!res.ok) {
-      throw new PrinterDriverError(`PrusaLink job command "${command}" failed: ${res.status} ${res.statusText}`);
+      throw new PrinterDriverError(`PrusaLink failed to cancel job: ${res.status} ${res.statusText}`);
+    }
+  }
+
+  private async getJobId(): Promise<number> {
+    const job = await this.tryGetJob();
+    if (!job) {
+      throw new PrinterDriverError("PrusaLink has no active job");
+    }
+    return job.id;
+  }
+
+  private async jobAction(action: "pause" | "resume"): Promise<void> {
+    const id = await this.getJobId();
+    const res = await fetchWithTimeout(this.url(`/api/v1/job/${id}/${action}`), { method: "PUT", headers: this.headers }, 10000);
+    if (!res.ok) {
+      throw new PrinterDriverError(`PrusaLink failed to ${action} job: ${res.status} ${res.statusText}`);
     }
   }
 }

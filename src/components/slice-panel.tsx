@@ -33,12 +33,6 @@ function nextPlateObjectColor(existingCount: number): string {
   return PLATE_OBJECT_COLORS[existingCount % PLATE_OBJECT_COLORS.length];
 }
 
-type Printer = {
-  id: string;
-  name: string;
-  machineProfileId?: string | null;
-};
-
 type FilamentProfile = {
   id: string;
   name: string;
@@ -70,18 +64,17 @@ export interface SlicePanelProps {
   // Seeds the plate with this one file already placed, matching a "Slice"
   // click from the Files page. Omit to start from a completely blank plate.
   initialFile?: SlicePanelFile | null;
-  // Case-insensitive substring matched against printer name (or its
-  // assigned Machine Profile's name) to auto-select a printer once the
-  // list loads - e.g. "prusa" for a page that should default to a Prusa
-  // bed rather than force the user to pick one first.
-  defaultPrinterQuery?: string;
+  // Case-insensitive substring matched against Machine Profile name to
+  // auto-select one once the list loads - e.g. "prusa" for a page that
+  // should default to a Prusa bed rather than force the user to pick one
+  // first.
+  defaultMachineProfileQuery?: string;
   onSliced: (result: { fileName: string }) => void;
   // Renders a Cancel button next to Slice when provided.
   onCancel?: () => void;
 }
 
-export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onSliced, onCancel }: SlicePanelProps) {
-  const [printers, setPrinters] = useState<Printer[]>([]);
+export function SlicePanel({ files, initialFile = null, defaultMachineProfileQuery, onSliced, onCancel }: SlicePanelProps) {
   const [filamentProfiles, setFilamentProfiles] = useState<FilamentProfile[]>([]);
   const [slicingProfiles, setSlicingProfiles] = useState<SlicingProfile[]>([]);
   const [machineProfiles, setMachineProfiles] = useState<MachineProfile[]>([]);
@@ -110,7 +103,7 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
   const [outOfBoundsObjectIds, setOutOfBoundsObjectIds] = useState<Set<string>>(new Set());
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isCombining, setIsCombining] = useState(false);
-  const [selectedSlicePrinterId, setSelectedSlicePrinterId] = useState<string>("");
+  const [selectedMachineProfileId, setSelectedMachineProfileId] = useState<string>("");
   const [selectedFilamentProfileId, setSelectedFilamentProfileId] = useState<string>("");
   const [selectedSlicingProfileSelection, setSelectedSlicingProfileSelection] = useState<string>("");
   const [lastRealSlicingProfileId, setLastRealSlicingProfileId] = useState<string>("");
@@ -123,11 +116,9 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
 
   const isCustomSettings = selectedSlicingProfileSelection === CUSTOM_SETTINGS_VALUE;
 
-  // Only Slicing Profiles the selected printer's Machine Profile allows -
-  // an empty allow-list means unrestricted (show the whole library).
-  const selectedMachineProfile = machineProfiles.find(
-    (mp) => mp.id === printers.find((p) => p.id === selectedSlicePrinterId)?.machineProfileId
-  );
+  // Only Slicing Profiles the selected Machine Profile allows - an empty
+  // allow-list means unrestricted (show the whole library).
+  const selectedMachineProfile = machineProfiles.find((mp) => mp.id === selectedMachineProfileId);
   const availableSlicingProfiles = (() => {
     const allowed = selectedMachineProfile?.allowedSlicingProfiles;
     if (!allowed || allowed.length === 0) return slicingProfiles;
@@ -145,47 +136,39 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
   const plateFileIds = new Set(plateObjects.map((o) => o.fileId));
   const addableFiles = files.filter((f) => f.name.toLowerCase().endsWith(".stl") && !plateFileIds.has(f.id));
 
-  // Fetch printer/filament/slicing/machine profiles once on mount, then
-  // auto-select a printer matching `defaultPrinterQuery` if nothing else
-  // has picked one yet - lets a caller (e.g. the standalone Slicer page)
-  // start the user on a specific bed instead of an empty dropdown.
+  // Fetch filament/slicing/machine profiles once on mount, then
+  // auto-select a Machine Profile matching `defaultMachineProfileQuery` if
+  // nothing else has picked one yet - lets a caller (e.g. the standalone
+  // Slicer page) start the user on a specific bed instead of an empty
+  // dropdown.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingProfiles(true);
       setProfilesError(null);
       try {
-        const [printersRes, filamentRes, slicingRes, machineRes] = await Promise.all([
-          fetch("/api/printers/status"),
+        const [filamentRes, slicingRes, machineRes] = await Promise.all([
           fetch("/api/filament-profiles"),
           fetch("/api/slicing-profiles"),
           fetch("/api/machine-profiles"),
         ]);
-        if (!printersRes.ok) throw new Error("Failed to fetch printers");
         if (!filamentRes.ok) throw new Error("Failed to fetch filament profiles");
         if (!slicingRes.ok) throw new Error("Failed to fetch slicing profiles");
         if (!machineRes.ok) throw new Error("Failed to fetch machine profiles");
-        const [printersData, filamentData, slicingData, machineData]: [
-          Printer[],
+        const [filamentData, slicingData, machineData]: [
           FilamentProfile[],
           SlicingProfile[],
           MachineProfile[]
-        ] = await Promise.all([printersRes.json(), filamentRes.json(), slicingRes.json(), machineRes.json()]);
+        ] = await Promise.all([filamentRes.json(), slicingRes.json(), machineRes.json()]);
         if (cancelled) return;
-        setPrinters(printersData);
         setFilamentProfiles(filamentData);
         setSlicingProfiles(slicingData);
         setMachineProfiles(machineData);
 
-        if (defaultPrinterQuery) {
-          const query = defaultPrinterQuery.toLowerCase();
-          const machineNameById = new Map(machineData.map((mp) => [mp.id, mp.name.toLowerCase()]));
-          const match = printersData.find(
-            (p) =>
-              p.machineProfileId &&
-              (p.name.toLowerCase().includes(query) || (machineNameById.get(p.machineProfileId) || "").includes(query))
-          );
-          if (match) setSelectedSlicePrinterId(match.id);
+        if (defaultMachineProfileQuery) {
+          const query = defaultMachineProfileQuery.toLowerCase();
+          const match = machineData.find((mp) => mp.name.toLowerCase().includes(query));
+          if (match) setSelectedMachineProfileId(match.id);
         }
       } catch (err) {
         if (!cancelled) setProfilesError(err instanceof Error ? err.message : "An unknown error occurred");
@@ -277,9 +260,9 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
   // itself falls back to it for a single-object plate.
   const representativeFileId = plateObjects[0]?.fileId;
 
-  // Resolve the effective settings whenever printer/filament/slicing-profile selection is complete.
+  // Resolve the effective settings whenever machine/filament/slicing-profile selection is complete.
   useEffect(() => {
-    if (!representativeFileId || !selectedSlicePrinterId || !selectedFilamentProfileId || !resolveBaseSlicingProfileId) {
+    if (!representativeFileId || !selectedMachineProfileId || !selectedFilamentProfileId || !resolveBaseSlicingProfileId) {
       return;
     }
     let cancelled = false;
@@ -291,7 +274,7 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            printerId: selectedSlicePrinterId,
+            machineProfileId: selectedMachineProfileId,
             filamentProfileId: selectedFilamentProfileId,
             slicingProfileId: resolveBaseSlicingProfileId,
           }),
@@ -310,10 +293,10 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
     return () => {
       cancelled = true;
     };
-  }, [representativeFileId, selectedSlicePrinterId, selectedFilamentProfileId, resolveBaseSlicingProfileId]);
+  }, [representativeFileId, selectedMachineProfileId, selectedFilamentProfileId, resolveBaseSlicingProfileId]);
 
   const handleSubmitSlice = async () => {
-    if (!selectedSlicePrinterId || !selectedFilamentProfileId || !resolveBaseSlicingProfileId || plateObjects.length === 0) {
+    if (!selectedMachineProfileId || !selectedFilamentProfileId || !resolveBaseSlicingProfileId || plateObjects.length === 0) {
       return;
     }
     setIsSlicing(true);
@@ -359,7 +342,7 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          printerId: selectedSlicePrinterId,
+          machineProfileId: selectedMachineProfileId,
           filamentProfileId: selectedFilamentProfileId,
           slicingProfileId: resolveBaseSlicingProfileId,
           overrides: isCustomSettings ? customValues : undefined,
@@ -466,22 +449,20 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-1">
-          <Label htmlFor="slice-printer">Printer</Label>
+          <Label htmlFor="slice-machine-profile">Machine Profile</Label>
           <select
-            id="slice-printer"
-            value={selectedSlicePrinterId}
-            onChange={(e) => setSelectedSlicePrinterId(e.target.value)}
+            id="slice-machine-profile"
+            value={selectedMachineProfileId}
+            onChange={(e) => setSelectedMachineProfileId(e.target.value)}
             className="w-full rounded-md border border-border bg-background text-foreground px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={isSlicing || loadingProfiles}
           >
-            <option value="">-- Select Printer --</option>
-            {printers
-              .filter((printer) => printer.machineProfileId)
-              .map((printer) => (
-                <option key={printer.id} value={printer.id}>
-                  {printer.name}
-                </option>
-              ))}
+            <option value="">-- Select Machine Profile --</option>
+            {machineProfiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -527,7 +508,7 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
         <p className="text-sm text-amber-600">
           {slicingProfiles.length === 0
             ? 'No Slicing Profiles are available yet - even "Custom Settings" needs one as a starting point. Import an OrcaSlicer bundle or create one from Settings → Slicer Profiles.'
-            : "This printer's Machine Profile doesn't allow any of the Slicing Profiles in your library yet - manage its allow-list from Settings → Slicer Profiles."}
+            : "This Machine Profile doesn't allow any of the Slicing Profiles in your library yet - manage its allow-list from Settings → Slicer Profiles."}
         </p>
       )}
 
@@ -549,7 +530,7 @@ export function SlicePanel({ files, initialFile = null, defaultPrinterQuery, onS
           disabled={
             isSlicing ||
             isResolving ||
-            !selectedSlicePrinterId ||
+            !selectedMachineProfileId ||
             !selectedFilamentProfileId ||
             !resolveBaseSlicingProfileId ||
             plateObjects.length === 0 ||

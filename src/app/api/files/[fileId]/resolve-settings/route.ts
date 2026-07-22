@@ -11,10 +11,10 @@ export async function POST(request: Request, { params }: { params: { fileId: str
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { printerId, filamentProfileId, slicingProfileId } = await request.json();
-  if (!printerId || !filamentProfileId || !slicingProfileId) {
+  const { machineProfileId, filamentProfileId, slicingProfileId } = await request.json();
+  if (!machineProfileId || !filamentProfileId || !slicingProfileId) {
     return NextResponse.json(
-      { error: "printerId, filamentProfileId and slicingProfileId are required" },
+      { error: "machineProfileId, filamentProfileId and slicingProfileId are required" },
       { status: 400 }
     );
   }
@@ -24,21 +24,14 @@ export async function POST(request: Request, { params }: { params: { fileId: str
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
 
-  const printer = await prisma.printer.findUnique({
-    where: { id: printerId },
-    include: { machineProfile: true },
-  });
-  if (!printer) {
-    return NextResponse.json({ error: "Printer not found" }, { status: 404 });
-  }
-  if (!printer.machineProfile) {
-    return NextResponse.json({ error: "This printer has no machine profile assigned." }, { status: 400 });
-  }
-
-  const [filamentProfile, slicingProfile] = await Promise.all([
+  const [machineProfile, filamentProfile, slicingProfile] = await Promise.all([
+    prisma.machineProfile.findUnique({ where: { id: machineProfileId } }),
     prisma.filamentProfile.findUnique({ where: { id: filamentProfileId } }),
     prisma.slicingProfile.findUnique({ where: { id: slicingProfileId } }),
   ]);
+  if (!machineProfile) {
+    return NextResponse.json({ error: "Machine profile not found" }, { status: 404 });
+  }
   if (!filamentProfile) {
     return NextResponse.json({ error: "Filament profile not found" }, { status: 404 });
   }
@@ -49,7 +42,7 @@ export async function POST(request: Request, { params }: { params: { fileId: str
   const result = await resolveSettings({
     sourceFilePath: sourceFile.path,
     profile: {
-      machineJson: printer.machineProfile.machineJson,
+      machineJson: machineProfile.machineJson,
       processJson: slicingProfile.processJson,
       filamentJson: filamentProfile.filamentJson,
     },

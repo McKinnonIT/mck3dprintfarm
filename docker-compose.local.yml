@@ -1,6 +1,6 @@
 services:
   mck3dprintfarm:
-    image: mck3dprintfarm:v0.2.0a
+    image: mck3dprintfarm:v0.3.0a
     ports:
       - "3000:3000"
     volumes:

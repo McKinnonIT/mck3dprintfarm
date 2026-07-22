@@ -37,8 +37,8 @@ type File = {
   type: string;
   uploadedAt: Date;
   // Present only if this file IS a sliced output; tells us which model it came
-  // from and which printer it was sliced for.
-  sliceJobsAsResult?: { sourceFileId: string; printer?: { id: string; name: string } }[];
+  // from and which Machine Profile (printer type) it was sliced for.
+  sliceJobsAsResult?: { sourceFileId: string; machineProfile?: { id: string; name: string } }[];
 };
 
 // Define Printer type for state
@@ -142,8 +142,8 @@ export default function FilesPage() {
     ? `${session.user.name} - Manage Files`
     : "Manage Files";
 
-  // Name of the printer a sliced file was sliced for, if it's a sliced output.
-  const slicedForPrinterName = (file: File) => file.sliceJobsAsResult?.[0]?.printer?.name;
+  // Name of the Machine Profile a sliced file was sliced for, if it's a sliced output.
+  const slicedForMachineProfileName = (file: File) => file.sliceJobsAsResult?.[0]?.machineProfile?.name;
 
   // Helper function to format file size
   const formatFileSize = (bytes: number) => {
@@ -480,8 +480,8 @@ export default function FilesPage() {
                     <Badge variant={group.isModel ? "secondary" : "outline"}>
                       {group.isModel ? "Model" : "Sliced"}
                     </Badge>
-                    {!group.isModel && slicedForPrinterName(group.model) && (
-                      <Badge variant="outline">{slicedForPrinterName(group.model)}</Badge>
+                    {!group.isModel && slicedForMachineProfileName(group.model) && (
+                      <Badge variant="outline">{slicedForMachineProfileName(group.model)}</Badge>
                     )}
                   </div>
                            <p className="text-sm text-muted-foreground">
@@ -506,8 +506,8 @@ export default function FilesPage() {
                               <div className="flex items-center gap-2">
                                 <h4 className="text-sm font-medium">{slicedFile.name}</h4>
                                 <Badge variant="outline">Sliced</Badge>
-                                {slicedForPrinterName(slicedFile) && (
-                                  <Badge variant="outline">{slicedForPrinterName(slicedFile)}</Badge>
+                                {slicedForMachineProfileName(slicedFile) && (
+                                  <Badge variant="outline">{slicedForMachineProfileName(slicedFile)}</Badge>
                                 )}
                               </div>
                               <p className="text-xs text-muted-foreground">

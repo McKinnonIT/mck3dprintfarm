@@ -83,7 +83,7 @@ export default function SlicerPage() {
         <SlicePanel
           key={panelKey}
           files={files}
-          defaultPrinterQuery="prusa"
+          defaultMachineProfileQuery="prusa"
           onSliced={({ fileName }) => {
             toast.success(`Sliced "${fileName}" successfully!`);
             fetchFiles();

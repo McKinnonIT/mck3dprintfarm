@@ -186,8 +186,11 @@ model SliceJob {
   status              SliceJobStatus   @default(QUEUED)
   sourceFileId        String
   sourceFile          File             @relation("SliceJobSource", fields: [sourceFileId], references: [id])
-  printerId           String
-  printer             Printer          @relation(fields: [printerId], references: [id])
+  // No longer selected at slice time - slicing targets a Machine Profile
+  // (a printer type), not a specific physical unit. Kept nullable for
+  // pre-existing rows from when it was required.
+  printerId           String?
+  printer             Printer?         @relation(fields: [printerId], references: [id], onDelete: SetNull)
   machineProfileId    String?
   machineProfile      MachineProfile?  @relation(fields: [machineProfileId], references: [id], onDelete: SetNull)
   filamentProfileId   String?

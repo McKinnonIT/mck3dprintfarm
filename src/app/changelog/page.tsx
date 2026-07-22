@@ -16,11 +16,53 @@ export default function ChangelogPage() {
       <h1 className="text-3xl font-bold mb-6">Changelog</h1>
       
       <div className="space-y-8">
+        {/* START: v0.2.0a Entry */}
+        <section className="border-b pb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-2xl font-semibold" id="v0.2.0a">Version 0.2.0a</h2>
+            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">Released: 2026-07-22</p>
+
+          <div className="prose prose-blue max-w-none">
+            <h3 className="text-lg font-medium mt-4 mb-2">Added</h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>Camera streaming, proxied through a mediamtx sidecar:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Live camera views now route through a local camera-proxy sidecar instead of embedding the origin stream directly, so viewers never reach across the restricted camera VLAN - closes an open-proxy/SSRF hole in the snapshot endpoints along the way and stops leaking origin camera URLs to unauthenticated API responses.</li>
+                  <li>Printer camera config stores the exact HLS and WebRTC URLs a mediamtx bridge generates, with a preferred-mode selector, instead of guessing an HLS URL from a stored RTSP source. WebRTC as a live-view mode was later dropped - its UDP media can't tunnel through the proxy - so HLS is now the only supported mode.</li>
+                  <li>Dashboard tiles for HLS-backed cameras now show a real snapshot preview (grabbed via a short-lived ffmpeg process every 30s), instead of a black placeholder box.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>ONVIF camera support (e.g. TP-Link Tapo TC60):</strong>
+                <ul className="list-disc pl-4">
+                  <li>Given a camera's IP and ONVIF credentials, the app resolves its live RTSP URI and feeds it through the same camera-proxy pipeline already used for mediamtx-bridge cameras.</li>
+                  <li>New "Test Connection" button in the Add/Edit Printer forms resolves the stream URI and device info before saving.</li>
+                </ul>
+              </li>
+            </ul>
+
+            <h3 className="text-lg font-medium mt-4 mb-2">Fixed</h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>PrusaLink Integration:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Uploading, starting, pausing, resuming, and cancelling prints all now go through PrusaLink's v1 API - the legacy endpoints this app used previously return 403 Forbidden on current firmware, which only exposes USB storage rather than internal "local" storage.</li>
+                  <li>Print jobs sent to PrusaLink printers accept plain <code>.gcode</code> files again, not just <code>.bgcode</code> - the built-in OrcaSlicer sidecar can only ever produce <code>.gcode</code>, so this was blocking every in-app sliced file from being sent to a Prusa printer.</li>
+                  <li>The current job's filename is now saved to the database when polling printer status, so the dashboard and printers table actually show what's printing instead of staying blank.</li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </section>
+        {/* END: v0.2.0a Entry */}
+
         {/* START: v0.1.0a Entry */}
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.1.0a">Version 0.1.0a</h2>
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
           </div>
           <p className="text-sm text-muted-foreground mb-4">Released: 2026-07-14</p>
 

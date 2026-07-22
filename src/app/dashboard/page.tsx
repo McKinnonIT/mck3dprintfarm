@@ -40,6 +40,28 @@ const REFRESH_INTERVALS = [
   { label: "5m", value: 300000 },
 ];
 
+type SortBy = "name" | "status";
+
+// Active/attention-needing printers first, so a busy print farm shows what's
+// running (or needs help) before printers sitting idle or offline.
+const STATUS_SORT_ORDER: Record<string, number> = {
+  printing: 0,
+  paused: 1,
+  error: 2,
+  busy: 3,
+  idle: 4,
+  offline: 5,
+};
+
+function sortPrinters(printers: Printer[], sortBy: SortBy): Printer[] {
+  const byName = (a: Printer, b: Printer) => a.name.localeCompare(b.name, undefined, { numeric: true });
+  if (sortBy === "name") return [...printers].sort(byName);
+  return [...printers].sort((a, b) => {
+    const rank = (STATUS_SORT_ORDER[a.operationalStatus] ?? 99) - (STATUS_SORT_ORDER[b.operationalStatus] ?? 99);
+    return rank !== 0 ? rank : byName(a, b);
+  });
+}
+
 function formatDuration(seconds?: number | null): string {
   if (!seconds) return "N/A";
   const hours = Math.floor(seconds / 3600);
@@ -192,6 +214,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [refreshInterval, setRefreshInterval] = useState<number>(60000);
+  const [sortBy, setSortBy] = useState<SortBy>("name");
   const [timestamp, setTimestamp] = useState<number>(0);
   const [cameraSnapshotTimestamp, setCameraSnapshotTimestamp] = useState<number>(0);
   const [activeWebcam, setActiveWebcam] = useState<{
@@ -274,6 +297,14 @@ export default function DashboardPage() {
                 </option>
               ))}
             </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+              className="text-sm border rounded px-2 py-1 bg-background text-foreground"
+            >
+              <option value="name">Sort: Name</option>
+              <option value="status">Sort: Status</option>
+            </select>
             <button onClick={fetchDashboard} className="text-sm text-blue-600 hover:text-blue-800" disabled={loading}>
               Refresh now
             </button>
@@ -313,7 +344,7 @@ export default function DashboardPage() {
                 {group.description && <span className="text-sm text-muted-foreground">({group.description})</span>}
               </div>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                {group.printers.map((printer) => (
+                {sortPrinters(group.printers, sortBy).map((printer) => (
                   <PrinterTile
                     key={printer.id}
                     printer={printer}
@@ -337,7 +368,7 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <h2 className="text-2xl font-bold">Ungrouped Printers</h2>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                {ungroupedPrinters.map((printer) => (
+                {sortPrinters(ungroupedPrinters, sortBy).map((printer) => (
                   <PrinterTile
                     key={printer.id}
                     printer={printer}

@@ -16,11 +16,59 @@ export default function ChangelogPage() {
       <h1 className="text-3xl font-bold mb-6">Changelog</h1>
       
       <div className="space-y-8">
+        {/* START: v0.3.0a Entry */}
+        <section className="border-b pb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-2xl font-semibold" id="v0.3.0a">Version 0.3.0a</h2>
+            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">Released: 2026-07-22</p>
+
+          <div className="prose prose-blue max-w-none">
+            <h3 className="text-lg font-medium mt-4 mb-2">Changed</h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>Slicing now targets a Machine Profile, not a printer:</strong>
+                <ul className="list-disc pl-4">
+                  <li>The Slicer page and the Files page's Slice dialog now show a Machine Profile dropdown (e.g. "Prusa MK4S") instead of a list of individual printers - slicing only ever depended on the machine type (nozzle size, build volume, gcode flavor), never on which specific physical unit would print it.</li>
+                  <li>The printer badge on sliced files (added last version) now shows the Machine Profile name instead of a printer name, for the same reason.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Dashboard:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Added a "Sort: Name / Status" control next to the refresh interval - status sort surfaces printing, paused, and errored printers before idle or offline ones.</li>
+                </ul>
+              </li>
+            </ul>
+
+            <h3 className="text-lg font-medium mt-4 mb-2">Added</h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>Files page:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Sliced files now show a badge naming the Machine Profile they were sliced for.</li>
+                </ul>
+              </li>
+            </ul>
+
+            <h3 className="text-lg font-medium mt-4 mb-2">Fixed</h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>Appearance:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Theme choice (light/dim/dark) is now read from localStorage directly as a fallback, instead of relying solely on a class the boot script may not have applied - previously the choice could silently reset to light on refresh with no visible error.</li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </section>
+        {/* END: v0.3.0a Entry */}
+
         {/* START: v0.2.0a Entry */}
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.2.0a">Version 0.2.0a</h2>
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
           </div>
           <p className="text-sm text-muted-foreground mb-4">Released: 2026-07-22</p>
 

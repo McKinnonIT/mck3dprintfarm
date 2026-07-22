@@ -36,8 +36,9 @@ type File = {
   size: number;
   type: string;
   uploadedAt: Date;
-  // Present only if this file IS a sliced output; tells us which model it came from.
-  sliceJobsAsResult?: { sourceFileId: string }[];
+  // Present only if this file IS a sliced output; tells us which model it came
+  // from and which printer it was sliced for.
+  sliceJobsAsResult?: { sourceFileId: string; printer?: { id: string; name: string } }[];
 };
 
 // Define Printer type for state
@@ -140,6 +141,9 @@ export default function FilesPage() {
   const pageTitle = status === 'authenticated' && session?.user?.name
     ? `${session.user.name} - Manage Files`
     : "Manage Files";
+
+  // Name of the printer a sliced file was sliced for, if it's a sliced output.
+  const slicedForPrinterName = (file: File) => file.sliceJobsAsResult?.[0]?.printer?.name;
 
   // Helper function to format file size
   const formatFileSize = (bytes: number) => {
@@ -476,6 +480,9 @@ export default function FilesPage() {
                     <Badge variant={group.isModel ? "secondary" : "outline"}>
                       {group.isModel ? "Model" : "Sliced"}
                     </Badge>
+                    {!group.isModel && slicedForPrinterName(group.model) && (
+                      <Badge variant="outline">{slicedForPrinterName(group.model)}</Badge>
+                    )}
                   </div>
                            <p className="text-sm text-muted-foreground">
                     {formatFileSize(group.model.size)} • {group.model.type}
@@ -499,6 +506,9 @@ export default function FilesPage() {
                               <div className="flex items-center gap-2">
                                 <h4 className="text-sm font-medium">{slicedFile.name}</h4>
                                 <Badge variant="outline">Sliced</Badge>
+                                {slicedForPrinterName(slicedFile) && (
+                                  <Badge variant="outline">{slicedForPrinterName(slicedFile)}</Badge>
+                                )}
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 {formatFileSize(slicedFile.size)} • {slicedFile.type}

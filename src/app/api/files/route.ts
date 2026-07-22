@@ -115,9 +115,9 @@ export async function GET() {
           },
         },
         // Present only if this file IS a sliced output - tells the UI which
-        // model file to group it under.
+        // model file to group it under, and which printer it was sliced for.
         sliceJobsAsResult: {
-          select: { sourceFileId: true },
+          select: { sourceFileId: true, printer: { select: { id: true, name: true } } },
         },
       },
       orderBy: {

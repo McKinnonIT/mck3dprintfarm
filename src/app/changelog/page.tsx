@@ -16,11 +16,60 @@ export default function ChangelogPage() {
       <h1 className="text-3xl font-bold mb-6">Changelog</h1>
       
       <div className="space-y-8">
+        {/* START: v0.4.0a Entry */}
+        <section className="border-b pb-6">
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="text-2xl font-semibold" id="v0.4.0a">Version 0.4.0a</h2>
+            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">Released: 2026-07-24</p>
+
+          <div className="prose prose-blue max-w-none">
+            <h3 className="text-lg font-medium mt-4 mb-2">Changed</h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>Manage Printers page:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Printer, IP Address, and Status columns are now sortable - click a header to toggle ascending/descending.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Slicer Profiles settings:</strong>
+                <ul className="list-disc pl-4">
+                  <li>"Manage Slicing Profiles" is now "Printer Settings" - still manages a machine's Slicing Profile allow-list, and now also hosts its bed representation (see Added below).</li>
+                </ul>
+              </li>
+            </ul>
+
+            <h3 className="text-lg font-medium mt-4 mb-2">Added</h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>Printers:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Track an optional filament material (fixed dropdown: PLA, PETG, ABS, ASA, PA (Nylon), PC (Polycarbonate), PEEK, HIPS, TPE, TPU, PVA, PP) and colour (preset dropdown, colour picker, optional hex entry) - shown as chips on the Manage Printers table and dashboard tiles.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Slicer page:</strong>
+                <ul className="list-disc pl-4">
+                  <li>A Machine Profile can have a bed STL uploaded (Settings → Printer Settings) for a more accurate 3D bed representation - purely visual, it's never sent to OrcaSlicer or included in a slice.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Settings:</strong>
+                <ul className="list-disc pl-4">
+                  <li>Machine, Filament, and Slicing Profiles can now be renamed in place.</li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </section>
+        {/* END: v0.4.0a Entry */}
+
         {/* START: v0.3.0a Entry */}
         <section className="border-b pb-6">
           <div className="flex items-center gap-4 mb-4">
             <h2 className="text-2xl font-semibold" id="v0.3.0a">Version 0.3.0a</h2>
-            <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">Latest</span>
           </div>
           <p className="text-sm text-muted-foreground mb-4">Released: 2026-07-22</p>
 

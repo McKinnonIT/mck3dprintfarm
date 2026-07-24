@@ -1072,6 +1072,69 @@ export default function SettingsPage() {
     }
   };
 
+  const handleRenameMachineProfile = async (profile: MachineProfile) => {
+    const newName = window.prompt(`Rename machine profile "${profile.name}" to:`, profile.name);
+    if (!newName || !newName.trim() || newName.trim() === profile.name) return;
+    setSlicerProfilesError(null);
+    try {
+      const response = await fetch(`/api/machine-profiles/${profile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to rename machine profile");
+      }
+      const updated = await response.json();
+      setMachineProfiles((prev) => prev.map((p) => (p.id === profile.id ? { ...p, name: updated.name } : p)));
+    } catch (err) {
+      setSlicerProfilesError(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
+
+  const handleRenameFilamentProfile = async (profile: FilamentProfile) => {
+    const newName = window.prompt(`Rename filament profile "${profile.name}" to:`, profile.name);
+    if (!newName || !newName.trim() || newName.trim() === profile.name) return;
+    setSlicerProfilesError(null);
+    try {
+      const response = await fetch(`/api/filament-profiles/${profile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to rename filament profile");
+      }
+      const updated = await response.json();
+      setFilamentProfiles((prev) => prev.map((p) => (p.id === profile.id ? { ...p, name: updated.name } : p)));
+    } catch (err) {
+      setSlicerProfilesError(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
+
+  const handleRenameSlicingProfile = async (profile: SlicingProfile) => {
+    const newName = window.prompt(`Rename slicing profile "${profile.name}" to:`, profile.name);
+    if (!newName || !newName.trim() || newName.trim() === profile.name) return;
+    setSlicerProfilesError(null);
+    try {
+      const response = await fetch(`/api/slicing-profiles/${profile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to rename slicing profile");
+      }
+      const updated = await response.json();
+      setSlicingProfiles((prev) => prev.map((p) => (p.id === profile.id ? { ...p, name: updated.name } : p)));
+    } catch (err) {
+      setSlicerProfilesError(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
+
   const handleDeleteMachineProfile = async (profile: MachineProfile) => {
     if (!window.confirm(`Delete machine profile "${profile.name}"?`)) return;
     setSlicerProfilesError(null);
@@ -1576,6 +1639,9 @@ export default function SettingsPage() {
                                     : `${profile.allowedSlicingProfiles.length} selected`}
                                 </TableCell>
                                 <TableCell className="text-right space-x-2">
+                                  <Button variant="outline" size="sm" onClick={() => handleRenameMachineProfile(profile)}>
+                                    Rename
+                                  </Button>
                                   <Button variant="outline" size="sm" onClick={() => openAllowListModal(profile)}>
                                     Printer Settings
                                   </Button>
@@ -1614,7 +1680,10 @@ export default function SettingsPage() {
                               <TableRow key={profile.id}>
                                 <TableCell className="font-medium">{profile.name}</TableCell>
                                 <TableCell className="text-xs text-muted-foreground">{profile.filename}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right space-x-2">
+                                  <Button variant="outline" size="sm" onClick={() => handleRenameFilamentProfile(profile)}>
+                                    Rename
+                                  </Button>
                                   <Button variant="destructive" size="sm" onClick={() => handleDeleteFilamentProfile(profile)}>
                                     Delete
                                   </Button>
@@ -1644,7 +1713,10 @@ export default function SettingsPage() {
                               <TableRow key={profile.id}>
                                 <TableCell className="font-medium">{profile.name}</TableCell>
                                 <TableCell className="text-xs text-muted-foreground">{profile.filename}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right space-x-2">
+                                  <Button variant="outline" size="sm" onClick={() => handleRenameSlicingProfile(profile)}>
+                                    Rename
+                                  </Button>
                                   <Button variant="destructive" size="sm" onClick={() => handleDeleteSlicingProfile(profile)}>
                                     Delete
                                   </Button>

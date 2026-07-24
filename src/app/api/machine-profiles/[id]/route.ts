@@ -31,8 +31,9 @@ export async function GET(
   return NextResponse.json(profile);
 }
 
-// Sets this machine's full allow-list of Slicing Profiles (empty = allow
-// the whole shared library - see the schema comment on allowedSlicingProfiles).
+// Renames the machine and/or sets its full allow-list of Slicing Profiles
+// (empty = allow the whole shared library - see the schema comment on
+// allowedSlicingProfiles). Either field may be sent on its own.
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
@@ -42,26 +43,40 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden: Admin access required." }, { status: 403 });
   }
 
-  const { allowedSlicingProfileIds } = await request.json();
-  if (!Array.isArray(allowedSlicingProfileIds)) {
+  const { name, allowedSlicingProfileIds } = await request.json();
+  if (name === undefined && allowedSlicingProfileIds === undefined) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  }
+  if (allowedSlicingProfileIds !== undefined && !Array.isArray(allowedSlicingProfileIds)) {
     return NextResponse.json({ error: "allowedSlicingProfileIds must be an array" }, { status: 400 });
   }
+  if (name !== undefined && (typeof name !== "string" || !name.trim())) {
+    return NextResponse.json({ error: "name cannot be blank" }, { status: 400 });
+  }
 
-  const profile = await prisma.machineProfile.update({
-    where: { id: params.id },
-    data: {
-      allowedSlicingProfiles: {
-        set: allowedSlicingProfileIds.map((id: string) => ({ id })),
+  try {
+    const profile = await prisma.machineProfile.update({
+      where: { id: params.id },
+      data: {
+        ...(name !== undefined ? { name: name.trim() } : {}),
+        ...(allowedSlicingProfileIds !== undefined
+          ? { allowedSlicingProfiles: { set: allowedSlicingProfileIds.map((id: string) => ({ id })) } }
+          : {}),
       },
-    },
-    select: {
-      id: true,
-      name: true,
-      allowedSlicingProfiles: { select: { id: true, name: true } },
-    },
-  });
-
-  return NextResponse.json(profile);
+      select: {
+        id: true,
+        name: true,
+        allowedSlicingProfiles: { select: { id: true, name: true } },
+      },
+    });
+    return NextResponse.json(profile);
+  } catch (error: any) {
+    if (error?.code === "P2002") {
+      return NextResponse.json({ error: `A machine profile named "${name}" already exists.` }, { status: 409 });
+    }
+    console.error("PATCH /api/machine-profiles/[id] Error:", error);
+    return NextResponse.json({ error: "Failed to update machine profile" }, { status: 500 });
+  }
 }
 
 export async function DELETE(

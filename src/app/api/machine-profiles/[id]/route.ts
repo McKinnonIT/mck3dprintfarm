@@ -20,6 +20,7 @@ export async function GET(
       description: true,
       filename: true,
       createdAt: true,
+      bedStlFilename: true,
       allowedSlicingProfiles: { select: { id: true, name: true } },
     },
   });

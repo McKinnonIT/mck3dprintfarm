@@ -22,6 +22,7 @@ export async function GET() {
       filename: true,
       createdAt: true,
       machineJson: true,
+      bedStlFilename: true,
       _count: { select: { printers: true } },
       // Empty list = unrestricted; used by the Files-page Slice panel to
       // filter its Slicing Profile dropdown per selected printer.
@@ -30,9 +31,12 @@ export async function GET() {
     orderBy: { name: "asc" },
   });
 
-  const response = profiles.map(({ machineJson, ...rest }) => ({
+  const response = profiles.map(({ machineJson, bedStlFilename, ...rest }) => ({
     ...rest,
     buildVolume: computeBuildVolume(machineJson),
+    // The path is never exposed - only whether one exists (fetched via its
+    // own dedicated route, /api/machine-profiles/[id]/bed-stl).
+    hasBedStl: !!bedStlFilename,
   }));
 
   return NextResponse.json(response);

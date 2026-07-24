@@ -49,6 +49,7 @@ type MachineProfile = {
   // Empty = unrestricted (every Slicing Profile in the library is usable).
   allowedSlicingProfiles: { id: string }[];
   buildVolume?: { width: number; depth: number; height: number } | null;
+  hasBedStl?: boolean;
 };
 
 export interface SlicePanelFile {
@@ -373,6 +374,7 @@ export function SlicePanel({ files, initialFile = null, defaultMachineProfileQue
         onFacePicked={() => setPickingFaceObjectId(null)}
         onBoundsChange={handlePlateObjectBoundsChange}
         buildVolume={selectedMachineProfile?.buildVolume}
+        bedStlUrl={selectedMachineProfile?.hasBedStl ? `/api/machine-profiles/${selectedMachineProfile.id}/bed-stl` : null}
       />
 
       {selectedMachineProfile?.buildVolume && (

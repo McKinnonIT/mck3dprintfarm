@@ -136,6 +136,11 @@ model MachineProfile {
   description            String?
   machineJson            String
   filename               String
+  // Purely a visual representation of the bed in the Slicer page's 3D
+  // viewer - never read by the slicing path (see slice/route.ts), which
+  // only ever sends machineJson/processJson/filamentJson to OrcaSlicer.
+  bedStlPath             String?
+  bedStlFilename         String?
   uploadedByUserId       String?
   uploadedBy             User?            @relation("UploadedMachineProfiles", fields: [uploadedByUserId], references: [id])
   printers               Printer[]

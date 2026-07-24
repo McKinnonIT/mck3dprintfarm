@@ -56,6 +56,11 @@ type FileViewer3DProps = {
   onBoundsChange?: (id: string, inBounds: boolean) => void;
   /** The selected printer's bed size/height, if known - draws a build plate under the model(s). */
   buildVolume?: BuildVolume | null;
+  /** Optional bed STL for the selected Machine Profile - a purely visual
+   * representation of the actual bed shape/texture (e.g. a Bambu textured
+   * plate), never sent anywhere near the slicing engine. Falls back to the
+   * procedural flat plate below when not set. */
+  bedStlUrl?: string | null;
 };
 
 // Loads the STL and converts its Z-up (slicer convention) coordinates to
@@ -383,10 +388,34 @@ function GCodeModel({ fileUrl }: { fileUrl: string }) {
   return <primitive object={gcodeObject} />;
 }
 
+// Loads a bed STL as authored - no recentering or floor-resting like model
+// STLs get, since a bed asset's whole point is that its coordinates already
+// match the printer's real origin convention. Only the Z-up -> Y-up axis
+// conversion every STL needs applies.
+function useBedGeometry(stlUrl: string) {
+  const rawGeometry = useLoader(STLLoader, stlUrl);
+  return useMemo(() => {
+    const geo = rawGeometry.clone();
+    geo.rotateX(-Math.PI / 2);
+    return geo;
+  }, [rawGeometry]);
+}
+
+function BedStlMesh({ stlUrl }: { stlUrl: string }) {
+  const geometry = useBedGeometry(stlUrl);
+  const material = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#d4d4d8", side: THREE.DoubleSide }),
+    []
+  );
+  return <mesh geometry={geometry} material={material} onClick={(e) => e.stopPropagation()} />;
+}
+
 // Flat plate matching the printer's bed footprint, plus a wireframe box
 // showing its max build height - the same visual language desktop slicers
-// (OrcaSlicer, Cura, PrusaSlicer) use for their build volume.
-function BuildPlate({ width, depth, height }: BuildVolume) {
+// (OrcaSlicer, Cura, PrusaSlicer) use for their build volume. Swaps in a
+// real bed STL in place of the flat plane when the Machine Profile has one
+// uploaded - purely cosmetic either way, never read by the slicing path.
+function BuildPlate({ width, depth, height, bedStlUrl }: BuildVolume & { bedStlUrl?: string | null }) {
   const halfW = width / 2;
   const halfD = depth / 2;
   const corners: [number, number, number][] = [
@@ -399,14 +428,18 @@ function BuildPlate({ width, depth, height }: BuildVolume) {
 
   return (
     <group>
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0, 0]}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <planeGeometry args={[width, depth]} />
-        <meshStandardMaterial color="#d4d4d8" side={THREE.DoubleSide} />
-      </mesh>
+      {bedStlUrl ? (
+        <BedStlMesh stlUrl={bedStlUrl} />
+      ) : (
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0, 0]}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <planeGeometry args={[width, depth]} />
+          <meshStandardMaterial color="#d4d4d8" side={THREE.DoubleSide} />
+        </mesh>
+      )}
       <Line points={corners} color="#71717a" lineWidth={1.5} />
       <mesh position={[0, height / 2, 0]}>
         <boxGeometry args={[width, height, depth]} />
@@ -446,6 +479,7 @@ export function FileViewer3D({
   onFacePicked,
   onBoundsChange,
   buildVolume,
+  bedStlUrl,
 }: FileViewer3DProps) {
   const isMultiObject = Array.isArray(objects);
   const fileUrl = fileId ? `/api/files/preview/${fileId}` : null;
@@ -476,13 +510,13 @@ export function FileViewer3D({
                     onBoundsChange={(inBounds) => onBoundsChange?.(object.id, inBounds)}
                   />
                 ))}
-                {buildVolume && <BuildPlate {...buildVolume} />}
+                {buildVolume && <BuildPlate {...buildVolume} bedStlUrl={bedStlUrl} />}
               </>
             ) : fileExtension === 'stl' && fileUrl ? (
               <>
                 <AutoRefit dep={`${buildVolume?.width}x${buildVolume?.depth}`} />
                 <StlModel fileUrl={fileUrl} />
-                {buildVolume && <BuildPlate {...buildVolume} />}
+                {buildVolume && <BuildPlate {...buildVolume} bedStlUrl={bedStlUrl} />}
               </>
             ) : (fileExtension === 'gcode' || fileExtension === 'bgcode') && fileUrl ? (
               <Center><GCodeModel fileUrl={fileUrl} /></Center>

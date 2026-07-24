@@ -84,6 +84,9 @@ interface MachineProfile {
   _count: { printers: number };
   // Empty = unrestricted (any Slicing Profile in the library is usable).
   allowedSlicingProfiles: { id: string }[];
+  // Only populated by the per-machine detail fetch (openAllowListModal) -
+  // the list fetch only exposes a hasBedStl boolean, not the filename.
+  bedStlFilename?: string | null;
 }
 
 interface FilamentProfile {
@@ -262,11 +265,14 @@ export default function SettingsPage() {
   const [isImportingFilaments, setIsImportingFilaments] = useState(false);
   const [importFilamentsError, setImportFilamentsError] = useState<string | null>(null);
 
-  // Per-machine "which Slicing Profiles are allowed" modal
+  // Per-machine "Printer Settings" modal - slicing-profile allow-list plus
+  // the bed STL upload (purely visual, see MachineProfile.bedStlPath).
   const [managingAllowListFor, setManagingAllowListFor] = useState<MachineProfile | null>(null);
   const [allowListSelectedIds, setAllowListSelectedIds] = useState<Set<string>>(new Set());
   const [isSavingAllowList, setIsSavingAllowList] = useState(false);
   const [allowListError, setAllowListError] = useState<string | null>(null);
+  const [isSavingBedStl, setIsSavingBedStl] = useState(false);
+  const [bedStlError, setBedStlError] = useState<string | null>(null);
 
   // "Create Slicing Profile" modal (clone an existing profile + edit curated fields)
   const [isCreateProfileModalOpen, setIsCreateProfileModalOpen] = useState(false);
@@ -1114,13 +1120,61 @@ export default function SettingsPage() {
   const openAllowListModal = async (profile: MachineProfile) => {
     setManagingAllowListFor(profile);
     setAllowListError(null);
+    setBedStlError(null);
     try {
       const response = await fetch(`/api/machine-profiles/${profile.id}`);
       if (!response.ok) throw new Error("Failed to fetch machine profile detail");
       const detail = await response.json();
       setAllowListSelectedIds(new Set(detail.allowedSlicingProfiles.map((p: { id: string }) => p.id)));
+      setManagingAllowListFor((prev) => (prev ? { ...prev, bedStlFilename: detail.bedStlFilename } : prev));
     } catch (err) {
       setAllowListError(err instanceof Error ? err.message : "An error occurred");
+    }
+  };
+
+  const handleUploadBedStl = async (file: File) => {
+    if (!managingAllowListFor) return;
+    setIsSavingBedStl(true);
+    setBedStlError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(`/api/machine-profiles/${managingAllowListFor.id}/bed-stl`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to upload bed STL");
+      }
+      const result = await response.json();
+      setManagingAllowListFor((prev) => (prev ? { ...prev, bedStlFilename: result.bedStlFilename } : prev));
+      toast.success("Bed STL uploaded.");
+    } catch (err) {
+      setBedStlError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsSavingBedStl(false);
+    }
+  };
+
+  const handleRemoveBedStl = async () => {
+    if (!managingAllowListFor) return;
+    setIsSavingBedStl(true);
+    setBedStlError(null);
+    try {
+      const response = await fetch(`/api/machine-profiles/${managingAllowListFor.id}/bed-stl`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to remove bed STL");
+      }
+      setManagingAllowListFor((prev) => (prev ? { ...prev, bedStlFilename: null } : prev));
+      toast.success("Bed STL removed.");
+    } catch (err) {
+      setBedStlError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setIsSavingBedStl(false);
     }
   };
 
@@ -1471,8 +1525,8 @@ export default function SettingsPage() {
                       Import an OrcaSlicer "Export Config Bundle" (.orca_printer) to populate the machine,
                       filament, and Slicing Profile libraries below. Assign a Machine Profile to a printer
                       (on the Printers page); filament and Slicing Profile are chosen per-slice on the Files
-                      page - curate which Slicing Profiles a Machine Profile allows with "Manage Slicing
-                      Profiles" below.
+                      page - use "Printer Settings" below to curate which Slicing Profiles a Machine Profile
+                      allows and to set its bed representation for the Slicer page's 3D view.
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -1523,7 +1577,7 @@ export default function SettingsPage() {
                                 </TableCell>
                                 <TableCell className="text-right space-x-2">
                                   <Button variant="outline" size="sm" onClick={() => openAllowListModal(profile)}>
-                                    Manage Slicing Profiles
+                                    Printer Settings
                                   </Button>
                                   <Button
                                     variant="destructive"
@@ -2143,35 +2197,82 @@ export default function SettingsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Per-machine "which Slicing Profiles are allowed" checklist */}
+      {/* Per-machine "Printer Settings": Slicing Profile allow-list plus the
+          bed STL (visual-only bed representation for the Slicer page). More
+          machine-level defaults are expected to land in this modal over time. */}
       <Dialog open={!!managingAllowListFor} onOpenChange={(open) => !open && setManagingAllowListFor(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Manage Slicing Profiles for "{managingAllowListFor?.name}"</DialogTitle>
-            <DialogDescription>
-              Leave everything unchecked to allow the whole library. Check specific profiles to restrict
-              this machine to only those when slicing.
-            </DialogDescription>
+            <DialogTitle>Printer Settings - "{managingAllowListFor?.name}"</DialogTitle>
           </DialogHeader>
-          {allowListError && <p className="text-sm text-red-600">{allowListError}</p>}
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {slicingProfiles.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No Slicing Profiles in your library yet.</p>
-            ) : (
-              slicingProfiles.map((profile) => (
-                <div key={profile.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`allow-list-${profile.id}`}
-                    checked={allowListSelectedIds.has(profile.id)}
-                    onCheckedChange={(checked) => toggleAllowListProfile(profile.id, checked === true)}
-                  />
-                  <Label htmlFor={`allow-list-${profile.id}`} className="font-normal">
-                    {profile.name}
-                  </Label>
+
+          <div className="space-y-6">
+            <div>
+              <h4 className="text-sm font-semibold mb-1">Allowed Slicing Profiles</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                Leave everything unchecked to allow the whole library. Check specific profiles to restrict
+                this machine to only those when slicing.
+              </p>
+              {allowListError && <p className="text-sm text-red-600 mb-2">{allowListError}</p>}
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {slicingProfiles.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No Slicing Profiles in your library yet.</p>
+                ) : (
+                  slicingProfiles.map((profile) => (
+                    <div key={profile.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`allow-list-${profile.id}`}
+                        checked={allowListSelectedIds.has(profile.id)}
+                        onCheckedChange={(checked) => toggleAllowListProfile(profile.id, checked === true)}
+                      />
+                      <Label htmlFor={`allow-list-${profile.id}`} className="font-normal">
+                        {profile.name}
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold mb-1">Bed Representation</h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                An .stl showing the actual bed shape/texture in the Slicer page's 3D view - purely visual,
+                it's never sent to OrcaSlicer or included in a slice.
+              </p>
+              {bedStlError && <p className="text-sm text-red-600 mb-2">{bedStlError}</p>}
+              {managingAllowListFor?.bedStlFilename && (
+                <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 mb-2">
+                  <span className="text-sm truncate">{managingAllowListFor.bedStlFilename}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemoveBedStl}
+                    disabled={isSavingBedStl}
+                  >
+                    Remove
+                  </Button>
                 </div>
-              ))
-            )}
+              )}
+              <Input
+                type="file"
+                accept=".stl"
+                disabled={isSavingBedStl}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUploadBedStl(file);
+                  e.target.value = "";
+                }}
+              />
+              {isSavingBedStl && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  <ArrowPathIcon className="inline h-3.5 w-3.5 mr-1 animate-spin" /> Saving...
+                </p>
+              )}
+            </div>
           </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setManagingAllowListFor(null)} disabled={isSavingAllowList}>
               Cancel

@@ -71,6 +71,8 @@ model Printer {
   bedTemp            Float?
   toolTemp           Float?
   currentJobFilename String?
+  filamentMaterial   String?
+  filamentColor      String?
   printJobs          PrintJob[]
   sliceJobs          SliceJob[]
   createdAt          DateTime   @default(now())

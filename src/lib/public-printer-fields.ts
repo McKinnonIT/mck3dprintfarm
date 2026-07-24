@@ -25,6 +25,8 @@ export const PUBLIC_PRINTER_SELECT = {
   currentJobFilename: true,
   bedTemp: true,
   toolTemp: true,
+  filamentMaterial: true,
+  filamentColor: true,
   printStartTime: true,
   printTimeElapsed: true,
   printTimeRemaining: true,

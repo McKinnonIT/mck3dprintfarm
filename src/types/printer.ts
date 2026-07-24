@@ -25,4 +25,6 @@ export interface Printer {
   hlsUrl?: string | null;
   webrtcUrl?: string | null;
   cameraStreamMode?: string | null;
+  filamentMaterial?: string | null;
+  filamentColor?: string | null;
 }

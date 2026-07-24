@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { canAccessPage } from "@/lib/rbacUtils";
 import { AddPrinterForm } from "@/components/add-printer-form";
 import { EditPrinterForm } from "@/components/edit-printer-form";
-import { PlusIcon, TrashIcon, PencilIcon, PauseIcon, StopIcon, ClockIcon, PlayIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, TrashIcon, PencilIcon, PauseIcon, StopIcon, ClockIcon, PlayIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import {
   AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
 import { DeletePrinterDialog } from "@/components/delete-printer-dialog";
+import { MaterialChip, ColorChip } from "@/components/printers/filament-chips";
 import { PrintHistoryModal } from "@/components/print-history-modal";
 import { toast } from "sonner";
 import {
@@ -40,6 +41,8 @@ type NewPrinterData = {
   status: string;
   groupId?: string | null;
   machineProfileId?: string | null;
+  filamentMaterial?: string | null;
+  filamentColor?: string | null;
 };
 
 type Printer = {
@@ -61,6 +64,8 @@ type Printer = {
   machineProfileId?: string | null;
   toolTemp?: number;
   bedTemp?: number;
+  filamentMaterial?: string | null;
+  filamentColor?: string | null;
 };
 
 type JobHistoryEntry = {
@@ -68,6 +73,21 @@ type JobHistoryEntry = {
   filename: string;
   duration?: number;
   status: 'completed' | 'failed' | 'cancelled' | 'unknown';
+};
+
+type SortColumn = "name" | "ip" | "status";
+type SortDirection = "asc" | "desc";
+
+// Management status ranked active-first; operational status breaks ties the
+// same way the dashboard's printer sort does (busiest/neediest first).
+const STATUS_RANK: Record<string, number> = { active: 0, maintenance: 1, disabled: 2 };
+const OPERATIONAL_STATUS_RANK: Record<string, number> = {
+  printing: 0,
+  paused: 1,
+  error: 2,
+  busy: 3,
+  idle: 4,
+  offline: 5,
 };
 
 export default function PrintersPage() {
@@ -88,6 +108,8 @@ export default function PrintersPage() {
   const [historyData, setHistoryData] = useState<JobHistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -336,6 +358,45 @@ export default function PrintersPage() {
     }
   };
 
+  const sortedPrinters = [...filteredPrinters].sort((a, b) => {
+    let comparison = 0;
+    switch (sortColumn) {
+      case "name":
+        comparison = a.name.localeCompare(b.name, undefined, { numeric: true });
+        break;
+      case "ip":
+        comparison = extractIp(a.apiUrl).localeCompare(extractIp(b.apiUrl), undefined, { numeric: true });
+        break;
+      case "status":
+        comparison = (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99);
+        if (comparison === 0) {
+          comparison = (OPERATIONAL_STATUS_RANK[a.operationalStatus] ?? 99) - (OPERATIONAL_STATUS_RANK[b.operationalStatus] ?? 99);
+        }
+        break;
+    }
+    return sortDirection === "asc" ? comparison : -comparison;
+  });
+
+  const handleSort = (column: SortColumn) => {
+    if (column === sortColumn) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const renderSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ChevronUpDownIcon className="h-4 w-4 text-muted-foreground/50" />;
+    }
+    return sortDirection === "asc" ? (
+      <ChevronUpIcon className="h-4 w-4" />
+    ) : (
+      <ChevronDownIcon className="h-4 w-4" />
+    );
+  };
+
   // Helper to format time remaining
   const formatTime = (seconds: number | undefined | null): string => {
     if (seconds === undefined || seconds === null || seconds < 0) return 'N/A';
@@ -429,16 +490,23 @@ export default function PrintersPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[20%]">Printer</TableHead>
-              <TableHead className="w-[15%]">IP Address</TableHead>
-              <TableHead className="w-[15%]">Status</TableHead>
-              <TableHead className="w-[10%]">Temps</TableHead>
-              <TableHead className="w-[15%]">Current Job</TableHead>
+              <TableHead className="w-[16%] cursor-pointer select-none" onClick={() => handleSort("name")}>
+                <div className="flex items-center gap-1">Printer {renderSortIcon("name")}</div>
+              </TableHead>
+              <TableHead className="w-[12%] cursor-pointer select-none" onClick={() => handleSort("ip")}>
+                <div className="flex items-center gap-1">IP Address {renderSortIcon("ip")}</div>
+              </TableHead>
+              <TableHead className="w-[12%] cursor-pointer select-none" onClick={() => handleSort("status")}>
+                <div className="flex items-center gap-1">Status {renderSortIcon("status")}</div>
+              </TableHead>
+              <TableHead className="w-[13%]">Filament</TableHead>
+              <TableHead className="w-[9%]">Temps</TableHead>
+              <TableHead className="w-[13%]">Current Job</TableHead>
               <TableHead className="text-right w-[25%]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredPrinters.map((printer) => (
+            {sortedPrinters.map((printer) => (
               <TableRow key={printer.id}>
                 {/* Col 1: Name / Type */}
                 <TableCell className="align-top py-3">
@@ -456,12 +524,23 @@ export default function PrintersPage() {
                     {renderStatusBadge("Op", printer.operationalStatus)}
                   </div>
                 </TableCell>
-                {/* Col 4: Temps */}
+                {/* Col 4: Filament */}
+                <TableCell className="align-top py-3">
+                  <div className="flex flex-col items-start gap-1">
+                    {printer.filamentMaterial ? (
+                      <MaterialChip material={printer.filamentMaterial} />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">N/A</span>
+                    )}
+                    {printer.filamentColor && <ColorChip hex={printer.filamentColor} />}
+                  </div>
+                </TableCell>
+                {/* Col 5: Temps */}
                 <TableCell className="align-top text-sm py-3">
                   <div>Tool: {printer.toolTemp !== null && printer.toolTemp !== undefined ? `${printer.toolTemp.toFixed(1)}°C` : 'N/A'}</div>
                   <div>Bed: {printer.bedTemp !== null && printer.bedTemp !== undefined ? `${printer.bedTemp.toFixed(1)}°C` : 'N/A'}</div>
                 </TableCell>
-                {/* Col 5: Job */}
+                {/* Col 6: Job */}
                 <TableCell className="align-top py-3">
                   {printer.operationalStatus === 'printing' || printer.operationalStatus === 'paused' ? (
                     <div className="flex flex-col space-y-1">
@@ -475,7 +554,7 @@ export default function PrintersPage() {
                     <span className="text-sm text-muted-foreground">-</span>
                   )}
                 </TableCell>
-                {/* Col 6: Actions */}
+                {/* Col 7: Actions */}
                 <TableCell className="text-right align-top py-3">
                   <div className="flex flex-wrap gap-1.5 justify-end">
                     {/* Pause/Resume Button */}

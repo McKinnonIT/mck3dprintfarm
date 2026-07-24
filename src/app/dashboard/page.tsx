@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { WebcamModal } from "@/components/webcam-modal";
+import { MaterialChip, ColorChip } from "@/components/printers/filament-chips";
 
 type Printer = {
   id: string;
@@ -17,6 +18,8 @@ type Printer = {
   printImageUrl?: string | null;
   bedTemp?: number | null;
   toolTemp?: number | null;
+  filamentMaterial?: string | null;
+  filamentColor?: string | null;
   printStartTime?: string | null;
   printTimeElapsed?: number | null;
   printTimeRemaining?: number | null;
@@ -115,6 +118,12 @@ function PrinterTile({
         <div>
           <h3 className="text-lg font-semibold">{printer.name}</h3>
           <p className="text-sm text-muted-foreground">{printer.type}</p>
+          {(printer.filamentMaterial || printer.filamentColor) && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {printer.filamentMaterial && <MaterialChip material={printer.filamentMaterial} />}
+              {printer.filamentColor && <ColorChip hex={printer.filamentColor} />}
+            </div>
+          )}
         </div>
         <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusBadgeClass(printer.operationalStatus)}`}>
           {printer.operationalStatus}

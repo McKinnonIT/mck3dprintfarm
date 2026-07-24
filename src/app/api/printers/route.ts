@@ -86,6 +86,8 @@ export async function POST(request: Request) {
         status: body.status || "active",
         operationalStatus: body.operationalStatus || "idle",
         groupId: body.groupId,
+        filamentMaterial: body.filamentMaterial,
+        filamentColor: body.filamentColor,
       },
       include: {
         group: {
@@ -150,6 +152,8 @@ export async function PUT(request: Request) {
         printTimeElapsed: body.printTimeElapsed,
         printTimeRemaining: body.printTimeRemaining,
         printImageUrl: body.printImageUrl,
+        filamentMaterial: body.filamentMaterial,
+        filamentColor: body.filamentColor,
       },
     })
     await syncCameraProxyPath(printer)

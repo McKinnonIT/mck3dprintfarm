@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { PrintJobHistory } from "@/components/print-job-history";
 import { TrashIcon, XMarkIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { FilamentMaterialSelect, FilamentColorPicker } from "@/components/printers/filament-fields";
 
 type Printer = {
   id: string;
@@ -27,6 +28,8 @@ type Printer = {
   printImageUrl?: string;
   groupId?: string;
   machineProfileId?: string | null;
+  filamentMaterial?: string | null;
+  filamentColor?: string | null;
 };
 
 type Group = {
@@ -69,6 +72,8 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
     { status: "idle" } | { status: "testing" } | { status: "success"; streamUri: string; deviceInfo?: { manufacturer?: string; model?: string } } | { status: "error"; message: string }
   >({ status: "idle" });
   const [status, setStatus] = useState(printer.status);
+  const [filamentMaterial, setFilamentMaterial] = useState(printer.filamentMaterial || "");
+  const [filamentColor, setFilamentColor] = useState(printer.filamentColor || "");
   const [groupId, setGroupId] = useState(printer.groupId || "");
   const [groups, setGroups] = useState<Group[]>([]);
   const [machineProfileId, setMachineProfileId] = useState(printer.machineProfileId || "");
@@ -90,6 +95,8 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
     setOnvifUsername(printer.onvifUsername || "");
     setOnvifPassword(printer.onvifPassword || "");
     setStatus(printer.status);
+    setFilamentMaterial(printer.filamentMaterial || "");
+    setFilamentColor(printer.filamentColor || "");
     setGroupId(printer.groupId || "");
     setMachineProfileId(printer.machineProfileId || "");
   }, [printer.id]);
@@ -167,6 +174,8 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
       // Explicit null (not undefined) so the API actually clears an
       // existing assignment - Prisma skips undefined fields on update.
       machineProfileId: machineProfileId || null,
+      filamentMaterial: filamentMaterial || null,
+      filamentColor: filamentColor || null,
     });
   };
 
@@ -432,6 +441,21 @@ export function EditPrinterForm({ printer, onSave, onCancel, onDelete, showJobHi
             <option value="disabled">Disabled</option>
             <option value="maintenance">Maintenance</option>
           </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="filamentMaterial" className="block text-sm font-medium text-foreground">
+              Filament Material (optional)
+            </label>
+            <FilamentMaterialSelect id="filamentMaterial" value={filamentMaterial} onChange={setFilamentMaterial} />
+          </div>
+          <div>
+            <label htmlFor="filamentColor-hex" className="block text-sm font-medium text-foreground">
+              Filament Colour (optional)
+            </label>
+            <FilamentColorPicker idPrefix="filamentColor" value={filamentColor} onChange={setFilamentColor} />
+          </div>
         </div>
 
         <div>

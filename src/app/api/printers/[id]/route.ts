@@ -97,6 +97,8 @@ export async function PUT(
           status: body.status, // This is the management status (active/disabled/maintenance)
           groupId: body.groupId,
           machineProfileId: body.machineProfileId,
+          filamentMaterial: body.filamentMaterial,
+          filamentColor: body.filamentColor,
         },
         include: {
           group: {
@@ -136,6 +138,8 @@ export async function PUT(
         lastSeen: new Date(),
         groupId: body.groupId,
         machineProfileId: body.machineProfileId,
+        filamentMaterial: body.filamentMaterial,
+        filamentColor: body.filamentColor,
       },
       include: {
         group: {

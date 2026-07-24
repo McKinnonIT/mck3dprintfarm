@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
+import { FilamentMaterialSelect, FilamentColorPicker } from "@/components/printers/filament-fields";
 
 type Printer = {
   name: string;
@@ -19,6 +20,8 @@ type Printer = {
   status: string;
   groupId?: string;
   machineProfileId?: string;
+  filamentMaterial?: string;
+  filamentColor?: string;
 };
 
 type Group = {
@@ -55,6 +58,8 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
     { status: "idle" } | { status: "testing" } | { status: "success"; streamUri: string; deviceInfo?: { manufacturer?: string; model?: string } } | { status: "error"; message: string }
   >({ status: "idle" });
   const [status, setStatus] = useState("active");
+  const [filamentMaterial, setFilamentMaterial] = useState("");
+  const [filamentColor, setFilamentColor] = useState("");
   const [groupId, setGroupId] = useState("");
   const [groups, setGroups] = useState<Group[]>([]);
   const [machineProfileId, setMachineProfileId] = useState("");
@@ -142,6 +147,8 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
       status: "active",
       groupId: groupId || undefined,
       machineProfileId: machineProfileId || undefined,
+      filamentMaterial: filamentMaterial || undefined,
+      filamentColor: filamentColor || undefined,
     });
   };
 
@@ -390,6 +397,21 @@ export function AddPrinterForm({ onAdd, onCancel, isSubmitting }: AddPrinterForm
           </div>
         </>
       )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="filamentMaterial" className="block text-sm font-medium text-foreground">
+            Filament Material (optional)
+          </label>
+          <FilamentMaterialSelect id="filamentMaterial" value={filamentMaterial} onChange={setFilamentMaterial} />
+        </div>
+        <div>
+          <label htmlFor="filamentColor-hex" className="block text-sm font-medium text-foreground">
+            Filament Colour (optional)
+          </label>
+          <FilamentColorPicker idPrefix="filamentColor" value={filamentColor} onChange={setFilamentColor} />
+        </div>
+      </div>
 
       <div>
         <label htmlFor="groupId" className="block text-sm font-medium text-foreground">

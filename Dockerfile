@@ -29,6 +29,9 @@ ENV NODE_ENV=production
 # Clear Next.js cache before building
 RUN rm -rf .next
 
+# Cap V8 heap - the build host only has 4GB RAM and no swap
+ENV NODE_OPTIONS=--max-old-space-size=3072
+
 # Build the Next.js application
 RUN npm run build && npm prune --production && npm cache clean --force
 

@@ -5,7 +5,13 @@ const nextConfig = {
 
   // Enable standalone output for Docker
   output: 'standalone',
-  
+
+  // This box only has 4GB RAM and no swap - Next's default per-CPU worker
+  // parallelism for the page-data-collection build step blows past that.
+  experimental: {
+    cpus: 1,
+  },
+
   // Configuration for handling dependencies - include all UI libraries
   transpilePackages: [
     'lucide-react', 
